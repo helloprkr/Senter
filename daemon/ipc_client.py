@@ -124,6 +124,12 @@ class IPCClient:
         """Get research queue status (US-002)"""
         return self.send("research_queue_status")
 
+    def get_results(self, task_id: str = None, goal_id: str = None,
+                    limit: int = 20, hours: int = None) -> dict:
+        """Get task results (US-003)"""
+        return self.send("get_results", task_id=task_id, goal_id=goal_id,
+                        limit=limit, hours=hours)
+
 
 # Convenience function for scripts
 def get_client(socket_path: str = DEFAULT_SOCKET_PATH) -> IPCClient:

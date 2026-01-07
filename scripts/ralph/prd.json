@@ -46,8 +46,8 @@
         "visual": false
       },
       "priority": 2,
-      "passes": false,
-      "notes": "Depends on US-001. Research worker currently identical to primary."
+      "passes": true,
+      "notes": "Implemented. Research queue with persistence and IPC handlers."
     },
     {
       "id": "US-003",

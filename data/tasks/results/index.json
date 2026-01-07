@@ -1,0 +1,15 @@
+{
+  "tasks": {
+    "ipc_test_001": {
+      "file": "2026-01-07/ipc_test_001.json",
+      "goal_id": "goal_ipc",
+      "timestamp": 1767826191.535962,
+      "status": "completed"
+    }
+  },
+  "goals": {
+    "goal_ipc": [
+      "ipc_test_001"
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "task_id": "ipc_test_001",
+  "goal_id": "goal_ipc",
+  "result": "IPC test result",
+  "timestamp": 1767826191.535962,
+  "status": "completed",
+  "worker": "unknown",
+  "latency_ms": 0,
+  "description": "Test IPC get_results",
+  "datetime": "2026-01-07T16:49:51.535962"
+}

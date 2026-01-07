@@ -58,6 +58,7 @@ class IPCServer:
             "config": self._handle_config,
             "add_research_task": self._handle_add_research_task,  # US-002
             "research_queue_status": self._handle_research_queue_status,  # US-002
+            "get_results": self._handle_get_results,  # US-003
         }
 
     def run(self):
@@ -402,5 +403,55 @@ class IPCServer:
 
         try:
             return self.daemon.get_research_queue_status()
+        except Exception as e:
+            return {"error": str(e)}
+
+    def _handle_get_results(self, request: dict) -> dict:
+        """Handle get_results request (US-003)"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            from engine.task_results import TaskResultStorage
+            from pathlib import Path
+
+            # Get result storage path from daemon
+            results_dir = Path(self.daemon.senter_root) / "data" / "tasks" / "results"
+            storage = TaskResultStorage(results_dir)
+
+            # Query parameters
+            task_id = request.get("task_id")
+            goal_id = request.get("goal_id")
+            limit = request.get("limit", 20)
+            hours = request.get("hours")
+
+            # Query by task_id
+            if task_id:
+                result = storage.get_by_task_id(task_id)
+                if result:
+                    return {"result": result.to_dict()}
+                else:
+                    return {"error": f"No result found for task {task_id}"}
+
+            # Query by goal_id
+            elif goal_id:
+                results = storage.get_by_goal_id(goal_id)
+                return {
+                    "results": [r.to_dict() for r in results],
+                    "count": len(results)
+                }
+
+            # Recent results
+            else:
+                import time
+                since = time.time() - (hours * 3600) if hours else None
+                results = storage.get_recent(limit=limit, since=since)
+                summary = storage.get_summary()
+                return {
+                    "results": [r.to_dict() for r in results],
+                    "count": len(results),
+                    "summary": summary
+                }
+
         except Exception as e:
             return {"error": str(e)}

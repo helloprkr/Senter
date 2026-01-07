@@ -45,3 +45,15 @@ See: gap_v2.md for full analysis of what's missing
   - Gotcha: Mock workers in tests must register before executor creates request
   - Gotcha: TimeoutError requires try/except, not Empty queue check
 ---
+
+## 2026-01-07 - US-002
+- Implemented research task queue for background work
+- Files changed: daemon/senter_daemon.py, daemon/ipc_server.py, daemon/ipc_client.py, tests/test_research_queue.py
+- **Learnings:**
+  - Pattern: Use multiprocessing.Queue for cross-process communication
+  - Pattern: Persist queue to JSON file on shutdown, reload on startup
+  - Pattern: Add IPC handler + client method pair for new functionality
+  - Gotcha: Queue.qsize() unreliable on macOS - drain and refill to count
+  - Gotcha: Queue.put() may not be immediately visible in same process
+  - Gotcha: Tests using multiprocessing.Queue can have timing issues - use direct get() instead of checking size
+---

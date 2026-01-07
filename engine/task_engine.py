@@ -542,6 +542,11 @@ class TaskExecutor:
         # Pending responses by correlation_id
         self._pending_responses: dict[str, dict] = {}
 
+        # Task result storage (US-003)
+        from engine.task_results import TaskResultStorage
+        results_dir = self.senter_root / "data" / "tasks" / "results"
+        self.result_storage = TaskResultStorage(results_dir)
+
         # Tool registry
         self.tools = {
             "web_search": self._execute_web_search,
@@ -552,10 +557,50 @@ class TaskExecutor:
     def execute(self, task: Task) -> Any:
         """Execute a task and return result"""
         if task.tool and task.tool in self.tools:
-            return self.tools[task.tool](task)
+            result = self.tools[task.tool](task)
+        else:
+            # Default: use LLM
+            result = self._execute_with_llm(task)
 
-        # Default: use LLM
-        return self._execute_with_llm(task)
+        # Store result (US-003)
+        self._store_result(task, result)
+
+        return result
+
+    def _store_result(self, task: Task, result: dict):
+        """Store task result to persistent storage (US-003)"""
+        from engine.task_results import TaskResult
+
+        try:
+            # Extract the main content from result
+            # Different tools return different formats
+            if isinstance(result, dict):
+                # LLM results have "response", file ops have "content", etc.
+                content = (result.get("response") or
+                          result.get("content") or
+                          result.get("results") or
+                          result)
+                status = result.get("status", "completed")
+                worker = result.get("worker", "unknown")
+                latency_ms = result.get("latency_ms", 0)
+            else:
+                content = result
+                status = "completed"
+                worker = "unknown"
+                latency_ms = 0
+
+            task_result = TaskResult(
+                task_id=task.id,
+                goal_id=task.goal_id,
+                result=content,
+                status=status,
+                worker=worker,
+                latency_ms=latency_ms,
+                description=task.description
+            )
+            self.result_storage.store(task_result)
+        except Exception as e:
+            logger.warning(f"Failed to store result for task {task.id}: {e}")
 
     def _execute_web_search(self, task: Task) -> dict:
         """Execute web search task"""
