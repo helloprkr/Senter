@@ -142,6 +142,83 @@ class ScreenCapture:
             return {'app': 'Unknown', 'window': str(e)}
 
 
+class ProjectDetector:
+    """Detects project names from window titles and file paths."""
+
+    # Patterns for extracting project names from window titles
+    PROJECT_PATTERNS = [
+        # VSCode: "filename.py - ProjectName - Visual Studio Code"
+        r'^[^-]+ - ([^-]+) - (?:Visual Studio Code|VSCode|Code)',
+        # PyCharm: "filename.py – ProjectName"
+        r'^[^–]+ – ([^–]+)$',
+        # Generic IDE pattern: "ProjectName - IDE"
+        r'^([A-Za-z][A-Za-z0-9_-]+) - (?:IDE|Editor)',
+        # File path pattern: "/path/to/ProjectName/file.py"
+        r'/([A-Za-z][A-Za-z0-9_-]+)/(?:src|lib|app|tests?|packages?)/[^/]+$',
+        # Git repo pattern from title: "project-name (branch)"
+        r'^([a-z][a-z0-9_-]+)\s*\([^)]+\)',
+        # Terminal with path: "~/Projects/ProjectName"
+        r'~/(?:Projects?|Code|Dev|Work)/([A-Za-z][A-Za-z0-9_-]+)',
+    ]
+
+    def __init__(self):
+        import re
+        self._compiled_patterns = [re.compile(p, re.IGNORECASE) for p in self.PROJECT_PATTERNS]
+        self._project_history: Dict[str, int] = {}  # project_name -> count
+
+    def detect_project(self, window_title: str, app_name: str = "") -> Optional[str]:
+        """
+        Detect project name from window title.
+
+        Args:
+            window_title: The current window title
+            app_name: The application name
+
+        Returns:
+            Detected project name or None
+        """
+        import re
+
+        if not window_title:
+            return None
+
+        # Try each pattern
+        for pattern in self._compiled_patterns:
+            match = pattern.search(window_title)
+            if match:
+                project = match.group(1).strip()
+                # Validate: not too short, not common words
+                if len(project) >= 2 and project.lower() not in {
+                    'untitled', 'new', 'file', 'document', 'tab', 'window',
+                    'home', 'desktop', 'downloads', 'documents', 'user'
+                }:
+                    self._project_history[project] = self._project_history.get(project, 0) + 1
+                    return project
+
+        # Try to extract from file path in title
+        path_match = re.search(r'[/\\]([A-Za-z][A-Za-z0-9_-]{2,})[/\\]', window_title)
+        if path_match:
+            potential = path_match.group(1)
+            if potential.lower() not in {'users', 'home', 'var', 'tmp', 'etc', 'bin', 'lib'}:
+                self._project_history[potential] = self._project_history.get(potential, 0) + 1
+                return potential
+
+        return None
+
+    def get_most_common_project(self, limit: int = 5) -> List[tuple]:
+        """Get most frequently detected projects."""
+        sorted_projects = sorted(
+            self._project_history.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        return sorted_projects[:limit]
+
+    def clear_history(self):
+        """Clear project detection history."""
+        self._project_history.clear()
+
+
 class ContextInferencer:
     """Infers work context from activity."""
 
@@ -212,10 +289,12 @@ class ActivityMonitor:
         self.capture_interval = capture_interval  # seconds
         self.screen = ScreenCapture()
         self.inferencer = ContextInferencer()
+        self.project_detector = ProjectDetector()
 
         self.running = False
         self.history: List[ActivitySnapshot] = []
         self.patterns: List[ActivityPattern] = []
+        self.detected_projects: Dict[str, int] = {}  # project_name -> snapshot_count
 
         # Persist path
         self.data_path = Path("data/activity")
@@ -252,15 +331,29 @@ class ActivityMonitor:
             'key_phrases': screen_data['key_phrases'] if screen_data else []
         }
 
+        # Detect project from window title (always run - fast)
+        detected_project = self.project_detector.detect_project(
+            window_info['window'],
+            window_info['app']
+        )
+
         # Infer context - use LLM every 10 cycles, heuristic otherwise
         llm_analysis = None
         if len(self.history) % 10 == 0 and self.engine:
             # Use LLM for deeper analysis
             llm_analysis = await self.infer_context_with_llm(combined)
             context = llm_analysis.activity_type
+            # LLM might detect project too - prefer LLM if it found one
+            if llm_analysis.project_name:
+                detected_project = llm_analysis.project_name
         else:
             # Use fast heuristic inference
             context = self.inferencer.infer_context(combined)
+
+        # Track project frequency
+        if detected_project:
+            self.detected_projects[detected_project] = \
+                self.detected_projects.get(detected_project, 0) + 1
 
         # Create snapshot with optional LLM analysis
         snapshot = ActivitySnapshot(
@@ -270,7 +363,7 @@ class ActivityMonitor:
             screen_text=combined['key_phrases'],
             inferred_context=context,
             llm_analysis=llm_analysis.__dict__ if llm_analysis else None,
-            detected_project=llm_analysis.project_name if llm_analysis else None,
+            detected_project=detected_project,
             detected_tasks=llm_analysis.tasks if llm_analysis else []
         )
 
@@ -421,16 +514,39 @@ Respond in JSON format:
         # Context distribution
         contexts = {}
         apps = {}
+        projects = {}
         for snap in recent:
             contexts[snap.inferred_context] = contexts.get(snap.inferred_context, 0) + 1
             apps[snap.active_app] = apps.get(snap.active_app, 0) + 1
+            if snap.detected_project:
+                projects[snap.detected_project] = projects.get(snap.detected_project, 0) + 1
 
         return {
             'total_snapshots': len(recent),
             'context_distribution': contexts,
             'top_apps': dict(sorted(apps.items(), key=lambda x: x[1], reverse=True)[:5]),
-            'current_context': self.get_current_context()
+            'top_projects': dict(sorted(projects.items(), key=lambda x: x[1], reverse=True)[:5]),
+            'current_context': self.get_current_context(),
+            'current_project': self.get_current_project()
         }
+
+    def get_current_project(self) -> Optional[str]:
+        """Get the currently detected project."""
+        if self.history:
+            return self.history[-1].detected_project
+        return None
+
+    def get_project_history(self) -> Dict[str, int]:
+        """Get all detected projects and their frequency."""
+        return dict(self.detected_projects)
+
+    def get_snapshots_for_project(self, project_name: str, limit: int = 50) -> List[ActivitySnapshot]:
+        """Get recent snapshots associated with a specific project."""
+        matching = [
+            s for s in reversed(self.history)
+            if s.detected_project == project_name
+        ]
+        return matching[:limit]
 
     def _save_history(self):
         """Save history to disk."""

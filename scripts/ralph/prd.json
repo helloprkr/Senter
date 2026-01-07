@@ -30,7 +30,7 @@
         "visual": false
       },
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Gap #1: Activity Monitoring - Part 1"
     },
     {

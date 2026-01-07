@@ -253,3 +253,171 @@ class TestActivitySnapshot:
         assert snapshot.llm_analysis is None
         assert snapshot.detected_project is None
         assert snapshot.detected_tasks == []
+
+
+# ============================================================================
+# US-002: Project Detection in ActivityMonitor
+# ============================================================================
+
+class TestProjectDetection:
+    """Tests for project detection in ActivityMonitor."""
+
+    def test_project_detector_vscode_pattern(self):
+        """Test detecting project from VSCode window title."""
+        from intelligence.activity import ProjectDetector
+
+        detector = ProjectDetector()
+
+        # VSCode pattern: "file.py - ProjectName - Visual Studio Code"
+        result = detector.detect_project("main.py - MyProject - Visual Studio Code")
+        assert result == "MyProject"
+
+    def test_project_detector_pycharm_pattern(self):
+        """Test detecting project from PyCharm window title."""
+        from intelligence.activity import ProjectDetector
+
+        detector = ProjectDetector()
+
+        # PyCharm pattern: "file.py – ProjectName"
+        result = detector.detect_project("test.py – SenterProject")
+        assert result == "SenterProject"
+
+    def test_project_detector_path_pattern(self):
+        """Test detecting project from file path in title."""
+        from intelligence.activity import ProjectDetector
+
+        detector = ProjectDetector()
+
+        # Path pattern: "/path/to/ProjectName/src/file.py"
+        result = detector.detect_project("/Users/dev/MyApp/src/main.py")
+        assert result == "MyApp"
+
+    def test_project_detector_terminal_pattern(self):
+        """Test detecting project from terminal path."""
+        from intelligence.activity import ProjectDetector
+
+        detector = ProjectDetector()
+
+        # Terminal pattern: "~/Projects/ProjectName"
+        result = detector.detect_project("~/Projects/CoolProject")
+        assert result == "CoolProject"
+
+    def test_project_detector_ignores_common_words(self):
+        """Test that common words are ignored as project names."""
+        from intelligence.activity import ProjectDetector
+
+        detector = ProjectDetector()
+
+        # Should not detect 'Untitled' or 'home'
+        result = detector.detect_project("Untitled - Visual Studio Code")
+        assert result is None
+
+    def test_project_detector_history(self):
+        """Test project detection history tracking."""
+        from intelligence.activity import ProjectDetector
+
+        detector = ProjectDetector()
+
+        # Detect same project multiple times
+        detector.detect_project("main.py - TestProject - Visual Studio Code")
+        detector.detect_project("test.py - TestProject - Visual Studio Code")
+        detector.detect_project("app.py - TestProject - Visual Studio Code")
+
+        history = detector.get_most_common_project()
+        assert len(history) > 0
+        assert history[0][0] == "TestProject"
+        assert history[0][1] == 3
+
+    def test_project_detector_no_match(self):
+        """Test when no project can be detected."""
+        from intelligence.activity import ProjectDetector
+
+        detector = ProjectDetector()
+
+        result = detector.detect_project("Google Chrome")
+        assert result is None
+
+    def test_activity_monitor_has_project_detector(self):
+        """Test ActivityMonitor initializes with ProjectDetector."""
+        from intelligence.activity import ActivityMonitor, ProjectDetector
+
+        monitor = ActivityMonitor()
+
+        assert hasattr(monitor, 'project_detector')
+        assert isinstance(monitor.project_detector, ProjectDetector)
+        assert hasattr(monitor, 'detected_projects')
+
+    def test_activity_monitor_get_current_project(self):
+        """Test getting current project from ActivityMonitor."""
+        from intelligence.activity import ActivityMonitor, ActivitySnapshot
+
+        monitor = ActivityMonitor()
+
+        # Add snapshot with project
+        snapshot = ActivitySnapshot(
+            timestamp=datetime.now(),
+            active_app="VSCode",
+            window_title="main.py - TestProject - Visual Studio Code",
+            screen_text=[],
+            inferred_context="coding",
+            detected_project="TestProject"
+        )
+        monitor.history.append(snapshot)
+
+        assert monitor.get_current_project() == "TestProject"
+
+    def test_activity_monitor_get_project_history(self):
+        """Test getting project history from ActivityMonitor."""
+        from intelligence.activity import ActivityMonitor
+
+        monitor = ActivityMonitor()
+
+        # Manually add project detections
+        monitor.detected_projects["ProjectA"] = 5
+        monitor.detected_projects["ProjectB"] = 3
+
+        history = monitor.get_project_history()
+        assert history["ProjectA"] == 5
+        assert history["ProjectB"] == 3
+
+    def test_activity_monitor_get_snapshots_for_project(self):
+        """Test getting snapshots for a specific project."""
+        from intelligence.activity import ActivityMonitor, ActivitySnapshot
+
+        monitor = ActivityMonitor()
+
+        # Add snapshots for different projects
+        for i in range(5):
+            monitor.history.append(ActivitySnapshot(
+                timestamp=datetime.now(),
+                active_app="VSCode",
+                window_title=f"file{i}.py",
+                screen_text=[],
+                inferred_context="coding",
+                detected_project="ProjectA" if i % 2 == 0 else "ProjectB"
+            ))
+
+        projectA_snaps = monitor.get_snapshots_for_project("ProjectA")
+        assert len(projectA_snaps) == 3  # Indexes 0, 2, 4
+
+    def test_activity_summary_includes_projects(self):
+        """Test that activity summary includes project information."""
+        from intelligence.activity import ActivityMonitor, ActivitySnapshot
+
+        monitor = ActivityMonitor()
+
+        # Add snapshots with projects
+        monitor.history.append(ActivitySnapshot(
+            timestamp=datetime.now(),
+            active_app="VSCode",
+            window_title="main.py",
+            screen_text=[],
+            inferred_context="coding",
+            detected_project="MyProject"
+        ))
+
+        summary = monitor.get_activity_summary()
+
+        assert 'top_projects' in summary
+        assert 'current_project' in summary
+        assert summary['current_project'] == "MyProject"

@@ -48,3 +48,15 @@ Project: Senter 3.0 Depth Improvements
 - Episode access: `episodes = self.memory._episodic.get_recent(limit=50)`
 
 ---
+
+## 2026-01-07 - US-001: Add LLM-based context inference to ActivityMonitor
+- Implemented: LLMContextAnalysis dataclass and infer_context_with_llm() async method
+- Files changed:
+  - intelligence/activity.py (added LLMContextAnalysis, infer_context_with_llm method)
+  - tests/test_depth_features.py (created with 12 tests for LLM context inference)
+- Learnings:
+  - LLM inference should always have fallback to heuristics
+  - JSON parsing from LLM needs regex extraction since responses may have extra text
+  - Use every 10th cycle for LLM inference to balance accuracy vs cost
+  - Mock AsyncMock for testing async LLM calls
+---
