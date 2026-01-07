@@ -1,0 +1,28 @@
+# Ralph Progress Log
+Started: {{DATE}}
+Project: {{PROJECT_NAME}}
+
+## Codebase Patterns
+- Stack: {{LANGUAGE}}/{{FRAMEWORK}}
+- Test runner: {{TEST_RUNNER}}
+- (Add patterns as discovered during implementation)
+
+## Key Files
+- (Identify critical files during first iteration)
+- (Example: db/schema.ts - database models)
+- (Example: lib/auth.ts - authentication utilities)
+
+---
+
+<!-- 
+Append completed stories below this line.
+Format:
+
+## [DATE] - [STORY-ID]
+- What was implemented
+- Files changed: file1.ts, file2.ts
+- **Learnings:**
+  - Pattern: Description of useful pattern
+  - Gotcha: Description of tricky issue
+---
+-->

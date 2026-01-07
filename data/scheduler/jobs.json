@@ -1,0 +1,39 @@
+{
+  "jobs": [
+    {
+      "id": "daily_digest",
+      "name": "Daily Digest",
+      "description": "Generate daily activity summary",
+      "trigger_type": "cron",
+      "trigger_config": {
+        "hour": 9,
+        "minute": 0
+      },
+      "job_type": "digest",
+      "job_params": {},
+      "status": "active",
+      "created_at": 1767821402.154736,
+      "last_run": null,
+      "next_run": null,
+      "run_count": 0
+    },
+    {
+      "id": "goal_check",
+      "name": "Goal Check",
+      "description": "Review and update active goals",
+      "trigger_type": "interval",
+      "trigger_config": {
+        "seconds": 3600
+      },
+      "job_type": "check",
+      "job_params": {
+        "check_type": "goals"
+      },
+      "status": "active",
+      "created_at": 1767821402.1547399,
+      "last_run": null,
+      "next_run": null,
+      "run_count": 0
+    }
+  ]
+}

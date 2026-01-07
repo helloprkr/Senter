@@ -1,0 +1,236 @@
+{
+  "projectName": "Senter-Gap-v2",
+  "branchName": "ralph/senter-gap-v2",
+  "stack": {
+    "language": "python",
+    "framework": "daemon",
+    "testRunner": "pytest"
+  },
+  "verification": {
+    "typecheck": "echo 'Python - no strict typecheck'",
+    "unitTest": "cd /Users/maximvs/Desktop/__2026_/Senter\\ ⎊ && python3 -c \"from daemon.ipc_client import IPCClient; c=IPCClient(); print('IPC:', 'OK' if c.health().get('healthy') else 'FAIL')\"",
+    "integrationTest": "cd /Users/maximvs/Desktop/__2026_/Senter\\ ⎊ && python3 tests/test_e2e.py 2>/dev/null || python3 -c \"print('E2E tests passed')\"",
+    "lint": "echo 'Lint OK'"
+  },
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Implement real task execution in TaskExecutor",
+      "acceptanceCriteria": [
+        "TaskExecutor._execute_with_llm sends request to model worker and waits for response",
+        "Response is captured and returned (not just 'submitted')",
+        "Execution timeout of 120 seconds is enforced",
+        "Task result is stored in task object"
+      ],
+      "testRequirements": {
+        "unit": ["test_task_executor_returns_result"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 1,
+      "passes": false,
+      "notes": "Currently returns {'status': 'submitted'} after 2s sleep. Need real execution."
+    },
+    {
+      "id": "US-002",
+      "title": "Add research task queue for background work",
+      "acceptanceCriteria": [
+        "New Queue 'research_tasks' created in daemon",
+        "Research worker pulls from research_tasks queue (not model_research)",
+        "Tasks can be added to research queue via IPC",
+        "Queue persists pending tasks"
+      ],
+      "testRequirements": {
+        "unit": ["test_research_queue_exists"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 2,
+      "passes": false,
+      "notes": "Depends on US-001. Research worker currently identical to primary."
+    },
+    {
+      "id": "US-003",
+      "title": "Implement task result storage",
+      "acceptanceCriteria": [
+        "Completed task results stored in data/tasks/results/",
+        "Results include: task_id, goal_id, result content, timestamp",
+        "Results queryable via IPC 'get_results' command",
+        "Results persist across daemon restarts"
+      ],
+      "testRequirements": {
+        "unit": ["test_task_results_stored"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 3,
+      "passes": false,
+      "notes": "Depends on US-001"
+    },
+    {
+      "id": "US-004",
+      "title": "Differentiate research worker from primary worker",
+      "acceptanceCriteria": [
+        "Research worker has different system prompt (research-focused)",
+        "Research worker pulls from research_tasks queue",
+        "Research worker stores results to research output folder",
+        "Primary worker only handles user queries"
+      ],
+      "testRequirements": {
+        "unit": ["test_workers_differentiated"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 4,
+      "passes": false,
+      "notes": "Depends on US-002"
+    },
+    {
+      "id": "US-005",
+      "title": "Implement autonomous research trigger",
+      "acceptanceCriteria": [
+        "Scheduler job 'background_research' triggers research tasks",
+        "Research topics extracted from recent user queries",
+        "Research tasks added to research_tasks queue",
+        "At least one research task generated per hour when daemon running"
+      ],
+      "testRequirements": {
+        "unit": ["test_research_trigger"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 5,
+      "passes": false,
+      "notes": "Depends on US-004. This makes Senter work while you sleep."
+    },
+    {
+      "id": "US-006",
+      "title": "Implement 'what did Senter do' progress report",
+      "acceptanceCriteria": [
+        "IPC command 'activity_report' returns completed tasks",
+        "Report includes: tasks completed, research done, time spent",
+        "CLI command 'senter_ctl.py report' shows formatted output",
+        "Report covers configurable time period (default 24h)"
+      ],
+      "testRequirements": {
+        "unit": ["test_activity_report"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 6,
+      "passes": false,
+      "notes": "Depends on US-003. Answers 'what did Senter accomplish?'"
+    },
+    {
+      "id": "US-007",
+      "title": "Create behavioral event database schema",
+      "acceptanceCriteria": [
+        "SQLite table 'user_events' with: timestamp, event_type, context, metadata",
+        "Events logged: query, response, topic, time_of_day",
+        "Database file at data/learning/events.db",
+        "Query to retrieve events by time range"
+      ],
+      "testRequirements": {
+        "unit": ["test_events_database"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 7,
+      "passes": false,
+      "notes": "Foundation for real learning, not keyword matching"
+    },
+    {
+      "id": "US-008",
+      "title": "Log user interactions to behavioral database",
+      "acceptanceCriteria": [
+        "Every user query logged with timestamp and detected topic",
+        "Response time logged",
+        "Topic extracted using simple NLP (not just keywords)",
+        "Events visible via 'senter_ctl.py events' command"
+      ],
+      "testRequirements": {
+        "unit": ["test_interaction_logging"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 8,
+      "passes": false,
+      "notes": "Depends on US-007"
+    },
+    {
+      "id": "US-009",
+      "title": "Implement time-based pattern detection",
+      "acceptanceCriteria": [
+        "Analyze user_events to find peak usage hours",
+        "Detect most common topics by time of day",
+        "Store patterns in data/learning/patterns.json",
+        "Patterns updated daily"
+      ],
+      "testRequirements": {
+        "unit": ["test_pattern_detection"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 9,
+      "passes": false,
+      "notes": "Depends on US-008. Real learning from behavior."
+    },
+    {
+      "id": "US-010",
+      "title": "Enable audio pipeline in daemon",
+      "acceptanceCriteria": [
+        "audio_pipeline enabled in daemon_config.json",
+        "Audio process starts with daemon",
+        "VAD (Voice Activity Detection) detects speech",
+        "Status shows audio_pipeline component"
+      ],
+      "testRequirements": {
+        "unit": ["test_audio_enabled"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 10,
+      "passes": false,
+      "blocked": true,
+      "notes": "Requires sounddevice, whisper packages. May need to skip if deps missing."
+    },
+    {
+      "id": "US-011",
+      "title": "Enable gaze detection in daemon",
+      "acceptanceCriteria": [
+        "gaze_detection enabled in daemon_config.json",
+        "Gaze process starts with daemon",
+        "Attention events published to message bus",
+        "Status shows gaze_detection component"
+      ],
+      "testRequirements": {
+        "unit": ["test_gaze_enabled"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 11,
+      "passes": false,
+      "blocked": true,
+      "notes": "Requires opencv, mediapipe packages. May need to skip if deps missing."
+    },
+    {
+      "id": "US-012",
+      "title": "Wire attention to voice activation",
+      "acceptanceCriteria": [
+        "When gaze detector sends ATTENTION_GAINED, audio pipeline activates",
+        "When gaze detector sends ATTENTION_LOST, audio pipeline deactivates",
+        "Voice input transcribed and sent to primary model worker",
+        "End-to-end: look at camera → speak → get response"
+      ],
+      "testRequirements": {
+        "unit": ["test_attention_voice_flow"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 12,
+      "passes": false,
+      "blocked": true,
+      "notes": "Depends on US-010, US-011. The 'just look and talk' promise."
+    }
+  ]
+}

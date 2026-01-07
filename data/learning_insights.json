@@ -1,0 +1,47 @@
+[
+  {
+    "response_preference": "balanced",
+    "formality": "casual",
+    "code_language": "python",
+    "topics": [],
+    "interaction_type": "coding",
+    "feedback_signals": [
+      "positive",
+      "positive"
+    ],
+    "timestamp": "2026-01-07T13:41:50.689346"
+  },
+  {
+    "response_preference": "detailed",
+    "formality": "professional",
+    "code_language": null,
+    "topics": [
+      "ai"
+    ],
+    "interaction_type": "planning",
+    "feedback_signals": [
+      "wants_more_detail"
+    ],
+    "timestamp": "2026-01-07T13:41:50.690195"
+  },
+  {
+    "response_preference": "brief",
+    "formality": "neutral",
+    "code_language": "rust",
+    "topics": [],
+    "interaction_type": "research",
+    "feedback_signals": [
+      "wants_less_detail"
+    ],
+    "timestamp": "2026-01-07T13:41:50.690492"
+  },
+  {
+    "response_preference": "brief",
+    "formality": "neutral",
+    "code_language": "python",
+    "topics": [],
+    "interaction_type": "coding",
+    "feedback_signals": [],
+    "timestamp": "2026-01-07T13:43:08.608255"
+  }
+]

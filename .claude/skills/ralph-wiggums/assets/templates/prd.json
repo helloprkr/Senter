@@ -1,0 +1,54 @@
+{
+  "projectName": "PROJECT_NAME",
+  "branchName": "ralph/feature-name",
+  "stack": {
+    "language": "typescript",
+    "framework": "nextjs",
+    "testRunner": "vitest"
+  },
+  "verification": {
+    "typecheck": "npm run typecheck",
+    "unitTest": "npm test",
+    "integrationTest": "npm run test:e2e",
+    "lint": "npm run lint",
+    "visualVerification": false
+  },
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "First atomic user story",
+      "acceptanceCriteria": [
+        "Specific observable outcome 1",
+        "Specific observable outcome 2",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_function_name_scenario"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Second atomic user story",
+      "acceptanceCriteria": [
+        "Given X, when Y, then Z",
+        "Error handling for edge case",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_happy_path", "test_error_case"],
+        "integration": ["test_api_flow"],
+        "visual": false
+      },
+      "priority": 2,
+      "passes": false,
+      "notes": "Depends on US-001"
+    }
+  ]
+}

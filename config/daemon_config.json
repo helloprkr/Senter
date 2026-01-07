@@ -1,0 +1,44 @@
+{
+  "components": {
+    "model_workers": {
+      "enabled": true,
+      "count": 2,
+      "models": {
+        "primary": "llama3.2",
+        "research": "llama3.2"
+      }
+    },
+    "audio_pipeline": {
+      "enabled": false,
+      "stt_model": "whisper-small",
+      "tts_model": "piper",
+      "vad_threshold": 0.5
+    },
+    "gaze_detection": {
+      "enabled": false,
+      "camera_id": 0,
+      "attention_threshold": 0.7
+    },
+    "task_engine": {
+      "enabled": true,
+      "max_concurrent_tasks": 3
+    },
+    "scheduler": {
+      "enabled": true,
+      "check_interval": 60
+    },
+    "reporter": {
+      "enabled": true,
+      "digest_hour": 9,
+      "notifications": true
+    },
+    "learning": {
+      "enabled": true
+    }
+  },
+  "ipc": {
+    "socket_path": "/tmp/senter.sock",
+    "http_port": 8765
+  },
+  "health_check_interval": 30
+}

@@ -1,0 +1,19 @@
+[
+  {
+    "activity_type": "task_completed",
+    "timestamp": 1767821413.855245,
+    "details": {
+      "description": "Research AI trends for investor deck"
+    },
+    "source": "task_engine"
+  },
+  {
+    "activity_type": "goal_completed",
+    "timestamp": 1767821413.855413,
+    "details": {
+      "description": "Prepare weekly report",
+      "tasks_completed": 3
+    },
+    "source": "task_engine"
+  }
+]

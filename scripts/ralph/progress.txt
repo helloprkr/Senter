@@ -1,0 +1,36 @@
+# Ralph Progress Log
+Started: 2026-01-07 16:30:00
+Project: Senter-Gap-v2
+
+## Codebase Patterns
+- Stack: Python 3.13 / Multiprocessing daemon
+- IPC: Unix socket at /tmp/senter.sock
+- Message passing: multiprocessing.Queue between components
+- Config: JSON at config/daemon_config.json
+- Data storage: data/ directory (SQLite, JSON files)
+- Daemon control: scripts/senter_ctl.py
+- Worker pattern: Standalone functions passed to Process()
+- Logging: Python logging to data/daemon.log
+
+## Key Files
+- daemon/senter_daemon.py - Main daemon with worker functions
+- daemon/ipc_server.py - Unix socket server for CLI communication
+- daemon/ipc_client.py - Client for CLI tools
+- engine/task_engine.py - Task planning and execution (NEEDS WORK)
+- scheduler/action_scheduler.py - Cron-like job scheduler
+- learning/learning_db.py - Behavioral database (basic)
+- scripts/senter_ctl.py - CLI control script
+
+## Current State
+- Daemon runs with 6 components (all healthy)
+- IPC communication working (query, status, health)
+- Model workers connect to Ollama successfully
+- Task execution is STUBBED (returns "submitted" after 2s)
+- Research worker identical to primary worker
+- Learning is keyword-based only
+- Audio/Gaze disabled in config
+
+## Gap Analysis Reference
+See: gap_v2.md for full analysis of what's missing
+
+---
