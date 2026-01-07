@@ -56,6 +56,8 @@ class IPCServer:
             "schedule": self._handle_schedule,
             "health": self._handle_health,
             "config": self._handle_config,
+            "add_research_task": self._handle_add_research_task,  # US-002
+            "research_queue_status": self._handle_research_queue_status,  # US-002
         }
 
     def run(self):
@@ -364,5 +366,41 @@ class IPCServer:
             if hasattr(self.daemon, 'config'):
                 return {"config": self.daemon.config}
             return {"config": {}}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def _handle_add_research_task(self, request: dict) -> dict:
+        """Handle add_research_task request (US-002)"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        description = request.get("description")
+        if not description:
+            return {"error": "Missing 'description' field"}
+
+        try:
+            task = {
+                "id": request.get("id", str(uuid.uuid4())[:8]),
+                "description": description,
+                "priority": request.get("priority", 5),
+                "source": request.get("source", "ipc"),
+            }
+
+            success = self.daemon.add_research_task(task)
+            if success:
+                return {"status": "ok", "task_id": task["id"]}
+            else:
+                return {"error": "Failed to add task to queue"}
+
+        except Exception as e:
+            return {"error": str(e)}
+
+    def _handle_research_queue_status(self, request: dict = None) -> dict:
+        """Handle research_queue_status request (US-002)"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            return self.daemon.get_research_queue_status()
         except Exception as e:
             return {"error": str(e)}

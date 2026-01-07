@@ -24,6 +24,7 @@ import time
 import json
 import atexit
 import logging
+import uuid
 from pathlib import Path
 from multiprocessing import Process, Queue, Event
 from typing import Optional
@@ -383,6 +384,10 @@ class SenterDaemon:
         self.output_queues: dict[str, Queue] = {}  # Output queues for responses
         self.main_output_queue = Queue(maxsize=10000)  # Shared output for routing
 
+        # Research task queue for background work (US-002)
+        self.research_tasks_queue = Queue(maxsize=1000)
+        self.research_tasks_file = self.senter_root / "data" / "research_tasks.json"
+
         # Health monitor
         self.health_monitor = HealthMonitor(
             check_interval=self.config.get("health_check_interval", 30)
@@ -404,6 +409,81 @@ class SenterDaemon:
         # PID file
         self.pid_file = self.senter_root / "data" / "senter.pid"
         self.is_running = False
+
+    def _load_research_tasks(self):
+        """Load pending research tasks from disk (US-002)"""
+        if self.research_tasks_file.exists():
+            try:
+                data = json.loads(self.research_tasks_file.read_text())
+                tasks = data.get("pending_tasks", [])
+                for task in tasks:
+                    self.research_tasks_queue.put(task)
+                logger.info(f"Loaded {len(tasks)} pending research tasks")
+            except Exception as e:
+                logger.warning(f"Could not load research tasks: {e}")
+
+    def _save_research_tasks(self):
+        """Save pending research tasks to disk (US-002)"""
+        tasks = []
+        while True:
+            try:
+                task = self.research_tasks_queue.get_nowait()
+                tasks.append(task)
+            except Empty:
+                break
+
+        # Put tasks back in queue
+        for task in tasks:
+            self.research_tasks_queue.put(task)
+
+        # Save to disk
+        self.research_tasks_file.parent.mkdir(parents=True, exist_ok=True)
+        self.research_tasks_file.write_text(json.dumps({
+            "pending_tasks": tasks,
+            "saved_at": time.time()
+        }, indent=2))
+        logger.info(f"Saved {len(tasks)} research tasks")
+
+    def add_research_task(self, task: dict) -> bool:
+        """Add a task to the research queue (US-002)"""
+        try:
+            # Ensure task has required fields
+            if "id" not in task:
+                task["id"] = str(uuid.uuid4())[:8]
+            if "created_at" not in task:
+                task["created_at"] = time.time()
+            if "status" not in task:
+                task["status"] = "pending"
+
+            self.research_tasks_queue.put_nowait(task)
+            logger.info(f"Added research task: {task.get('description', task['id'])[:50]}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to add research task: {e}")
+            return False
+
+    def get_research_queue_status(self) -> dict:
+        """Get status of research task queue (US-002)"""
+        try:
+            # qsize() is unreliable on macOS, so we count by draining and refilling
+            tasks = []
+            while True:
+                try:
+                    task = self.research_tasks_queue.get_nowait()
+                    tasks.append(task)
+                except Empty:
+                    break
+
+            # Put tasks back
+            for task in tasks:
+                self.research_tasks_queue.put(task)
+
+            return {
+                "queue_size": len(tasks),
+                "file_exists": self.research_tasks_file.exists()
+            }
+        except Exception as e:
+            return {"queue_size": -1, "error": str(e)}
 
     def _load_config(self) -> dict:
         """Load daemon configuration"""
@@ -466,6 +546,9 @@ class SenterDaemon:
             # Check for saved state
             if self.state_manager.has_saved_state():
                 logger.info("Found saved state from previous run")
+
+            # Load pending research tasks (US-002)
+            self._load_research_tasks()
 
             # Start components
             self._start_model_workers()
@@ -708,6 +791,9 @@ class SenterDaemon:
 
         # Give components time to save state
         time.sleep(2)
+
+        # Save research tasks (US-002)
+        self._save_research_tasks()
 
         # Clear state on clean shutdown
         self.state_manager.clear_state()

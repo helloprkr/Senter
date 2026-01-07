@@ -28,8 +28,8 @@
         "visual": false
       },
       "priority": 1,
-      "passes": false,
-      "notes": "Currently returns {'status': 'submitted'} after 2s sleep. Need real execution."
+      "passes": true,
+      "notes": "Implemented. TaskExecutor now waits for MODEL_RESPONSE with matching correlation_id."
     },
     {
       "id": "US-002",

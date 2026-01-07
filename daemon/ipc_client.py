@@ -116,6 +116,14 @@ class IPCClient:
         """Get daemon configuration"""
         return self.send("config")
 
+    def add_research_task(self, description: str, priority: int = 5) -> dict:
+        """Add a research task to the background queue (US-002)"""
+        return self.send("add_research_task", description=description, priority=priority)
+
+    def research_queue_status(self) -> dict:
+        """Get research queue status (US-002)"""
+        return self.send("research_queue_status")
+
 
 # Convenience function for scripts
 def get_client(socket_path: str = DEFAULT_SOCKET_PATH) -> IPCClient:

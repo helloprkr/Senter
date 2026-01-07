@@ -25,7 +25,7 @@ Project: Senter-Gap-v2
 - Daemon runs with 6 components (all healthy)
 - IPC communication working (query, status, health)
 - Model workers connect to Ollama successfully
-- Task execution is STUBBED (returns "submitted" after 2s)
+- Task execution NOW WORKING (US-001 complete)
 - Research worker identical to primary worker
 - Learning is keyword-based only
 - Audio/Gaze disabled in config
@@ -33,4 +33,15 @@ Project: Senter-Gap-v2
 ## Gap Analysis Reference
 See: gap_v2.md for full analysis of what's missing
 
+---
+
+## 2026-01-07 - US-001
+- Implemented real task execution in TaskExecutor._execute_with_llm
+- Files changed: engine/task_engine.py, tests/test_task_executor.py
+- **Learnings:**
+  - Pattern: Register component with MessageBus BEFORE sending requests
+  - Pattern: Use correlation_id to match request/response pairs
+  - Pattern: Store result in task.result for downstream consumers
+  - Gotcha: Mock workers in tests must register before executor creates request
+  - Gotcha: TimeoutError requires try/except, not Empty queue check
 ---
