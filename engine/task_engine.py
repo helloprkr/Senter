@@ -22,11 +22,10 @@ from enum import Enum
 from typing import Optional, Any
 from pathlib import Path
 from multiprocessing import Event
-from queue import Empty
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from daemon.message_bus import MessageBus, MessageType, Message
+from queue import Empty
 
 logger = logging.getLogger('senter.task_engine')
 
@@ -530,9 +529,18 @@ class TaskExecutor:
     Maps task types to execution strategies.
     """
 
+    # Default timeout for LLM execution
+    LLM_TIMEOUT_SECONDS = 120
+
     def __init__(self, message_bus: MessageBus, senter_root: Path):
         self.message_bus = message_bus
         self.senter_root = Path(senter_root)
+
+        # Register with message bus to receive responses
+        self._response_queue = self.message_bus.register("task_executor")
+
+        # Pending responses by correlation_id
+        self._pending_responses: dict[str, dict] = {}
 
         # Tool registry
         self.tools = {
@@ -586,30 +594,115 @@ class TaskExecutor:
         return {"path": str(path), "content": content}
 
     def _execute_with_llm(self, task: Task) -> dict:
-        """Execute task using LLM via message bus"""
-        # In production, this would send to model worker and wait
-        # For now, return placeholder
+        """Execute task using LLM via message bus.
+
+        Sends request to model worker and waits for response.
+        Timeout: 120 seconds (LLM_TIMEOUT_SECONDS).
+        """
         correlation_id = str(uuid.uuid4())
 
+        # Build task prompt based on task type
+        if task.task_type == TaskType.RESEARCH:
+            system_prompt = (
+                "You are a research assistant. Gather comprehensive information "
+                "and provide detailed, factual responses."
+            )
+        elif task.task_type == TaskType.GENERATE:
+            system_prompt = (
+                "You are a content generator. Create high-quality, well-structured "
+                "content based on the given instructions."
+            )
+        elif task.task_type == TaskType.ANALYZE:
+            system_prompt = (
+                "You are an analyst. Provide thorough analysis with clear reasoning "
+                "and actionable insights."
+            )
+        else:
+            system_prompt = "You are a helpful AI assistant. Complete the given task."
+
+        # Send request to model worker
         self.message_bus.send(
             MessageType.MODEL_REQUEST,
             source="task_executor",
             target="model_research",
             payload={
                 "prompt": f"Complete this task: {task.description}",
-                "max_tokens": 1024
+                "system_prompt": system_prompt,
+                "max_tokens": 2048
             },
             correlation_id=correlation_id
         )
 
-        # Wait briefly for response (in production, use proper async)
-        time.sleep(2)
+        logger.info(f"Task {task.id}: Request sent, waiting for response...")
 
-        return {
-            "status": "submitted",
-            "correlation_id": correlation_id,
-            "description": task.description
+        # Wait for response with timeout
+        start_time = time.time()
+        timeout = self.LLM_TIMEOUT_SECONDS
+
+        while time.time() - start_time < timeout:
+            try:
+                # Check for messages with short timeout
+                msg_dict = self._response_queue.get(timeout=0.5)
+                message = Message.from_dict(msg_dict)
+
+                # Check if this is our response
+                if (message.type == MessageType.MODEL_RESPONSE and
+                    message.correlation_id == correlation_id):
+
+                    response_text = message.payload.get("response", "")
+                    latency_ms = message.payload.get("latency_ms", 0)
+                    worker = message.payload.get("worker", "unknown")
+
+                    logger.info(
+                        f"Task {task.id}: Response received from {worker} "
+                        f"({latency_ms}ms)"
+                    )
+
+                    # Store result in task object
+                    task.result = {
+                        "status": "completed",
+                        "response": response_text,
+                        "worker": worker,
+                        "latency_ms": latency_ms,
+                        "correlation_id": correlation_id
+                    }
+
+                    return task.result
+
+                # Check for error response
+                elif (message.type == MessageType.ERROR and
+                      message.correlation_id == correlation_id):
+
+                    error_msg = message.payload.get("error", "Unknown error")
+                    logger.error(f"Task {task.id}: LLM error - {error_msg}")
+
+                    task.result = {
+                        "status": "error",
+                        "error": error_msg,
+                        "correlation_id": correlation_id
+                    }
+                    raise RuntimeError(f"LLM execution failed: {error_msg}")
+
+                # Not our message - could cache for other requests
+                else:
+                    # Store for potential other consumers
+                    if message.correlation_id:
+                        self._pending_responses[message.correlation_id] = message.payload
+
+            except Empty:
+                # No message yet, continue waiting
+                continue
+
+        # Timeout reached
+        elapsed = time.time() - start_time
+        logger.error(f"Task {task.id}: Timeout after {elapsed:.1f}s")
+
+        task.result = {
+            "status": "timeout",
+            "error": f"LLM execution timed out after {timeout}s",
+            "correlation_id": correlation_id
         }
+        raise TimeoutError(f"Task execution timed out after {timeout} seconds")
 
 
 # Test
