@@ -1,0 +1,181 @@
+/* Senter TUI Stylesheet */
+/* Color scheme: teal/cyan accents, black backgrounds, white text */
+
+SenterApp {
+    background: black;
+    color: white;
+    border: none;
+}
+
+/* Left panel: content area (2/3 width) */
+#left-panel, #left-panel-plus {
+    width: 2fr;
+    height: 100%;
+}
+
+/* Chat area */
+#chat-area, #chat-area-plus {
+    background: black;
+    color: #F5DEB3;
+    border: none;
+    height: 1fr;
+    padding: 1;
+}
+
+#chat-content {
+    padding: 1;
+    text-align: center;
+}
+
+/* Input bar */
+#input-bar, #input-bar-plus {
+    background: black;
+    color: #F5DEB3;
+    border: none;
+    height: 3;
+    padding: 0 1;
+}
+
+#input-container {
+    layout: horizontal;
+    height: 100%;
+}
+
+#message-input, #message-input-plus {
+    background: black;
+    color: #F5DEB3;
+    border: none;
+}
+
+#send-button {
+    background: cyan;
+    color: black;
+    border: solid teal;
+    margin-left: 1;
+}
+
+/* Snack bar below input */
+#snack-bar, #snack-bar-plus {
+    background: black;
+    color: #F5DEB3;
+    border: none;
+    height: 1;
+    padding: 0 1;
+}
+
+.snack-bar-left {
+    width: 1fr;
+    color: #F5DEB3;
+    text-align: left;
+}
+
+.snack-bar-right {
+    width: 1fr;
+    color: #F5DEB3;
+    text-align: right;
+}
+
+/* Sidebar: right 1/3 */
+#sidebar, #sidebar-plus {
+    background: black;
+    color: #F5DEB3;
+    border: solid #00ffaa;
+    width: 1fr;
+    height: 100%;
+    padding: 1;
+}
+
+/* Topic overlay interrupting the border */
+#topic-overlay, #topic-overlay-plus {
+    background: teal;
+    color: black;
+    text-align: center;
+    height: 1;
+    margin: 0;
+    padding: 0 1;
+    border-bottom: solid teal;
+}
+
+/* Collapsible content */
+.collapsible-content {
+    background: black;
+    color: #F5DEB3;
+    padding: 0 1;
+    margin: 0;
+}
+
+/* Sidebar: right 1/3 */
+#sidebar {
+    background: black;
+    color: #F5DEB3;
+    border: solid #00ffaa;
+    width: 1fr;
+    height: 100%;
+    padding: 0;
+}
+
+/* Sidebar footer */
+#sidebar-footer, #sidebar-footer-plus {
+    layout: horizontal;
+    height: 1;
+    border: none;
+    dock: bottom;
+}
+
+#sidebar-topic, #sidebar-topic-plus {
+    width: 1fr;
+    padding: 0 1;
+    color: #F5DEB3;
+}
+
+#sidebar-datetime, #sidebar-datetime-plus {
+    width: 1fr;
+    padding: 0 1;
+    text-align: right;
+    color: #F5DEB3;
+}
+
+/* Collapsible content */
+.collapsible-content {
+    background: black;
+    color: #F5DEB3;
+    padding: 0 1;
+    margin: 0;
+}
+
+/* Model items */
+.model-item {
+    layout: horizontal;
+    height: 3;
+    margin: 0 0 1 0;
+}
+
+.model-item.default-model {
+    border: solid teal;
+    background: teal;
+}
+
+.model-name {
+    width: 1fr;
+    color: #F5DEB3;
+    padding: 0 1;
+}
+
+.model-item.default-model .model-name {
+    color: black;
+    background: teal;
+}
+
+/* Tab styling */
+.add-tab-content {
+    color: #F5DEB3;
+    text-align: center;
+    padding: 2;
+}
+
+.new-tab-content {
+    color: #F5DEB3;
+    text-align: center;
+    padding: 2;
+}
+

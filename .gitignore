@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Senter models (large files, download via setup)
+Models/*.gguf
+Models/*.safetensors
+Models/*.bin
+
+# Senter outputs
+outputs/*
+!outputs/.gitkeep
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+*.pid
+
+# Config with user-specific data (contains API keys)
+config/user_profile.json
+
+# Temporary files
+*.tmp
+*.bak
+# Legacy JSON configurations (replaced by SENTER.md)
+Agents/

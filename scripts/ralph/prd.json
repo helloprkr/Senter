@@ -1,0 +1,380 @@
+{
+  "projectName": "Senter 3.0 Depth Improvements",
+  "branchName": "ralph/senter-depth-improvements",
+  "stack": {
+    "language": "python",
+    "framework": "custom",
+    "testRunner": "pytest"
+  },
+  "verification": {
+    "typecheck": "python -m py_compile senter.py core/*.py memory/*.py intelligence/*.py coupling/*.py evolution/*.py",
+    "unitTest": "python -m pytest tests/ -v --tb=short",
+    "integrationTest": "python -c \"from core.engine import Senter; print('Import OK')\"",
+    "lint": "python -m ruff check . --fix --ignore E501"
+  },
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add LLM-based context inference to ActivityMonitor",
+      "acceptanceCriteria": [
+        "ActivityMonitor has async method infer_context_with_llm(snapshot)",
+        "Method uses LLM to analyze app, window, and key phrases",
+        "Returns structured context: {activity_type, project_name, tasks, confidence}",
+        "Falls back to heuristic inference if LLM unavailable",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_activity_llm_context_inference"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 1,
+      "passes": false,
+      "notes": "Gap #1: Activity Monitoring - Part 1"
+    },
+    {
+      "id": "US-002",
+      "title": "Add project detection to ActivityMonitor",
+      "acceptanceCriteria": [
+        "ActivityMonitor detects current project from window title and file paths",
+        "Stores detected projects in activity history",
+        "Links activity snapshots to detected projects",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_activity_project_detection"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 2,
+      "passes": false,
+      "notes": "Gap #1: Activity Monitoring - Part 2"
+    },
+    {
+      "id": "US-003",
+      "title": "Integrate ActivityMonitor with goal suggestion",
+      "acceptanceCriteria": [
+        "ActivityMonitor suggests goals based on observed activity patterns",
+        "Goals created with source='activity_inferred'",
+        "Minimum 10 snapshots in same context before suggesting goal",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_activity_goal_suggestion"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 3,
+      "passes": false,
+      "notes": "Gap #1: Activity Monitoring - Part 3"
+    },
+    {
+      "id": "US-004",
+      "title": "Add LLM-based semantic goal detection",
+      "acceptanceCriteria": [
+        "GoalDetector has async method detect_goals_semantically(conversation)",
+        "Method analyzes last 20 episodes for implicit and explicit goals",
+        "Returns goals with confidence scores and evidence",
+        "Detects goals that regex would miss (e.g., 'studying Spanish')",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_semantic_goal_detection"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 4,
+      "passes": false,
+      "notes": "Gap #2: Semantic Goal Detection - Part 1"
+    },
+    {
+      "id": "US-005",
+      "title": "Add goal progress detection via LLM",
+      "acceptanceCriteria": [
+        "GoalDetector can detect progress indicators in conversation",
+        "Auto-updates goal.progress when progress mentioned",
+        "Auto-marks goals complete when 'finished/done/completed' detected",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_goal_progress_detection"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 5,
+      "passes": false,
+      "notes": "Gap #2: Semantic Goal Detection - Part 2"
+    },
+    {
+      "id": "US-006",
+      "title": "Add failure analysis to MutationEngine",
+      "acceptanceCriteria": [
+        "MutationEngine has method analyze_low_fitness_episodes(episodes)",
+        "Method categorizes failures: too_long, too_short, wrong_mode, missed_frustration",
+        "Returns FailureAnalysis with pattern counts and suggested fixes",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_mutation_failure_analysis"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 6,
+      "passes": false,
+      "notes": "Gap #3: Intelligent Mutations - Part 1"
+    },
+    {
+      "id": "US-007",
+      "title": "Add LLM-driven mutation proposals",
+      "acceptanceCriteria": [
+        "MutationEngine has async method propose_intelligent_mutation(low_fitness_episodes)",
+        "Uses LLM to analyze what went wrong and suggest specific config changes",
+        "Returns targeted Mutation based on LLM analysis, not random",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_intelligent_mutation_proposal"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 7,
+      "passes": false,
+      "notes": "Gap #3: Intelligent Mutations - Part 2"
+    },
+    {
+      "id": "US-008",
+      "title": "Add self-initiated task creation from goals",
+      "acceptanceCriteria": [
+        "ProactiveSuggestionEngine can create background tasks from active goals",
+        "Tasks are research or planning type based on goal category",
+        "Respects trust level (>0.7 to create tasks)",
+        "Records task origin as 'goal_derived'",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_self_initiated_tasks"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 8,
+      "passes": false,
+      "notes": "Gap #4: Self-Initiated Work - Part 1"
+    },
+    {
+      "id": "US-009",
+      "title": "Add goal-based background research automation",
+      "acceptanceCriteria": [
+        "Daemon can automatically start research for learning-type goals",
+        "Research results stored in semantic memory linked to goal",
+        "User notified of completed research in 'while you were away'",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_automated_goal_research"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 9,
+      "passes": false,
+      "notes": "Gap #4: Self-Initiated Work - Part 2"
+    },
+    {
+      "id": "US-010",
+      "title": "Add pattern-based need prediction to ProactiveSuggestionEngine",
+      "acceptanceCriteria": [
+        "ProactiveSuggestionEngine analyzes conversation patterns for recurring needs",
+        "Predicts needs based on time-of-day + activity patterns",
+        "Pre-fetches research for predicted needs",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_anticipatory_need_prediction"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 10,
+      "passes": false,
+      "notes": "Gap #5: Anticipatory Suggestions - Part 1"
+    },
+    {
+      "id": "US-011",
+      "title": "Add activity-context-aware suggestions",
+      "acceptanceCriteria": [
+        "ProactiveSuggestionEngine considers ActivityMonitor context",
+        "Suggests relevant resources based on what user is doing",
+        "Timing based on activity (suggest break after 2hr coding)",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_activity_aware_suggestions"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 11,
+      "passes": false,
+      "notes": "Gap #5: Anticipatory Suggestions - Part 2"
+    },
+    {
+      "id": "US-012",
+      "title": "Add preference learning to ProceduralMemory",
+      "acceptanceCriteria": [
+        "ProceduralMemory tracks response patterns that get high fitness",
+        "Stores user preferences: concise vs detailed, formal vs casual",
+        "Preference confidence increases with consistent signals",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_procedural_preference_learning"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 12,
+      "passes": false,
+      "notes": "Gap #6: Procedural Learning - Part 1"
+    },
+    {
+      "id": "US-013",
+      "title": "Apply learned preferences to response generation",
+      "acceptanceCriteria": [
+        "ResponseComposer queries ProceduralMemory for preferences",
+        "Adds preference instructions to LLM prompt",
+        "Preferences affect response length, formality, detail level",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_preference_application"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 13,
+      "passes": false,
+      "notes": "Gap #6: Procedural Learning - Part 2"
+    },
+    {
+      "id": "US-014",
+      "title": "Add LLM-based sentiment analysis to AffectiveMemory",
+      "acceptanceCriteria": [
+        "AffectiveMemory has async method analyze_sentiment(text)",
+        "Uses LLM to determine sentiment on -1 to 1 scale",
+        "Replaces fixed 0.5 sentiment with actual analysis",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_llm_sentiment_analysis"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 14,
+      "passes": false,
+      "notes": "Gap #7: Affective Analysis - Part 1"
+    },
+    {
+      "id": "US-015",
+      "title": "Add emotional pattern detection to AffectiveMemory",
+      "acceptanceCriteria": [
+        "AffectiveMemory detects recurring emotional triggers",
+        "Stores patterns like 'user frustrated when discussing topic X'",
+        "Makes patterns available to response composer",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_emotional_pattern_detection"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 15,
+      "passes": false,
+      "notes": "Gap #7: Affective Analysis - Part 2"
+    },
+    {
+      "id": "US-016",
+      "title": "Add file reading capability",
+      "acceptanceCriteria": [
+        "tools/file_ops.py has read_file(path) function",
+        "Supports text files, code files, markdown",
+        "Returns FileContent with content, metadata, summary",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_file_reading"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 16,
+      "passes": false,
+      "notes": "Gap #8: File Operations - Part 1"
+    },
+    {
+      "id": "US-017",
+      "title": "Add project structure analysis",
+      "acceptanceCriteria": [
+        "tools/file_ops.py has analyze_project(root_path) function",
+        "Detects project type (Python, JS, etc.) from files",
+        "Returns ProjectStructure with files, dependencies, entry points",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_project_analysis"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 17,
+      "passes": false,
+      "notes": "Gap #8: File Operations - Part 2"
+    },
+    {
+      "id": "US-018",
+      "title": "Wire ActivityMonitor into daemon background loop",
+      "acceptanceCriteria": [
+        "Daemon starts ActivityMonitor when launched",
+        "Activity snapshots captured every 60 seconds",
+        "Activity summary available via IPC /activity command",
+        "typecheck passes",
+        "unit tests pass"
+      ],
+      "testRequirements": {
+        "unit": ["test_daemon_activity_integration"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 18,
+      "passes": false,
+      "notes": "Integration: Wire activity monitoring to daemon"
+    },
+    {
+      "id": "US-019",
+      "title": "Add comprehensive tests for all new features",
+      "acceptanceCriteria": [
+        "All 8 feature gaps have at least 2 tests each",
+        "Tests cover happy path and edge cases",
+        "All tests pass",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_depth_features_comprehensive"],
+        "integration": [],
+        "visual": false
+      },
+      "priority": 19,
+      "passes": false,
+      "notes": "Final: Comprehensive test coverage"
+    }
+  ]
+}

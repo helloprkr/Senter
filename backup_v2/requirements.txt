@@ -1,0 +1,80 @@
+# Senter - Requirements
+# Updated: January 7, 2026
+#
+# Install core requirements: pip install -r requirements.txt
+# For full functionality, also install optional model backends
+
+# ============================================================
+# CORE REQUIREMENTS (Actually used by Senter)
+# ============================================================
+
+# Web requests (web_search.py)
+requests>=2.28.0
+
+# Configuration parsing (SENTER.md files)
+PyYAML>=6.0
+
+# Array operations (embeddings, if implemented)
+numpy>=1.24.0
+
+# Image processing (omniagent image handling)
+Pillow>=10.0.0
+
+# TUI interface (senter_app.py, senter_widgets.py)
+textual>=0.40.0
+
+# Logging
+loguru>=0.7.0
+
+# ============================================================
+# MODEL BACKENDS (Choose based on your setup)
+# ============================================================
+
+# Option 1: Local GGUF models (recommended for privacy)
+llama-cpp-python>=0.3.0
+
+# Option 2: HuggingFace Transformers (for Qwen models)
+# torch>=2.0.0
+# transformers>=4.40.0
+# accelerate>=1.0.0
+
+# Option 3: OpenAI API (requires API key)
+# openai>=1.0.0
+
+# ============================================================
+# OPTIONAL - Extended Functionality
+# ============================================================
+
+# Audio processing (if using audio features)
+# soundfile>=0.13.0
+# librosa>=0.10.0
+# torchaudio
+
+# Image generation (if using Qwen Image)
+# diffusers>=0.33.0
+# torchvision>=0.15.0
+
+# Music generation (ACE-Step, if using compose_music.py)
+# pytorch_lightning>=2.5.1
+# peft>=0.12.0
+
+# API server (if exposing Senter as API)
+# fastapi>=0.104.0
+# uvicorn>=0.24.0
+
+# ============================================================
+# DEVELOPMENT / TESTING
+# ============================================================
+# pytest>=7.0.0
+# black>=23.0.0
+# flake8>=6.0.0
+
+# ============================================================
+# NOTES
+# ============================================================
+# 1. The core Senter CLI/TUI only needs the CORE REQUIREMENTS section
+# 2. Choose ONE model backend based on your hardware/preferences
+# 3. Extended functionality packages are only needed for specific features
+#
+# For Qwen2.5-Omni models, install transformers from git:
+#   pip install git+https://github.com/huggingface/transformers

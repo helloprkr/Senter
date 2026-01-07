@@ -1,0 +1,65 @@
+{
+  "user_id": "default_user",
+  "name": "Default User",
+
+  "central_model": {
+    "type": "gguf",
+    "path": "/home/sovthpaw/Models/Hermes-3-Llama-3.2-3B.Q4_K_M.gguf",
+    "is_vlm": false,
+    "settings": {
+      "max_tokens": 512,
+      "temperature": 0.7,
+      "context_window": 8192
+    }
+  },
+
+  "preferences": {
+    "response_style": "balanced",
+    "detail_level": "moderate",
+    "creativity_level": 0.7,
+    "technical_level": "intermediate",
+    "language": "en",
+    "timezone": "UTC"
+  },
+
+  "agent_preferences": {
+    "default_agent": "senter",
+    "favorite_focuses": [],
+    "blocked_focuses": [],
+    "custom_settings": {}
+  },
+
+  "learning_profile": {
+    "topics_of_interest": ["programming", "ai", "music", "art"],
+    "skill_level": {
+      "technical": "intermediate",
+      "creative": "advanced",
+      "analytical": "advanced"
+    },
+    "learning_goals": [
+      "Improve programming skills",
+      "Learn AI development",
+      "Enhance creative writing"
+    ]
+  },
+
+  "context_settings": {
+    "chat_history_length": 10,
+    "topic_memory_days": 30,
+    "max_context_per_topic": 5000
+  },
+
+  "privacy_settings": {
+    "data_retention": true,
+    "analytics_enabled": false,
+    "share_learnings": false
+  },
+
+  "review_settings": {
+    "confidence_threshold": 0.5,
+    "merge_threshold": 0.7
+  },
+
+  "theme": "matrix_green",
+  "setup_complete": false
+}

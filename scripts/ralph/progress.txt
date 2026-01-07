@@ -1,0 +1,50 @@
+# Ralph Progress Log
+Started: 2026-01-07
+Project: Senter 3.0 Depth Improvements
+
+## Codebase Patterns
+- Stack: Python 3.10+ / Custom Framework
+- Test runner: pytest with pytest-asyncio (asyncio_mode = "auto")
+- Lint: ruff (line-length = 100)
+- Memory: SQLite in data/memory.db
+- Config: genome.yaml parsed by GenomeParser
+- Async: Most methods are async, use `await` pattern
+- Type hints: Used throughout, TYPE_CHECKING imports for circular deps
+- Dataclasses: Used for data structures (Episode, Goal, Mutation, etc.)
+
+## Key Files
+- `core/engine.py` - Senter class, main interact() loop
+- `core/composer.py` - ResponseComposer, CompositionContext
+- `intelligence/activity.py` - ActivityMonitor, ScreenCapture, ContextInferencer
+- `intelligence/goals.py` - GoalDetector, Goal dataclass
+- `intelligence/proactive.py` - ProactiveSuggestionEngine
+- `evolution/mutations.py` - MutationEngine, Mutation dataclass
+- `evolution/fitness.py` - FitnessTracker
+- `memory/living_memory.py` - LivingMemory, Episode, MemoryContext
+- `memory/semantic.py` - SemanticMemory
+- `memory/episodic.py` - EpisodicMemory
+- `memory/procedural.py` - ProceduralMemory
+- `memory/affective.py` - AffectiveMemory
+- `coupling/human_model.py` - HumanModel, HumanCognitiveState
+- `coupling/trust.py` - TrustTracker
+- `daemon/senter_daemon.py` - SenterDaemon, background task execution
+- `tools/file_ops.py` - File operations (currently stub)
+- `tests/test_vision.py` - Existing vision tests
+
+## Architecture Notes
+- Engine loads genome.yaml via GenomeParser
+- Memory uses 4 layers: semantic, episodic, procedural, affective
+- Models created via create_model() factory in models/base.py
+- LLM calls use async pattern: await self.model.generate(prompt)
+- Embeddings via EmbeddingModel wrapper
+- Daemon uses Unix socket IPC for client communication
+- Trust level gates proactive behavior (>0.6 for suggestions, >0.8 for proactive)
+
+## Existing Patterns to Follow
+- Store in memory: `self.memory.semantic.store(content, domain)`
+- Search memory: `results = self.memory.semantic.search(query)`
+- LLM call: `response = await self.model.generate(prompt)`
+- Embedding: `vec = await self.embeddings.embed(text)`
+- Episode access: `episodes = self.memory._episodic.get_recent(limit=50)`
+
+---

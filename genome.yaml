@@ -1,0 +1,234 @@
+# SENTER 3.0 GENOME
+# All behavior emerges from this configuration
+# Code is just the interpreter
+
+version: "3.0"
+name: "Senter"
+description: "Unified Personal AI with Cognitive Coupling"
+
+# ============================================================
+# MODEL CONFIGURATION
+# ============================================================
+models:
+  primary:
+    type: ollama
+    model: "llama3.2"
+    base_url: "http://localhost:11434"
+    settings:
+      temperature: 0.7
+      max_tokens: 1024
+
+  embeddings:
+    type: ollama
+    model: "nomic-embed-text"
+    base_url: "http://localhost:11434"
+    settings:
+      dimensions: 768
+
+# ============================================================
+# KNOWLEDGE CONFIGURATION
+# ============================================================
+knowledge:
+  graph:
+    type: hierarchical
+    persistence: sqlite
+
+  domains:
+    - name: user_context
+      description: "Everything about the user"
+      retention: permanent
+
+    - name: project_context
+      description: "Current projects and work"
+      retention: 90d
+
+    - name: conversation_context
+      description: "Recent conversation topics"
+      retention: 7d
+
+    - name: world_knowledge
+      description: "General facts and information"
+      retention: permanent
+      update_via: web_search
+
+# ============================================================
+# CAPABILITY CONFIGURATION
+# ============================================================
+capabilities:
+  discovery:
+    enabled: true
+    sources:
+      - path: tools/
+        pattern: "*.py"
+
+  builtin:
+    - name: respond
+      description: "Generate conversational response"
+      always_available: true
+
+    - name: web_search
+      description: "Search the web for current information"
+      triggers: ["current", "latest", "news", "weather", "price", "today"]
+
+    - name: remember
+      description: "Store information in long-term memory"
+      triggers: ["remember", "don't forget", "note that", "keep in mind"]
+
+    - name: recall
+      description: "Retrieve information from memory"
+      triggers: ["what did", "when did", "remind me", "do you remember"]
+
+# ============================================================
+# COUPLING CONFIGURATION (The Key Innovation)
+# ============================================================
+coupling:
+  joint_state:
+    visible_to_human: true
+    surface:
+      - current_focus
+      - active_goals
+      - ai_uncertainties
+      - available_capabilities
+
+  human_model:
+    cognitive_state:
+      infer:
+        - focus_level        # How focused (0-1)
+        - energy_level       # How tired (0-1)
+        - mode              # exploring | executing | debugging | learning | creating
+        - time_pressure     # none | low | moderate | high | urgent
+        - frustration       # Detected frustration level (0-1)
+
+    persistent:
+      - communication_style
+      - expertise_areas
+      - preferences
+      - patterns
+
+  protocols:
+    - name: teaching
+      description: "AI explains, human learns"
+      triggers: [teach, explain, "how does", "how do", "what is", why, learn, understand]
+      behavior:
+        - explain_reasoning
+        - check_understanding
+        - adapt_to_level
+        - provide_examples
+
+    - name: directing
+      description: "Human guides, AI executes"
+      triggers: [run, execute, implement, create, build, write, generate, search]
+      behavior:
+        - confirm_understanding
+        - execute_precisely
+        - report_results
+        - ask_for_next_step
+
+    - name: parallel
+      description: "Both working, periodic sync"
+      triggers: [research, "while i", "in the background", "deep work", "meanwhile"]
+      behavior:
+        - acknowledge_task
+        - work_in_background
+        - propose_sync_points
+        - show_progress
+
+    - name: dialogue
+      description: "Turn-taking conversation"
+      triggers: [chat, talk, discuss, think, explore]
+      behavior:
+        - respond_to_each_input
+        - ask_clarifying_questions_if_needed
+        - suggest_related_topics
+
+  trust:
+    initial: 0.5
+    range: [0, 1]
+    increase_on:
+      - successful_task_completion: 0.02
+      - accurate_prediction: 0.01
+      - helpful_suggestion: 0.01
+    decrease_on:
+      - error: -0.05
+      - misunderstanding: -0.03
+      - broken_expectation: -0.10
+    effects:
+      - affects: suggestion_confidence
+        threshold: 0.7
+      - affects: proactive_behavior
+        threshold: 0.8
+
+# ============================================================
+# MEMORY CONFIGURATION
+# ============================================================
+memory:
+  semantic:
+    description: "Facts and concepts"
+    storage: sqlite
+    embedding_search: true
+    decay_rate: 0.001  # Per day
+
+  episodic:
+    description: "Specific interactions and events"
+    storage: sqlite
+    max_episodes: 10000
+    summarize_after: 30d
+
+  procedural:
+    description: "How to help this specific human"
+    storage: yaml
+    update_on: successful_interaction
+
+  affective:
+    description: "Emotional context of interactions"
+    storage: sqlite
+    track:
+      - user_sentiment
+      - interaction_satisfaction
+      - frustration_events
+
+# ============================================================
+# EVOLUTION CONFIGURATION
+# ============================================================
+evolution:
+  enabled: true
+
+  fitness:
+    metrics:
+      - name: goal_achievement
+        weight: 0.3
+        source: goal_tracker
+
+      - name: coupling_depth
+        weight: 0.3
+        source: joint_state.alignment
+
+      - name: trust_stability
+        weight: 0.2
+        source: trust_tracker
+
+      - name: user_satisfaction
+        weight: 0.2
+        source: affective_memory
+
+  mutations:
+    rate: 0.05
+    types:
+      - prompt_refinement
+      - capability_adjustment
+      - protocol_tuning
+      - threshold_modification
+
+  selection:
+    pressure: user_satisfaction
+    rollback_on_trust_drop: true
+    experiment_duration: 10
+
+# ============================================================
+# INTERFACE CONFIGURATION
+# ============================================================
+interface:
+  cli:
+    prompt: "[{mode}] You: "
+    show_ai_state: true
+    show_thinking: false
