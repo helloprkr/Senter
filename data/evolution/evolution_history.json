@@ -12,8 +12,20 @@
       "fitness_after": null,
       "applied": true,
       "timestamp": "2026-01-07T15:15:37.917185"
+    },
+    {
+      "id": "e9d91cf1",
+      "type": "threshold_modification",
+      "target": "coupling.trust.increase_on.successful_task_completion",
+      "old_value": 0.02,
+      "new_value": 0.03,
+      "reason": "Trust seems stagnant - increasing success reward",
+      "fitness_at_proposal": 0.664,
+      "fitness_after": null,
+      "applied": true,
+      "timestamp": "2026-01-07T17:13:07.802205"
     }
   ],
   "rolled_back": [],
-  "timestamp": "2026-01-07T16:21:48.624443"
+  "timestamp": "2026-01-07T17:13:31.697733"
 }

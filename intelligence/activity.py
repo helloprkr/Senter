@@ -21,7 +21,7 @@ import subprocess
 import sys
 
 if TYPE_CHECKING:
-    from models.base import BaseModel
+    pass
 
 
 @dataclass
@@ -47,6 +47,16 @@ class ActivityPattern:
     associated_goals: List[str]
 
 
+@dataclass
+class LLMContextAnalysis:
+    """Structured result from LLM context inference."""
+    activity_type: str  # coding, writing, research, design, communication, general
+    project_name: Optional[str] = None  # Detected project name if any
+    tasks: List[str] = field(default_factory=list)  # Detected tasks/activities
+    confidence: float = 0.5  # 0-1 confidence in analysis
+    summary: str = ""  # Brief description of what user is doing
+
+
 class ScreenCapture:
     """Captures and OCRs screen content."""
 
@@ -58,7 +68,6 @@ class ScreenCapture:
         try:
             # Take screenshot
             import pyautogui
-            from PIL import Image
             import pytesseract
 
             screenshot = pyautogui.screenshot()
@@ -67,7 +76,7 @@ class ScreenCapture:
             text = pytesseract.image_to_string(screenshot)
 
             # Extract key phrases (simple: non-trivial lines)
-            lines = [l.strip() for l in text.split('\n') if len(l.strip()) > 10]
+            lines = [line.strip() for line in text.split('\n') if len(line.strip()) > 10]
             key_phrases = lines[:20]  # Top 20 lines
 
             return {
@@ -76,10 +85,10 @@ class ScreenCapture:
                 'timestamp': datetime.now()
             }
 
-        except ImportError as e:
+        except ImportError:
             # Dependencies not installed - this is optional
             return None
-        except Exception as e:
+        except Exception:
             return None
 
     def get_active_window(self) -> Dict[str, str]:
@@ -243,16 +252,26 @@ class ActivityMonitor:
             'key_phrases': screen_data['key_phrases'] if screen_data else []
         }
 
-        # Infer context
-        context = self.inferencer.infer_context(combined)
+        # Infer context - use LLM every 10 cycles, heuristic otherwise
+        llm_analysis = None
+        if len(self.history) % 10 == 0 and self.engine:
+            # Use LLM for deeper analysis
+            llm_analysis = await self.infer_context_with_llm(combined)
+            context = llm_analysis.activity_type
+        else:
+            # Use fast heuristic inference
+            context = self.inferencer.infer_context(combined)
 
-        # Create snapshot
+        # Create snapshot with optional LLM analysis
         snapshot = ActivitySnapshot(
             timestamp=datetime.now(),
             active_app=window_info['app'],
             window_title=window_info['window'],
             screen_text=combined['key_phrases'],
-            inferred_context=context
+            inferred_context=context,
+            llm_analysis=llm_analysis.__dict__ if llm_analysis else None,
+            detected_project=llm_analysis.project_name if llm_analysis else None,
+            detected_tasks=llm_analysis.tasks if llm_analysis else []
         )
 
         self.history.append(snapshot)
@@ -308,6 +327,85 @@ class ActivityMonitor:
                     )
                 except Exception:
                     pass  # Goal creation is optional
+
+    async def infer_context_with_llm(
+        self,
+        snapshot: Dict[str, Any]
+    ) -> LLMContextAnalysis:
+        """
+        Use LLM for deep context inference from activity snapshot.
+
+        Args:
+            snapshot: Dict with app, window, key_phrases
+
+        Returns:
+            LLMContextAnalysis with activity_type, project_name, tasks, confidence
+        """
+        # Check if we have access to an LLM model
+        model = None
+        if self.engine and hasattr(self.engine, 'model') and self.engine.model:
+            model = self.engine.model
+
+        if not model:
+            # Fall back to heuristic inference
+            context = self.inferencer.infer_context(snapshot)
+            return LLMContextAnalysis(
+                activity_type=context,
+                confidence=0.3,  # Low confidence for heuristic
+                summary=f"Heuristic inference: {context}"
+            )
+
+        # Build prompt for LLM analysis
+        app = snapshot.get('app', 'Unknown')
+        window = snapshot.get('window', '')
+        key_phrases = snapshot.get('key_phrases', [])
+        phrases_text = '\n'.join(key_phrases[:10]) if key_phrases else '(no screen text)'
+
+        prompt = f"""Analyze this computer activity and determine what the user is working on.
+
+Active Application: {app}
+Window Title: {window}
+Key Phrases from Screen:
+{phrases_text}
+
+Based on this information, provide:
+1. activity_type: One of [coding, writing, research, design, communication, general]
+2. project_name: The name of the project if detectable (or null)
+3. tasks: List of specific tasks the user appears to be working on
+4. confidence: Your confidence level (0.0 to 1.0)
+5. summary: A one-sentence description of what the user is doing
+
+Respond in JSON format:
+{{"activity_type": "...", "project_name": "...", "tasks": [...], "confidence": 0.X, "summary": "..."}}
+"""
+
+        try:
+            response = await model.generate(prompt)
+
+            # Parse JSON from response
+            # Try to extract JSON from the response
+            import re
+            json_match = re.search(r'\{[^{}]*\}', response, re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group())
+                return LLMContextAnalysis(
+                    activity_type=data.get('activity_type', 'general'),
+                    project_name=data.get('project_name'),
+                    tasks=data.get('tasks', []),
+                    confidence=float(data.get('confidence', 0.5)),
+                    summary=data.get('summary', '')
+                )
+        except Exception as e:
+            # Log error but don't fail
+            print(f"[ACTIVITY] LLM inference failed: {e}")
+
+        # Fall back to heuristic
+        context = self.inferencer.infer_context(snapshot)
+        return LLMContextAnalysis(
+            activity_type=context,
+            confidence=0.3,
+            summary=f"Fallback heuristic: {context}"
+        )
 
     def get_current_context(self) -> str:
         """Get the current inferred context."""
