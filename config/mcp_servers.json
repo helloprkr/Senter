@@ -1,0 +1,42 @@
+{
+  "description": "MCP Server Configuration for Senter",
+  "version": "1.0",
+  "servers": {
+    "filesystem": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+      "enabled": false,
+      "description": "File system operations"
+    },
+    "brave-search": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": ""
+      },
+      "enabled": false,
+      "description": "Web search via Brave Search API"
+    },
+    "memory": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "enabled": false,
+      "description": "Persistent memory storage"
+    },
+    "custom": {
+      "transport": "http",
+      "url": "http://localhost:8080",
+      "enabled": false,
+      "description": "Custom HTTP-based MCP server"
+    }
+  },
+  "notes": {
+    "setup": "Enable servers by setting 'enabled': true and configuring API keys",
+    "stdio": "Stdio servers are started as subprocesses using the specified command",
+    "http": "HTTP servers must be running before Senter connects",
+    "discovery": "Tools are discovered on connection via tools/list JSON-RPC call"
+  }
+}
