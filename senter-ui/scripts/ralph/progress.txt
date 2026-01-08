@@ -104,3 +104,26 @@ Date: 2026-01-08
 - typecheck: PASSED
 - build: PASSED
 
+### P1-003: Conversation Context in Prompts [PASSED]
+Date: 2026-01-08
+
+**Implementation:**
+1. Added `_build_conversation_context` method in daemon/ipc_server.py:
+   - Loads conversation history from data/conversations/
+   - Limits to last 20 messages to fit context window
+   - Formats as "Previous conversation:\nUser: ...\nAssistant: ..."
+
+2. Updated `_handle_query` in daemon/ipc_server.py:
+   - Accepts conversation_id from request
+   - Builds context-aware prompt with conversation history
+   - Passes system_prompt to model worker
+
+3. Updated useSenter hook:
+   - Passes currentConversationId to sendQuery
+   - Added currentConversationId to useCallback dependencies
+
+**Verification:**
+- Python syntax: OK
+- typecheck: PASSED
+- build: PASSED
+

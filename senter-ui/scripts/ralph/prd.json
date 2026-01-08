@@ -99,8 +99,8 @@
       ],
       "qualityGate": "Ask 'What did I say earlier?' - Senter accurately recalls",
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented 2026-01-08: _build_conversation_context loads history, passes to model worker"
     },
     {
       "id": "P1-004",

@@ -30,8 +30,7 @@ export function useSenter(): UseSenterReturn {
   const sendQuery = useCallback(async (text: string): Promise<void> => {
     try {
       console.log('[useSenter] Sending query:', text)
-      console.log('[useSenter] window.api exists:', !!window.api)
-      console.log('[useSenter] window.api.sendQuery exists:', !!window.api?.sendQuery)
+      console.log('[useSenter] Conversation ID:', currentConversationId)
 
       setTyping(true)
 
@@ -44,9 +43,9 @@ export function useSenter(): UseSenterReturn {
       }
       addMessage(userMessage)
 
-      // Send to backend
-      console.log('[useSenter] Calling window.api.sendQuery...')
-      const response = await window.api.sendQuery(text)
+      // Send to backend with conversation context (P1-003)
+      console.log('[useSenter] Calling window.api.sendQuery with context...')
+      const response = await window.api.sendQuery(text, currentConversationId || undefined)
       console.log('[useSenter] Got response:', response)
 
       if (response && typeof response === 'object' && 'success' in response) {
@@ -85,7 +84,7 @@ export function useSenter(): UseSenterReturn {
     } finally {
       setTyping(false)
     }
-  }, [addMessage, setTyping])
+  }, [addMessage, setTyping, currentConversationId])
 
   const fetchResearch = useCallback(async (): Promise<void> => {
     try {

@@ -200,12 +200,19 @@ class IPCServer:
             # Log query to events database (US-008)
             self._log_user_query(text, topic)
 
+            # P1-003: Build context from conversation history
+            conversation_id = request.get("conversation_id")
+            context_prompt = self._build_conversation_context(conversation_id, text)
+
             # Put query in model queue
             if "model_primary" in self.daemon.queues:
                 self.daemon.queues["model_primary"].put({
                     "type": "user_query",
                     "id": request_id,
-                    "payload": {"text": text},
+                    "payload": {
+                        "text": context_prompt if context_prompt else text,
+                        "system_prompt": "You are Senter, a helpful AI assistant. You remember the context of our conversation."
+                    },
                     "correlation_id": request_id
                 }, timeout=5.0)
             else:
@@ -321,6 +328,47 @@ class IPCServer:
                            worker=worker, topic=topic)
         except Exception as e:
             logger.warning(f"Failed to log response event: {e}")
+
+    def _build_conversation_context(self, conversation_id: str, current_query: str) -> str:
+        """Build context-aware prompt from conversation history (P1-003)"""
+        if not conversation_id:
+            return None
+
+        try:
+            senter_root = Path(self.daemon.senter_root)
+            conv_file = senter_root / "data" / "conversations" / f"{conversation_id}.json"
+
+            if not conv_file.exists():
+                logger.debug(f"No conversation file found: {conversation_id}")
+                return None
+
+            conv_data = json.loads(conv_file.read_text())
+            messages = conv_data.get("messages", [])
+
+            if not messages:
+                return None
+
+            # Limit to last 20 messages to fit context window
+            messages = messages[-20:]
+
+            # Build context string
+            context_parts = ["Previous conversation:"]
+            for msg in messages:
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+                if role == "user":
+                    context_parts.append(f"User: {content}")
+                else:
+                    context_parts.append(f"Assistant: {content}")
+
+            context_parts.append("")
+            context_parts.append(f"Current question: {current_query}")
+
+            return "\n".join(context_parts)
+
+        except Exception as e:
+            logger.warning(f"Failed to build conversation context: {e}")
+            return None
 
     def _handle_status(self, request: dict = None) -> dict:
         """Handle status request"""
