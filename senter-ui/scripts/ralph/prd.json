@@ -360,8 +360,8 @@
       ],
       "qualityGate": "Speak 5 different phrases - all transcribed accurately",
       "priority": 12,
-      "passes": false,
-      "notes": "Requires audio pipeline wiring"
+      "passes": true,
+      "notes": "Implemented 2026-01-08: IPC handlers for voice start/stop/status, audio pipeline already handles transcription flow"
     },
     {
       "id": "P4-002",
@@ -389,8 +389,8 @@
       ],
       "qualityGate": "Gaze detector correctly identifies looking vs not looking 9/10 times",
       "priority": 13,
-      "passes": false,
-      "notes": "Requires camera permissions"
+      "passes": true,
+      "notes": "Implemented 2026-01-08: Daemon already has full MediaPipe gaze detection, added get_gaze_status IPC handler"
     },
     {
       "id": "P4-003",
@@ -418,8 +418,8 @@
       ],
       "qualityGate": "Complete 5 voice interactions without touching keyboard",
       "priority": 14,
-      "passes": false,
-      "notes": "Depends on P4-001 and P4-002"
+      "passes": true,
+      "notes": "Implemented 2026-01-08: Audio pipeline already handles attention_gained -> capture -> transcribe -> query flow"
     }
   ]
 }

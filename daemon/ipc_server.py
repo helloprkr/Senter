@@ -70,6 +70,10 @@ class IPCServer:
             "get_context_sources": self._handle_get_context_sources,  # P3-001
             "add_context_source": self._handle_add_context_source,  # P3-001
             "remove_context_source": self._handle_remove_context_source,  # P3-001
+            "start_voice_input": self._handle_start_voice_input,  # P4-001
+            "stop_voice_input": self._handle_stop_voice_input,  # P4-001
+            "get_audio_status": self._handle_get_audio_status,  # P4-001
+            "get_gaze_status": self._handle_get_gaze_status,  # P4-002
         }
 
     def run(self):
@@ -1281,3 +1285,134 @@ class IPCServer:
         except Exception as e:
             logger.error(f"remove_context_source error: {e}")
             return {"error": str(e)}
+
+    # ========== P4-001/P4-002: Voice and Gaze ==========
+
+    def _handle_start_voice_input(self, request: dict = None) -> dict:
+        """Handle start_voice_input request (P4-001) - start listening for voice"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            from daemon.message_bus import MessageType
+
+            # Send attention_gained to audio pipeline to start listening
+            if hasattr(self.daemon, 'message_bus') and self.daemon.message_bus:
+                self.daemon.message_bus.send(
+                    MessageType.ATTENTION_GAINED,
+                    source="ipc_server",
+                    payload={
+                        "manual_trigger": True,
+                        "timestamp": time.time()
+                    }
+                )
+                logger.info("Voice input started via IPC")
+                return {"started": True, "listening": True}
+
+            return {"error": "Message bus not available"}
+
+        except Exception as e:
+            logger.error(f"start_voice_input error: {e}")
+            return {"error": str(e)}
+
+    def _handle_stop_voice_input(self, request: dict = None) -> dict:
+        """Handle stop_voice_input request (P4-001) - stop listening and transcribe"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            from daemon.message_bus import MessageType
+
+            # Send attention_lost to trigger transcription
+            if hasattr(self.daemon, 'message_bus') and self.daemon.message_bus:
+                self.daemon.message_bus.send(
+                    MessageType.ATTENTION_LOST,
+                    source="ipc_server",
+                    payload={
+                        "manual_trigger": True,
+                        "timestamp": time.time()
+                    }
+                )
+                logger.info("Voice input stopped via IPC")
+
+                # Wait briefly for transcription (async)
+                # In a real implementation, we'd use a callback or polling
+                return {"stopped": True, "transcription_pending": True}
+
+            return {"error": "Message bus not available"}
+
+        except Exception as e:
+            logger.error(f"stop_voice_input error: {e}")
+            return {"error": str(e)}
+
+    def _handle_get_audio_status(self, request: dict = None) -> dict:
+        """Handle get_audio_status request (P4-001) - get audio pipeline status"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            # Check audio pipeline status
+            audio_available = False
+            is_listening = False
+            stt_model = "unknown"
+
+            # Try to get status from audio worker if running
+            if hasattr(self.daemon, 'workers') and self.daemon.workers:
+                audio_worker = self.daemon.workers.get("audio")
+                if audio_worker and audio_worker.is_alive():
+                    audio_available = True
+
+            return {
+                "audio_available": audio_available,
+                "is_listening": is_listening,
+                "stt_model": stt_model,
+                "whisper_available": self._check_whisper_available()
+            }
+
+        except Exception as e:
+            logger.error(f"get_audio_status error: {e}")
+            return {"error": str(e)}
+
+    def _check_whisper_available(self) -> bool:
+        """Check if Whisper is available for STT"""
+        try:
+            import whisper
+            return True
+        except ImportError:
+            return False
+
+    def _handle_get_gaze_status(self, request: dict = None) -> dict:
+        """Handle get_gaze_status request (P4-002) - get gaze detection status"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            # Check gaze detector status
+            gaze_available = False
+            has_attention = False
+            camera_available = False
+
+            # Try to get status from gaze worker if running
+            if hasattr(self.daemon, 'workers') and self.daemon.workers:
+                gaze_worker = self.daemon.workers.get("gaze")
+                if gaze_worker and gaze_worker.is_alive():
+                    gaze_available = True
+
+            return {
+                "gaze_available": gaze_available,
+                "has_attention": has_attention,
+                "camera_available": camera_available,
+                "mediapipe_available": self._check_mediapipe_available()
+            }
+
+        except Exception as e:
+            logger.error(f"get_gaze_status error: {e}")
+            return {"error": str(e)}
+
+    def _check_mediapipe_available(self) -> bool:
+        """Check if MediaPipe is available for gaze detection"""
+        try:
+            import mediapipe
+            return True
+        except ImportError:
+            return False

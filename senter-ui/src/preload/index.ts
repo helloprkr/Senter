@@ -34,6 +34,14 @@ contextBridge.exposeInMainWorld('api', {
   }) => ipcRenderer.invoke('senter:addContextSource', source),
   removeContextSource: (id: string) => ipcRenderer.invoke('senter:removeContextSource', id),
 
+  // P4-001: Voice Input
+  startVoiceInput: () => ipcRenderer.invoke('senter:startVoiceInput'),
+  stopVoiceInput: () => ipcRenderer.invoke('senter:stopVoiceInput'),
+  getAudioStatus: () => ipcRenderer.invoke('senter:getAudioStatus'),
+
+  // P4-002: Gaze Detection
+  getGazeStatus: () => ipcRenderer.invoke('senter:getGazeStatus'),
+
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
@@ -74,6 +82,10 @@ declare global {
         description?: string
       }) => Promise<unknown>
       removeContextSource: (id: string) => Promise<unknown>
+      startVoiceInput: () => Promise<unknown>
+      stopVoiceInput: () => Promise<unknown>
+      getAudioStatus: () => Promise<unknown>
+      getGazeStatus: () => Promise<unknown>
       minimizeWindow: () => void
       maximizeWindow: () => void
       closeWindow: () => void

@@ -129,6 +129,24 @@ class SenterClient {
   async removeContextSource(id: string): Promise<SenterResponse> {
     return this.sendCommand('remove_context_source', { id })
   }
+
+  // P4-001: Voice Input
+  async startVoiceInput(): Promise<SenterResponse> {
+    return this.sendCommand('start_voice_input')
+  }
+
+  async stopVoiceInput(): Promise<SenterResponse> {
+    return this.sendCommand('stop_voice_input')
+  }
+
+  async getAudioStatus(): Promise<SenterResponse> {
+    return this.sendCommand('get_audio_status')
+  }
+
+  // P4-002: Gaze Detection
+  async getGazeStatus(): Promise<SenterResponse> {
+    return this.sendCommand('get_gaze_status')
+  }
 }
 
 const senterClient = new SenterClient()
@@ -312,6 +330,28 @@ export function registerSenterIPC(): void {
   ipcMain.handle('senter:removeContextSource', async (_, id: string) => {
     console.log('[SenterIPC] Received removeContextSource request, id:', id)
     return senterClient.removeContextSource(id)
+  })
+
+  // P4-001: Voice Input
+  ipcMain.handle('senter:startVoiceInput', async () => {
+    console.log('[SenterIPC] Received startVoiceInput request')
+    return senterClient.startVoiceInput()
+  })
+
+  ipcMain.handle('senter:stopVoiceInput', async () => {
+    console.log('[SenterIPC] Received stopVoiceInput request')
+    return senterClient.stopVoiceInput()
+  })
+
+  ipcMain.handle('senter:getAudioStatus', async () => {
+    console.log('[SenterIPC] Received getAudioStatus request')
+    return senterClient.getAudioStatus()
+  })
+
+  // P4-002: Gaze Detection
+  ipcMain.handle('senter:getGazeStatus', async () => {
+    console.log('[SenterIPC] Received getGazeStatus request')
+    return senterClient.getGazeStatus()
   })
 
   console.log('[SenterIPC] IPC handlers registered')
