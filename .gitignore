@@ -42,3 +42,5 @@ config/user_profile.json
 *.bak
 # Legacy JSON configurations (replaced by SENTER.md)
 Agents/
+*.db
+data/research_tasks.json

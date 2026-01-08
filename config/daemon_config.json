@@ -9,13 +9,13 @@
       }
     },
     "audio_pipeline": {
-      "enabled": false,
+      "enabled": true,
       "stt_model": "whisper-small",
       "tts_model": "piper",
       "vad_threshold": 0.5
     },
     "gaze_detection": {
-      "enabled": false,
+      "enabled": true,
       "camera_id": 0,
       "attention_threshold": 0.7
     },

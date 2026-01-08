@@ -130,6 +130,18 @@ class IPCClient:
         return self.send("get_results", task_id=task_id, goal_id=goal_id,
                         limit=limit, hours=hours)
 
+    def trigger_research(self) -> dict:
+        """Trigger background research from recent user queries (US-005)"""
+        return self.send("trigger_research")
+
+    def activity_report(self, hours: int = 24) -> dict:
+        """Get activity report - what did Senter accomplish (US-006)"""
+        return self.send("activity_report", hours=hours)
+
+    def get_events(self, hours: int = 24, event_type: str = None, limit: int = 50) -> dict:
+        """Get user interaction events (US-008)"""
+        return self.send("get_events", hours=hours, event_type=event_type, limit=limit)
+
 
 # Convenience function for scripts
 def get_client(socket_path: str = DEFAULT_SOCKET_PATH) -> IPCClient:

@@ -284,6 +284,153 @@ def send_query(text: str):
         print(f"Error sending query: {e}")
 
 
+def show_report(hours: int = 24):
+    """Show activity report - what did Senter accomplish (US-006)"""
+    if not is_running():
+        print("Senter daemon is not running. Start it first.")
+        return
+
+    try:
+        from daemon.ipc_client import IPCClient
+        from datetime import datetime
+
+        client = IPCClient()
+        report = client.activity_report(hours=hours)
+
+        if "error" in report:
+            print(f"Error: {report['error']}")
+            return
+
+        # Header
+        print(f"\n{'='*60}")
+        print(f"  SENTER ACTIVITY REPORT - Last {hours} hours")
+        print(f"{'='*60}")
+        print(f"  Period: {report.get('since', 'N/A')[:16]} to {report.get('until', 'N/A')[:16]}")
+        print()
+
+        # Time Stats Summary
+        stats = report.get("time_stats", {})
+        tasks_count = stats.get("tasks_completed_count", 0)
+        research_count = stats.get("research_completed_count", 0)
+        total_activities = stats.get("total_activities", 0)
+        time_spent = stats.get("total_task_time_seconds", 0)
+
+        print(f"  SUMMARY:")
+        print(f"    Tasks completed:     {tasks_count}")
+        print(f"    Research completed:  {research_count}")
+        print(f"    Total activities:    {total_activities}")
+        print(f"    Processing time:     {time_spent:.1f}s")
+        print()
+
+        # Completed Tasks
+        tasks = report.get("tasks_completed", [])
+        if tasks:
+            print(f"  COMPLETED TASKS ({len(tasks)}):")
+            for task in tasks[:10]:  # Show max 10
+                desc = task.get("description", "Unknown")[:50]
+                worker = task.get("worker", "?")
+                latency = task.get("latency_ms", 0) / 1000
+                print(f"    - {desc}")
+                print(f"      Worker: {worker}, Time: {latency:.1f}s")
+            if len(tasks) > 10:
+                print(f"    ... and {len(tasks) - 10} more")
+            print()
+
+        # Research Done
+        research = report.get("research_done", [])
+        if research:
+            print(f"  RESEARCH COMPLETED ({len(research)}):")
+            for r in research[:5]:  # Show max 5
+                topic = r.get("topic", "unknown")
+                desc = r.get("description", "")[:50]
+                print(f"    - [{topic}] {desc}")
+            if len(research) > 5:
+                print(f"    ... and {len(research) - 5} more")
+            print()
+
+        # Activity Breakdown
+        activity_summary = report.get("activity_summary", {})
+        by_type = activity_summary.get("by_type", {})
+        if by_type:
+            print(f"  ACTIVITY BREAKDOWN:")
+            for activity_type, count in sorted(by_type.items(), key=lambda x: x[1], reverse=True):
+                print(f"    {activity_type}: {count}")
+            print()
+
+        print(f"{'='*60}")
+
+    except Exception as e:
+        print(f"Error getting report: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def show_events(hours: int = 24, event_type: str = None, limit: int = 50):
+    """Show user interaction events (US-008)"""
+    if not is_running():
+        print("Senter daemon is not running. Start it first.")
+        return
+
+    try:
+        from daemon.ipc_client import IPCClient
+        from datetime import datetime
+
+        client = IPCClient()
+        result = client.get_events(hours=hours, event_type=event_type, limit=limit)
+
+        if "error" in result:
+            print(f"Error: {result['error']}")
+            return
+
+        events = result.get("events", [])
+        counts = result.get("event_counts", {})
+        total = result.get("total_events", 0)
+
+        # Header
+        print(f"\n{'='*60}")
+        print(f"  USER INTERACTION EVENTS - Last {hours} hours")
+        print(f"{'='*60}")
+
+        # Summary
+        print(f"\n  EVENT COUNTS:")
+        for etype, count in sorted(counts.items(), key=lambda x: x[1], reverse=True):
+            print(f"    {etype}: {count}")
+        print(f"\n  Total events in database: {total}")
+
+        # Events list
+        if events:
+            print(f"\n  RECENT EVENTS ({len(events)} shown):")
+            print(f"  {'-'*56}")
+            for event in events[:20]:  # Show max 20
+                etype = event.get("event_type", "?")
+                ts = event.get("datetime", "")[:16]
+                ctx = event.get("context", {})
+                meta = event.get("metadata", {})
+
+                if etype == "query":
+                    query = ctx.get("query", "")[:40]
+                    topic = meta.get("topic", "?")
+                    print(f"  [{ts}] QUERY ({topic}): {query}...")
+                elif etype == "response":
+                    latency = meta.get("latency_ms", 0)
+                    topic = meta.get("topic", "?")
+                    print(f"  [{ts}] RESPONSE ({topic}): {latency}ms")
+                else:
+                    print(f"  [{ts}] {etype.upper()}")
+
+            if len(events) > 20:
+                print(f"\n  ... and {len(events) - 20} more")
+        else:
+            print(f"\n  No events found in the last {hours} hours")
+
+        print(f"\n{'='*60}")
+
+    except Exception as e:
+        print(f"Error getting events: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 def show_goals():
     """Show active goals"""
     if not is_running():
@@ -355,6 +502,20 @@ def main():
     progress_parser.add_argument("-H", "--hours", type=int, default=24,
                                 help="Hours to look back")
 
+    # report (US-006)
+    report_parser = subparsers.add_parser("report", help="Show activity report - what did Senter do")
+    report_parser.add_argument("-H", "--hours", type=int, default=24,
+                              help="Hours to look back (default: 24)")
+
+    # events (US-008)
+    events_parser = subparsers.add_parser("events", help="Show user interaction events")
+    events_parser.add_argument("-H", "--hours", type=int, default=24,
+                              help="Hours to look back (default: 24)")
+    events_parser.add_argument("-t", "--type", type=str, dest="event_type",
+                              help="Filter by event type (query, response)")
+    events_parser.add_argument("-n", "--limit", type=int, default=50,
+                              help="Maximum events to show (default: 50)")
+
     # goal
     goal_parser = subparsers.add_parser("goal", help="Create a new goal")
     goal_parser.add_argument("description", nargs="+", help="Goal description")
@@ -387,6 +548,10 @@ def main():
         edit_config()
     elif args.command == "progress":
         show_progress(hours=args.hours)
+    elif args.command == "report":
+        show_report(hours=args.hours)
+    elif args.command == "events":
+        show_events(hours=args.hours, event_type=args.event_type, limit=args.limit)
     elif args.command == "goal":
         create_goal(" ".join(args.description))
     elif args.command == "goals":

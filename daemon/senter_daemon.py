@@ -60,12 +60,14 @@ logger = logging.getLogger('senter.daemon')
 
 def model_worker_process(name: str, model: str, input_queue: Queue,
                          output_queue: Queue, shutdown_event: Event):
-    """Model worker process function"""
+    """Primary model worker - handles user queries only (US-004)"""
     import requests
 
     logger.info(f"Model worker '{name}' starting...")
 
     OLLAMA_URL = "http://localhost:11434"
+    PRIMARY_SYSTEM_PROMPT = """You are Senter, a helpful AI assistant. You provide clear,
+concise, and accurate responses to user queries. Focus on being helpful and direct."""
 
     # Test connection
     try:
@@ -90,14 +92,14 @@ def model_worker_process(name: str, model: str, input_queue: Queue,
             msg_type = msg.get("type")
             payload = msg.get("payload", {})
 
-            if msg_type in ("model_request", "user_query", "user_voice"):
+            # Primary worker ONLY handles user queries and voice (US-004)
+            if msg_type in ("user_query", "user_voice"):
                 prompt = payload.get("prompt") or payload.get("text", "")
-                system_prompt = payload.get("system_prompt", "You are Senter, a helpful AI assistant.")
+                system_prompt = payload.get("system_prompt", PRIMARY_SYSTEM_PROMPT)
 
-                logger.info(f"Worker {name}: Processing - {prompt[:50]}...")
+                logger.info(f"Worker {name}: Processing user query - {prompt[:50]}...")
 
                 try:
-                    # Use Ollama chat API directly
                     resp = requests.post(
                         f"{OLLAMA_URL}/api/chat",
                         json={
@@ -121,7 +123,8 @@ def model_worker_process(name: str, model: str, input_queue: Queue,
                         output_queue.put({
                             "type": "model_response",
                             "source": f"model_{name}",
-                            "payload": {"response": result, "worker": name}
+                            "payload": {"response": result, "worker": name},
+                            "correlation_id": msg.get("correlation_id")
                         })
 
                         logger.info(f"Worker {name}: Response sent")
@@ -135,6 +138,118 @@ def model_worker_process(name: str, model: str, input_queue: Queue,
             logger.error(f"Worker {name} error: {e}")
 
     logger.info(f"Model worker '{name}' stopped")
+
+
+def research_worker_process(name: str, model: str, research_queue: Queue,
+                            output_queue: Queue, shutdown_event: Event,
+                            senter_root: str):
+    """Research worker - pulls from research_tasks queue, stores to research folder (US-004)"""
+    import requests
+
+    logger.info(f"Research worker '{name}' starting...")
+
+    OLLAMA_URL = "http://localhost:11434"
+    RESEARCH_SYSTEM_PROMPT = """You are a research assistant for Senter. Your role is to:
+1. Conduct thorough background research on topics
+2. Gather comprehensive information and insights
+3. Synthesize findings into clear, well-organized reports
+4. Cite sources and provide context where relevant
+5. Focus on depth and accuracy over speed
+
+When researching, explore multiple angles and provide nuanced analysis."""
+
+    senter_root = Path(senter_root)
+    research_output_dir = senter_root / "data" / "research" / "results"
+    research_output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Test connection
+    try:
+        resp = requests.get(f"{OLLAMA_URL}/api/tags", timeout=5)
+        if resp.status_code == 200:
+            logger.info(f"Research worker {name}: Connected to Ollama")
+        else:
+            logger.error(f"Research worker {name}: Ollama not responding")
+            return
+    except Exception as e:
+        logger.error(f"Research worker {name}: Could not connect to Ollama: {e}")
+        return
+
+    while not shutdown_event.is_set():
+        try:
+            # Pull from research_tasks queue (US-004)
+            try:
+                task = research_queue.get(timeout=1.0)
+            except Empty:
+                continue
+
+            # Process research task
+            task_id = task.get("id", str(uuid.uuid4())[:8])
+            description = task.get("description", "")
+
+            logger.info(f"Research worker: Processing task {task_id} - {description[:50]}...")
+
+            try:
+                resp = requests.post(
+                    f"{OLLAMA_URL}/api/chat",
+                    json={
+                        "model": model,
+                        "messages": [
+                            {"role": "system", "content": RESEARCH_SYSTEM_PROMPT},
+                            {"role": "user", "content": f"Research the following topic thoroughly:\n\n{description}"}
+                        ],
+                        "stream": False,
+                        "options": {
+                            "temperature": 0.5,  # Lower temp for research accuracy
+                            "num_predict": 2048  # Longer output for research
+                        }
+                    },
+                    timeout=180  # Longer timeout for research
+                )
+
+                if resp.status_code == 200:
+                    result = resp.json().get("message", {}).get("content", "")
+
+                    # Store result to research output folder (US-004)
+                    result_data = {
+                        "task_id": task_id,
+                        "description": description,
+                        "result": result,
+                        "timestamp": time.time(),
+                        "worker": name,
+                        "source": task.get("source", "unknown")
+                    }
+
+                    # Save to research results folder
+                    from datetime import datetime
+                    date_str = datetime.now().strftime("%Y-%m-%d")
+                    date_dir = research_output_dir / date_str
+                    date_dir.mkdir(parents=True, exist_ok=True)
+                    result_file = date_dir / f"{task_id}.json"
+                    result_file.write_text(json.dumps(result_data, indent=2))
+
+                    # Also send response to output queue
+                    output_queue.put({
+                        "type": "research_complete",
+                        "source": f"research_{name}",
+                        "payload": {
+                            "task_id": task_id,
+                            "response": result[:500],  # Summary
+                            "result_file": str(result_file),
+                            "worker": name
+                        }
+                    })
+
+                    logger.info(f"Research worker: Task {task_id} complete, saved to {result_file}")
+                else:
+                    logger.error(f"Research worker: Ollama error {resp.status_code}")
+
+            except Exception as e:
+                logger.error(f"Research worker: Task {task_id} failed - {e}")
+
+        except Exception as e:
+            logger.error(f"Research worker error: {e}")
+
+    logger.info(f"Research worker '{name}' stopped")
 
 
 def task_engine_process(input_queue: Queue, output_queue: Queue,
@@ -361,6 +476,386 @@ def learning_process(input_queue: Queue, output_queue: Queue,
             logger.error(f"Learning error: {e}")
 
     logger.info("Learning service stopped")
+
+
+def audio_pipeline_process(input_queue: Queue, output_queue: Queue,
+                           shutdown_event: Event, config: dict):
+    """Audio pipeline process function (US-010)"""
+    logger.info("Audio pipeline process starting...")
+
+    try:
+        from audio.audio_pipeline import (
+            AudioPipeline, AudioBuffer, VoiceActivityDetector,
+            STTEngine, TTSEngine, NUMPY_AVAILABLE, SOUNDDEVICE_AVAILABLE
+        )
+        from daemon.message_bus import MessageBus, MessageType, Message
+    except ImportError as e:
+        logger.error(f"Audio pipeline import error: {e}")
+        return
+
+    if not NUMPY_AVAILABLE:
+        logger.error("Audio pipeline requires numpy")
+        return
+
+    # Create local message bus for this process
+    bus = MessageBus()
+    bus.start()
+
+    # Create pipeline
+    pipeline_config = config.get("audio_pipeline", {})
+    stt_model = pipeline_config.get("stt_model", "whisper-small")
+    tts_model = pipeline_config.get("tts_model", "system")
+    vad_threshold = pipeline_config.get("vad_threshold", 0.5)
+
+    # Initialize components
+    audio_buffer = AudioBuffer() if NUMPY_AVAILABLE else None
+    vad = VoiceActivityDetector(vad_threshold)
+    stt = STTEngine(stt_model)
+    tts = TTSEngine(tts_model)
+
+    # State
+    has_attention = False
+    is_listening = False
+
+    # Start audio capture thread
+    capture_thread = None
+    if SOUNDDEVICE_AVAILABLE and audio_buffer:
+        import sounddevice as sd
+        import numpy as np
+        import threading
+
+        def capture_loop():
+            try:
+                def audio_callback(indata, frames, time_info, status):
+                    if status:
+                        logger.warning(f"Audio status: {status}")
+                    audio_buffer.write(indata.copy())
+
+                with sd.InputStream(
+                    samplerate=16000,
+                    channels=1,
+                    dtype=np.float32,
+                    callback=audio_callback,
+                    blocksize=1600
+                ):
+                    while not shutdown_event.is_set():
+                        time.sleep(0.1)
+            except Exception as e:
+                logger.error(f"Audio capture error: {e}")
+
+        capture_thread = threading.Thread(target=capture_loop, daemon=True)
+        capture_thread.start()
+        logger.info("Audio capture started")
+    else:
+        logger.warning("Audio capture disabled (sounddevice not available)")
+
+    logger.info("Audio pipeline started")
+
+    while not shutdown_event.is_set():
+        try:
+            # Process incoming messages from daemon
+            try:
+                msg = input_queue.get(timeout=0.05)
+                msg_type = msg.get("type")
+                payload = msg.get("payload", {})
+
+                if msg_type == "attention_gained":
+                    has_attention = True
+                    logger.info("Audio: Attention gained - voice active")
+
+                elif msg_type == "attention_lost":
+                    has_attention = False
+                    is_listening = False
+                    logger.info("Audio: Attention lost - voice inactive")
+
+                elif msg_type == "speak":
+                    text = payload.get("text")
+                    if text:
+                        tts.speak(text)
+
+                elif msg_type == "model_response":
+                    # Speak response if we have attention
+                    if has_attention:
+                        text = payload.get("response")
+                        if text and len(text) < 500:  # Don't speak long responses
+                            tts.speak(text)
+
+            except Empty:
+                pass
+
+            # Process audio if we have attention and audio buffer
+            if has_attention and audio_buffer and SOUNDDEVICE_AVAILABLE:
+                import numpy as np
+                audio_data = audio_buffer.get_recent(seconds=2)
+
+                if audio_data is not None and len(audio_data) > 0:
+                    # Check for voice activity
+                    if vad.is_speech(audio_data):
+                        if not is_listening:
+                            logger.debug("Speech detected")
+                            is_listening = True
+                            audio_buffer.mark_speech_start()
+                    else:
+                        if is_listening:
+                            # Speech ended - transcribe
+                            is_listening = False
+                            speech_audio = audio_buffer.get_speech_segment()
+
+                            if speech_audio is not None and len(speech_audio) >= 1600:
+                                text = stt.transcribe(speech_audio)
+                                if text and len(text.strip()) > 0:
+                                    logger.info(f"Transcribed: {text}")
+
+                                    # Send to daemon for routing to model
+                                    output_queue.put({
+                                        "type": "user_voice",
+                                        "source": "audio_pipeline",
+                                        "payload": {
+                                            "text": text,
+                                            "audio_duration": len(speech_audio) / 16000
+                                        }
+                                    })
+
+        except Exception as e:
+            logger.error(f"Audio pipeline error: {e}")
+
+    bus.stop()
+    logger.info("Audio pipeline stopped")
+
+
+def gaze_detector_process(input_queue: Queue, output_queue: Queue,
+                          shutdown_event: Event, config: dict):
+    """Gaze detection process function (US-011)"""
+    logger.info("Gaze detector process starting...")
+
+    try:
+        from daemon.message_bus import MessageBus, MessageType
+        import numpy as np
+    except ImportError as e:
+        logger.error(f"Gaze detector import error: {e}")
+        return
+
+    try:
+        import cv2
+        CV2_AVAILABLE = True
+    except ImportError:
+        logger.error("Gaze detector requires opencv-python")
+        return
+
+    # Check for mediapipe with legacy solutions API
+    MEDIAPIPE_AVAILABLE = False
+    mp = None
+    try:
+        import mediapipe as mp_module
+        # Check for legacy solutions API (pre-0.10.0)
+        if hasattr(mp_module, "solutions") and hasattr(mp_module.solutions, "face_mesh"):
+            mp = mp_module
+            MEDIAPIPE_AVAILABLE = True
+            logger.info("MediaPipe legacy solutions API available")
+        else:
+            logger.warning("mediapipe installed but no legacy solutions API - using basic face detection")
+    except ImportError:
+        logger.warning("mediapipe not available - using basic face detection")
+
+    # Get config
+    gaze_config = config.get("gaze_detection", {})
+    camera_id = gaze_config.get("camera_id", 0)
+    attention_threshold = gaze_config.get("attention_threshold", 0.7)
+
+    # State
+    has_attention = False
+    attention_start_time = None
+    last_attention_time = None
+    attention_history = []
+    history_size = 10
+    attention_timeout = 2.0
+
+    # Initialize camera
+    camera = None
+    face_mesh = None
+
+    try:
+        camera = cv2.VideoCapture(camera_id)
+        if not camera.isOpened():
+            logger.error(f"Cannot open camera {camera_id}")
+            return
+
+        camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        camera.set(cv2.CAP_PROP_FPS, 15)
+        logger.info(f"Camera {camera_id} initialized")
+
+        # Initialize face mesh if available
+        if MEDIAPIPE_AVAILABLE:
+            face_mesh = mp.solutions.face_mesh.FaceMesh(
+                max_num_faces=1,
+                refine_landmarks=True,
+                min_detection_confidence=0.5,
+                min_tracking_confidence=0.5
+            )
+            logger.info("MediaPipe Face Mesh initialized")
+
+    except Exception as e:
+        logger.error(f"Camera initialization failed: {e}")
+        return
+
+    def calculate_attention_mediapipe(frame, face_mesh_instance) -> float:
+        """Calculate attention using MediaPipe"""
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = face_mesh_instance.process(rgb_frame)
+
+        if not results.multi_face_landmarks:
+            return 0.0
+
+        landmarks = results.multi_face_landmarks[0].landmark
+
+        # Face center score
+        nose_tip = landmarks[1]
+        face_center_score = 1.0 - abs(nose_tip.x - 0.5) * 2
+        face_center_score = max(0, face_center_score)
+
+        # Eye openness score
+        def eye_aspect_ratio(eye_side):
+            if eye_side == "left":
+                p1, p2 = landmarks[159], landmarks[145]
+                p3, p4 = landmarks[33], landmarks[133]
+            else:
+                p1, p2 = landmarks[386], landmarks[374]
+                p3, p4 = landmarks[362], landmarks[263]
+            vertical = np.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2)
+            horizontal = np.sqrt((p3.x - p4.x)**2 + (p3.y - p4.y)**2)
+            return vertical / horizontal if horizontal > 0 else 0
+
+        avg_ear = (eye_aspect_ratio("left") + eye_aspect_ratio("right")) / 2
+        eye_open_score = min(1.0, avg_ear / 0.25)
+
+        # Gaze score
+        try:
+            left_iris = landmarks[468]
+            right_iris = landmarks[473]
+            left_inner, left_outer = landmarks[133], landmarks[33]
+            right_inner, right_outer = landmarks[362], landmarks[263]
+
+            left_eye_width = abs(left_outer.x - left_inner.x)
+            right_eye_width = abs(right_outer.x - right_inner.x)
+
+            if left_eye_width > 0 and right_eye_width > 0:
+                left_iris_pos = (left_iris.x - left_outer.x) / left_eye_width
+                right_iris_pos = (right_iris.x - right_outer.x) / right_eye_width
+                avg_iris_pos = (left_iris_pos + right_iris_pos) / 2
+                gaze_score = 1.0 - abs(avg_iris_pos - 0.5) * 2
+                gaze_score = max(0, min(1, gaze_score))
+            else:
+                gaze_score = 0.5
+        except (IndexError, AttributeError):
+            gaze_score = 0.5
+
+        return face_center_score * 0.3 + eye_open_score * 0.3 + gaze_score * 0.4
+
+    def calculate_attention_basic(frame) -> float:
+        """Calculate attention using Haar cascade"""
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        face_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+        )
+        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+
+        if len(faces) == 0:
+            return 0.0
+
+        largest_face = max(faces, key=lambda f: f[2] * f[3])
+        x, y, w, h = largest_face
+        frame_h, frame_w = frame.shape[:2]
+
+        face_center_x = (x + w/2) / frame_w
+        center_score = 1.0 - abs(face_center_x - 0.5) * 2
+        center_score = max(0, center_score)
+
+        size_score = min(1.0, (w * h) / (frame_w * frame_h) * 10)
+
+        return center_score * 0.6 + size_score * 0.4
+
+    logger.info("Gaze detector started")
+
+    try:
+        while not shutdown_event.is_set():
+            try:
+                # Process frame
+                ret, frame = camera.read()
+                if not ret:
+                    time.sleep(0.066)
+                    continue
+
+                # Calculate attention score
+                if MEDIAPIPE_AVAILABLE and face_mesh:
+                    attention_score = calculate_attention_mediapipe(frame, face_mesh)
+                else:
+                    attention_score = calculate_attention_basic(frame)
+
+                # Update history
+                attention_history.append(attention_score)
+                if len(attention_history) > history_size:
+                    attention_history.pop(0)
+
+                # Smooth score
+                smoothed_score = np.mean(attention_history)
+
+                # Update attention state
+                now = time.time()
+
+                if smoothed_score >= attention_threshold:
+                    last_attention_time = now
+
+                    if not has_attention:
+                        # Attention gained!
+                        has_attention = True
+                        attention_start_time = now
+                        logger.info(f"Attention gained (score: {smoothed_score:.2f})")
+
+                        output_queue.put({
+                            "type": "attention_gained",
+                            "source": "gaze_detector",
+                            "payload": {
+                                "score": smoothed_score,
+                                "timestamp": now
+                            }
+                        })
+
+                else:
+                    # Check timeout
+                    if has_attention and last_attention_time:
+                        time_since = now - last_attention_time
+
+                        if time_since > attention_timeout:
+                            # Attention lost
+                            has_attention = False
+                            duration = now - attention_start_time if attention_start_time else 0
+                            logger.info(f"Attention lost after {duration:.1f}s")
+
+                            output_queue.put({
+                                "type": "attention_lost",
+                                "source": "gaze_detector",
+                                "payload": {
+                                    "duration": duration,
+                                    "timestamp": now
+                                }
+                            })
+
+                            attention_start_time = None
+
+                time.sleep(0.066)  # ~15 FPS
+
+            except Exception as e:
+                logger.error(f"Gaze frame error: {e}")
+                time.sleep(0.1)
+
+    finally:
+        if camera is not None:
+            camera.release()
+        if face_mesh is not None:
+            face_mesh.close()
+
+    logger.info("Gaze detector stopped")
 
 
 # ============================================================
@@ -620,15 +1115,14 @@ class SenterDaemon:
         self.processes["model_primary"] = p1
         self.health_monitor.register_component("model_primary", p1)
 
-        # Research worker
-        q2 = Queue(maxsize=1000)
+        # Research worker (US-004) - uses separate function, pulls from research_tasks_queue
         out2 = Queue(maxsize=1000)
-        self.queues["model_research"] = q2
         self.output_queues["model_research"] = out2
         p2 = Process(
-            target=model_worker_process,
+            target=research_worker_process,
             args=("research", worker_config["models"]["research"],
-                  q2, out2, self.shutdown_event),
+                  self.research_tasks_queue, out2, self.shutdown_event,
+                  str(self.senter_root)),
             name="model_worker_research"
         )
         p2.start()
@@ -718,16 +1212,46 @@ class SenterDaemon:
         logger.info("Learning service started")
 
     def _start_audio_pipeline(self):
-        """Start audio pipeline"""
+        """Start audio pipeline (US-010)"""
         logger.info("Starting audio pipeline...")
-        # Audio pipeline would be started here
-        logger.info("Audio pipeline started (stub)")
+
+        # Create queues for audio pipeline
+        q = Queue(maxsize=1000)
+        out = Queue(maxsize=1000)
+        self.queues["audio"] = q
+        self.output_queues["audio"] = out
+
+        # Start process with config
+        p = Process(
+            target=audio_pipeline_process,
+            args=(q, out, self.shutdown_event, self.config.get("components", {})),
+            name="audio_pipeline"
+        )
+        p.start()
+        self.processes["audio"] = p
+        self.health_monitor.register_component("audio", p)
+        logger.info("Audio pipeline started")
 
     def _start_gaze_detection(self):
-        """Start gaze detection"""
+        """Start gaze detection (US-011)"""
         logger.info("Starting gaze detection...")
-        # Gaze detection would be started here
-        logger.info("Gaze detection started (stub)")
+
+        # Create queues for gaze detector
+        q = Queue(maxsize=1000)
+        out = Queue(maxsize=1000)
+        self.queues["gaze"] = q
+        self.output_queues["gaze"] = out
+
+        # Start process with config
+        p = Process(
+            target=gaze_detector_process,
+            args=(q, out, self.shutdown_event, self.config.get("components", {})),
+            name="gaze_detector"
+        )
+        p.start()
+        self.processes["gaze"] = p
+        self.health_monitor.register_component("gaze", p)
+        logger.info("Gaze detection started")
 
     def _main_loop(self):
         """Main daemon loop - routes messages between components"""
@@ -761,7 +1285,7 @@ class SenterDaemon:
         logger.info("Main loop exited")
 
     def _route_message(self, msg: dict):
-        """Route a message to appropriate components"""
+        """Route a message to appropriate components (US-012 adds attention/voice routing)"""
         msg_type = msg.get("type")
         target = msg.get("target")
 
@@ -770,12 +1294,19 @@ class SenterDaemon:
             self.queues[target].put(msg)
             return
 
-        # Route by type
+        # Route by type - includes US-012 attention/voice wiring
         routing = {
-            "model_response": ["task_engine", "reporter"],
+            "model_response": ["task_engine", "reporter", "audio"],  # Audio for TTS
             "activity_log": ["reporter"],
             "task_create": ["task_engine"],
             "user_query": ["model_primary", "learning"],
+            # US-012: Attention events from gaze -> audio pipeline
+            "attention_gained": ["audio", "model_primary"],
+            "attention_lost": ["audio"],
+            # US-012: Voice input from audio -> model
+            "user_voice": ["model_primary", "learning"],
+            # TTS request
+            "speak": ["audio"],
         }
 
         targets = routing.get(msg_type, [])

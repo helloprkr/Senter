@@ -64,8 +64,8 @@
         "visual": false
       },
       "priority": 3,
-      "passes": false,
-      "notes": "Depends on US-001"
+      "passes": true,
+      "notes": "Implemented. TaskResultStorage with IPC get_results handler."
     },
     {
       "id": "US-004",
@@ -82,8 +82,8 @@
         "visual": false
       },
       "priority": 4,
-      "passes": false,
-      "notes": "Depends on US-002"
+      "passes": true,
+      "notes": "Implemented. research_worker_process with research-focused prompt, pulls from research_tasks_queue, stores to data/research/results/."
     },
     {
       "id": "US-005",
@@ -100,8 +100,8 @@
         "visual": false
       },
       "priority": 5,
-      "passes": false,
-      "notes": "Depends on US-004. This makes Senter work while you sleep."
+      "passes": true,
+      "notes": "Implemented. ResearchTopicExtractor extracts from learning_db, scheduler job triggers hourly, IPC trigger_research handler."
     },
     {
       "id": "US-006",
@@ -118,8 +118,8 @@
         "visual": false
       },
       "priority": 6,
-      "passes": false,
-      "notes": "Depends on US-003. Answers 'what did Senter accomplish?'"
+      "passes": true,
+      "notes": "Implemented. IPC activity_report aggregates task results, research, and activities. CLI report command with -H hours flag."
     },
     {
       "id": "US-007",
@@ -136,8 +136,8 @@
         "visual": false
       },
       "priority": 7,
-      "passes": false,
-      "notes": "Foundation for real learning, not keyword matching"
+      "passes": true,
+      "notes": "Implemented. UserEventsDB with proper schema, log_query/log_response methods, time range queries."
     },
     {
       "id": "US-008",
@@ -154,8 +154,8 @@
         "visual": false
       },
       "priority": 8,
-      "passes": false,
-      "notes": "Depends on US-007"
+      "passes": true,
+      "notes": "Implemented. IPC query handler logs to events_db, _detect_topic uses regex patterns, CLI events command added."
     },
     {
       "id": "US-009",
@@ -172,8 +172,8 @@
         "visual": false
       },
       "priority": 9,
-      "passes": false,
-      "notes": "Depends on US-008. Real learning from behavior."
+      "passes": true,
+      "notes": "Implemented. PatternDetector analyzes events, detects peak hours and topics by time, saves to patterns.json."
     },
     {
       "id": "US-010",
@@ -190,9 +190,8 @@
         "visual": false
       },
       "priority": 10,
-      "passes": false,
-      "blocked": true,
-      "notes": "Requires sounddevice, whisper packages. May need to skip if deps missing."
+      "passes": true,
+      "notes": "Implemented. Audio pipeline process with VAD, STT (Whisper), TTS. Uses Haar cascade fallback if mediapipe unavailable."
     },
     {
       "id": "US-011",
@@ -209,9 +208,8 @@
         "visual": false
       },
       "priority": 11,
-      "passes": false,
-      "blocked": true,
-      "notes": "Requires opencv, mediapipe packages. May need to skip if deps missing."
+      "passes": true,
+      "notes": "Implemented. Gaze detector process with MediaPipe Face Mesh (or Haar cascade fallback). Sends ATTENTION_GAINED/LOST events."
     },
     {
       "id": "US-012",
@@ -228,9 +226,8 @@
         "visual": false
       },
       "priority": 12,
-      "passes": false,
-      "blocked": true,
-      "notes": "Depends on US-010, US-011. The 'just look and talk' promise."
+      "passes": true,
+      "notes": "Implemented. Message routing wires gaze->audio (attention), audio->model (voice), model->audio (TTS). The 'just look and talk' promise."
     }
   ]
 }

@@ -1,8 +1,14 @@
 # Ralph Wiggums Agent Instructions
 
+## AUTONOMOUS EXECUTION MODE
+
+You are running in **autonomous loop mode**. After completing each story, **IMMEDIATELY continue to the next story**. Do NOT wait for user input between iterations.
+
+---
+
 ## Your Task
 
-Each iteration, execute these steps IN ORDER:
+Execute these steps IN ORDER, then **loop back to step 1**:
 
 ### 1. Read State
 - Read `scripts/ralph/prd.json` - find the user stories
@@ -11,7 +17,10 @@ Each iteration, execute these steps IN ORDER:
 
 ### 2. Select Story
 Pick the highest priority story where `passes: false` AND `blocked` is not `true`.
-If ALL stories have `passes: true`, output `<promise>COMPLETE</promise>` and stop.
+
+**If ALL stories have `passes: true`:**
+- Output `<promise>COMPLETE</promise>`
+- STOP execution
 
 ### 3. Implement
 Implement ONLY the selected story:
@@ -21,18 +30,17 @@ Implement ONLY the selected story:
 
 ### 4. Verify (ALL steps required)
 
+Run the verification commands from prd.json:
+
 ```bash
-# Typecheck
-{{TYPECHECK_COMMAND}}
+# Example for Python projects:
+ruff check .
+pytest tests/ -v
 
-# Unit tests
-{{UNIT_TEST_COMMAND}}
-
-# Integration tests (if applicable)
-{{INTEGRATION_TEST_COMMAND}}
-
-# Lint
-{{LINT_COMMAND}}
+# Example for TypeScript projects:
+npm run typecheck
+npm test
+npm run lint
 ```
 
 If `visualVerification` is true in the story's testRequirements:
@@ -59,14 +67,20 @@ If `visualVerification` is true in the story's testRequirements:
 
 **If verification fails:**
 1. Attempt to fix (up to 3 times per story)
-2. If stuck after 3 attempts, decompose into smaller stories (see failure recovery protocol)
+2. If stuck after 3 attempts, decompose into smaller stories
 3. Document failure in progress.txt
 
-### 6. Continue or Complete
+### 6. CONTINUE IMMEDIATELY
 
-- More stories with `passes: false`? → End this iteration (loop will continue)
-- All stories `passes: true`? → Output: `<promise>COMPLETE</promise>`
-- Stuck and cannot proceed? → Output: `<promise>STUCK</promise>`
+```
+╔═══════════════════════════════════════════════════════════════╗
+║  ⚠️  DO NOT WAIT FOR USER INPUT                               ║
+║  ⚠️  IMMEDIATELY GO BACK TO STEP 1                            ║
+║  ⚠️  CONTINUE UNTIL ALL STORIES PASS                          ║
+╚═══════════════════════════════════════════════════════════════╝
+```
+
+---
 
 ## Progress Log Format
 
@@ -75,7 +89,7 @@ When appending to progress.txt:
 ```markdown
 ## [DATE] - [STORY-ID]
 - What was implemented
-- Files changed: file1.ts, file2.ts
+- Files changed: file1.py, file2.py
 - **Learnings:**
   - Pattern: Always use X when doing Y
   - Gotcha: Z requires special handling
@@ -88,10 +102,12 @@ Add reusable patterns to the TOP of progress.txt under "## Codebase Patterns":
 
 ```markdown
 ## Codebase Patterns
-- Migrations: Use IF NOT EXISTS for idempotency
-- Forms: Use react-hook-form with zod validation
-- API: Always return consistent error shape
+- Error handling: Use SenterError base class
+- Config: Load from config/senter_config.json
+- Logging: Use senter_logger module
 ```
+
+---
 
 ## Failure Recovery Protocol
 
@@ -99,7 +115,7 @@ Add reusable patterns to the TOP of progress.txt under "## Codebase Patterns":
 1. Log failure in progress.txt
 2. Decompose story into 2-3 smaller sub-stories
 3. Update prd.json with sub-stories at higher priority
-4. Mark original story as decomposed
+4. Mark original story as `"decomposed": true`
 5. Continue with first sub-story
 
 **Flaky tests detected:**
@@ -113,6 +129,8 @@ Add reusable patterns to the TOP of progress.txt under "## Codebase Patterns":
 2. Document blocker in progress.txt
 3. Continue with other stories
 
+---
+
 ## Critical Rules
 
 1. **ONE story per iteration** - Do not attempt multiple stories
@@ -120,8 +138,25 @@ Add reusable patterns to the TOP of progress.txt under "## Codebase Patterns":
 3. **Log learnings** - Future iterations depend on this
 4. **Stay focused** - If changes cascade, consider decomposition
 5. **Check patterns FIRST** - Read Codebase Patterns before implementing
+6. **NEVER STOP** - Continue looping until ALL stories pass
+
+---
 
 ## Stop Conditions
 
 - `<promise>COMPLETE</promise>` - All stories pass, work is done
-- `<promise>STUCK</promise>` - Cannot proceed, human review needed
+- `<promise>STUCK</promise>` - Cannot proceed after 5 attempts, human review needed
+
+---
+
+## Autonomous Continuation Reminder
+
+After completing each story successfully:
+
+1. ✅ Story committed and marked as passing
+2. ✅ Progress logged
+3. ➡️ **IMMEDIATELY read prd.json again**
+4. ➡️ **Find next story where passes=false**
+5. ➡️ **Continue implementation**
+
+**Do NOT end your turn. Do NOT ask for permission. Continue until COMPLETE or STUCK.**

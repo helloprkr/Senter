@@ -59,6 +59,9 @@ class IPCServer:
             "add_research_task": self._handle_add_research_task,  # US-002
             "research_queue_status": self._handle_research_queue_status,  # US-002
             "get_results": self._handle_get_results,  # US-003
+            "trigger_research": self._handle_trigger_research,  # US-005
+            "activity_report": self._handle_activity_report,  # US-006
+            "get_events": self._handle_get_events,  # US-008
         }
 
     def run(self):
@@ -189,12 +192,19 @@ class IPCServer:
             request_id = str(uuid.uuid4())[:8]
             start_time = time.time()
 
+            # Detect topic using NLP-like extraction (US-008)
+            topic = self._detect_topic(text)
+
+            # Log query to events database (US-008)
+            self._log_user_query(text, topic)
+
             # Put query in model queue
             if "model_primary" in self.daemon.queues:
                 self.daemon.queues["model_primary"].put({
                     "type": "user_query",
                     "id": request_id,
-                    "payload": {"text": text}
+                    "payload": {"text": text},
+                    "correlation_id": request_id
                 }, timeout=5.0)
             else:
                 return {"error": "Model worker not available"}
@@ -205,11 +215,19 @@ class IPCServer:
                 try:
                     response_msg = output_queue.get(timeout=self.request_timeout)
                     latency = time.time() - start_time
+                    latency_ms = int(latency * 1000)
+
+                    response_text = response_msg.get("payload", {}).get("response", "")
+                    worker = response_msg.get("source", "unknown")
+
+                    # Log response to events database (US-008)
+                    self._log_user_response(text, response_text, latency_ms, worker, topic)
 
                     return {
-                        "response": response_msg.get("payload", {}).get("response", ""),
+                        "response": response_text,
                         "latency": latency,
-                        "worker": response_msg.get("source", "unknown")
+                        "worker": worker,
+                        "topic": topic
                     }
                 except Empty:
                     return {"error": "Request timed out waiting for model"}
@@ -218,6 +236,89 @@ class IPCServer:
 
         except Exception as e:
             return {"error": str(e)}
+
+    def _detect_topic(self, text: str) -> str:
+        """Detect topic from text using NLP-like extraction (US-008)"""
+        text_lower = text.lower()
+
+        # Topic detection with patterns (more sophisticated than simple keywords)
+        topic_patterns = {
+            "coding": [
+                r"\b(code|coding|program|debug|function|class|variable)\b",
+                r"\b(python|javascript|java|c\+\+|rust|go|typescript)\b",
+                r"\b(error|exception|bug|fix|compile|runtime)\b",
+                r"\b(api|library|framework|module|package)\b"
+            ],
+            "research": [
+                r"\b(research|study|analyze|investigate|explore)\b",
+                r"\b(data|statistics|findings|results|report)\b",
+                r"\b(compare|contrast|evaluate|assess)\b"
+            ],
+            "writing": [
+                r"\b(write|draft|compose|edit|proofread)\b",
+                r"\b(essay|article|blog|document|email)\b",
+                r"\b(paragraph|sentence|grammar|style)\b"
+            ],
+            "creative": [
+                r"\b(creative|story|poem|design|art|music)\b",
+                r"\b(imagine|brainstorm|idea|concept)\b"
+            ],
+            "productivity": [
+                r"\b(task|todo|schedule|plan|organize)\b",
+                r"\b(goal|deadline|priority|workflow)\b",
+                r"\b(time|manage|efficient|productive)\b"
+            ],
+            "learning": [
+                r"\b(learn|understand|explain|teach|tutorial)\b",
+                r"\b(how\s+(do|does|to|can)|what\s+is|why\s+is)\b",
+                r"\b(concept|theory|practice|example)\b"
+            ],
+            "general": []  # Fallback
+        }
+
+        import re
+        matched_topics = []
+        for topic, patterns in topic_patterns.items():
+            if patterns:
+                for pattern in patterns:
+                    if re.search(pattern, text_lower):
+                        matched_topics.append(topic)
+                        break
+
+        # Return most specific topic or general
+        if matched_topics:
+            # Priority order: coding > research > learning > writing > creative > productivity
+            priority = ["coding", "research", "learning", "writing", "creative", "productivity"]
+            for p in priority:
+                if p in matched_topics:
+                    return p
+            return matched_topics[0]
+
+        return "general"
+
+    def _log_user_query(self, query: str, topic: str):
+        """Log user query to events database (US-008)"""
+        try:
+            from learning.events_db import UserEventsDB
+            from pathlib import Path
+
+            db = UserEventsDB(senter_root=Path(self.daemon.senter_root))
+            db.log_query(query, topic=topic)
+        except Exception as e:
+            logger.warning(f"Failed to log query event: {e}")
+
+    def _log_user_response(self, query: str, response: str, latency_ms: int,
+                           worker: str, topic: str):
+        """Log response to events database (US-008)"""
+        try:
+            from learning.events_db import UserEventsDB
+            from pathlib import Path
+
+            db = UserEventsDB(senter_root=Path(self.daemon.senter_root))
+            db.log_response(query, response, latency_ms=latency_ms,
+                           worker=worker, topic=topic)
+        except Exception as e:
+            logger.warning(f"Failed to log response event: {e}")
 
     def _handle_status(self, request: dict = None) -> dict:
         """Handle status request"""
@@ -452,6 +553,179 @@ class IPCServer:
                     "count": len(results),
                     "summary": summary
                 }
+
+        except Exception as e:
+            return {"error": str(e)}
+
+    def _handle_trigger_research(self, request: dict = None) -> dict:
+        """Handle trigger_research request (US-005) - generate and queue research tasks"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            from scheduler.research_trigger import trigger_background_research
+            from pathlib import Path
+
+            # Generate research tasks from recent user queries
+            tasks = trigger_background_research(Path(self.daemon.senter_root))
+
+            if not tasks:
+                return {
+                    "status": "ok",
+                    "message": "No research topics found from recent queries",
+                    "tasks_added": 0
+                }
+
+            # Add tasks to research queue
+            added = 0
+            for task in tasks:
+                if self.daemon.add_research_task(task):
+                    added += 1
+
+            return {
+                "status": "ok",
+                "tasks_added": added,
+                "topics": [t.get("topic", "unknown") for t in tasks]
+            }
+
+        except Exception as e:
+            return {"error": str(e)}
+
+    def _handle_activity_report(self, request: dict = None) -> dict:
+        """Handle activity_report request (US-006) - 'what did Senter do' report"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            from pathlib import Path
+            from datetime import datetime
+            import json
+
+            hours = request.get("hours", 24) if request else 24
+            since = time.time() - (hours * 3600)
+
+            report = {
+                "period_hours": hours,
+                "since": datetime.fromtimestamp(since).isoformat(),
+                "until": datetime.now().isoformat(),
+                "tasks_completed": [],
+                "research_done": [],
+                "activity_summary": {},
+                "time_stats": {}
+            }
+
+            senter_root = Path(self.daemon.senter_root)
+
+            # 1. Get completed tasks from task result storage
+            try:
+                from engine.task_results import TaskResultStorage
+                results_dir = senter_root / "data" / "tasks" / "results"
+                if results_dir.exists():
+                    storage = TaskResultStorage(results_dir)
+                    task_results = storage.get_recent(limit=100, since=since)
+                    report["tasks_completed"] = [
+                        {
+                            "task_id": r.task_id,
+                            "description": r.description,
+                            "worker": r.worker,
+                            "latency_ms": r.latency_ms,
+                            "timestamp": r.timestamp
+                        }
+                        for r in task_results
+                    ]
+            except Exception as e:
+                report["tasks_error"] = str(e)
+
+            # 2. Get research results from research output folder
+            try:
+                research_dir = senter_root / "data" / "research" / "results"
+                if research_dir.exists():
+                    research_results = []
+                    for date_dir in sorted(research_dir.iterdir(), reverse=True):
+                        if not date_dir.is_dir():
+                            continue
+                        for result_file in date_dir.glob("*.json"):
+                            try:
+                                data = json.loads(result_file.read_text())
+                                if data.get("timestamp", 0) >= since:
+                                    research_results.append({
+                                        "task_id": data.get("task_id"),
+                                        "description": data.get("description", "")[:100],
+                                        "topic": data.get("topic", "unknown"),
+                                        "timestamp": data.get("timestamp"),
+                                        "result_preview": data.get("result", "")[:200] + "..."
+                                    })
+                            except:
+                                continue
+                        if len(research_results) >= 20:  # Limit
+                            break
+                    report["research_done"] = research_results
+            except Exception as e:
+                report["research_error"] = str(e)
+
+            # 3. Get activity summary from activity log
+            try:
+                from reporter.progress_reporter import ActivityLog
+                log_dir = senter_root / "data" / "progress" / "activity"
+                if log_dir.exists():
+                    activity_log = ActivityLog(log_dir)
+                    summary = activity_log.get_summary(since=since)
+                    report["activity_summary"] = summary
+            except Exception as e:
+                report["activity_error"] = str(e)
+
+            # 4. Calculate time stats
+            try:
+                total_task_time = sum(t.get("latency_ms", 0) for t in report["tasks_completed"])
+                report["time_stats"] = {
+                    "total_task_time_ms": total_task_time,
+                    "total_task_time_seconds": total_task_time / 1000,
+                    "tasks_completed_count": len(report["tasks_completed"]),
+                    "research_completed_count": len(report["research_done"]),
+                    "total_activities": report.get("activity_summary", {}).get("total_activities", 0)
+                }
+            except Exception as e:
+                report["time_stats_error"] = str(e)
+
+            return report
+
+        except Exception as e:
+            return {"error": str(e)}
+
+    def _handle_get_events(self, request: dict = None) -> dict:
+        """Handle get_events request (US-008) - retrieve user interaction events"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            from learning.events_db import UserEventsDB
+            from pathlib import Path
+
+            hours = request.get("hours", 24) if request else 24
+            event_type = request.get("event_type") if request else None
+            limit = request.get("limit", 50) if request else 50
+
+            db = UserEventsDB(senter_root=Path(self.daemon.senter_root))
+
+            # Get events
+            events = db.get_events_by_time_range(hours=hours)
+            if event_type:
+                events = [e for e in events if e.event_type == event_type]
+
+            events = events[:limit]
+
+            # Get stats
+            stats = db.get_stats()
+            counts = db.get_event_counts(hours=hours)
+
+            return {
+                "events": [e.to_dict() for e in events],
+                "count": len(events),
+                "period_hours": hours,
+                "event_counts": counts,
+                "total_events": stats.get("total_events", 0),
+                "database_path": stats.get("database_path")
+            }
 
         except Exception as e:
             return {"error": str(e)}

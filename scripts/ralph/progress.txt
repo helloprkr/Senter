@@ -26,7 +26,7 @@ Project: Senter-Gap-v2
 - IPC communication working (query, status, health)
 - Model workers connect to Ollama successfully
 - Task execution NOW WORKING (US-001 complete)
-- Research worker identical to primary worker
+- Research worker NOW DIFFERENTIATED (US-004 complete)
 - Learning is keyword-based only
 - Audio/Gaze disabled in config
 
@@ -56,4 +56,166 @@ See: gap_v2.md for full analysis of what's missing
   - Gotcha: Queue.qsize() unreliable on macOS - drain and refill to count
   - Gotcha: Queue.put() may not be immediately visible in same process
   - Gotcha: Tests using multiprocessing.Queue can have timing issues - use direct get() instead of checking size
+---
+
+## 2026-01-07 - US-003
+- Implemented task result storage in engine/task_results.py
+- Files changed: engine/task_results.py, engine/task_engine.py, daemon/ipc_server.py, daemon/ipc_client.py, tests/test_task_results.py
+- **Learnings:**
+  - Pattern: Store results organized by date (data/tasks/results/YYYY-MM-DD/)
+  - Pattern: Maintain index.json for quick lookups by task_id or goal_id
+  - Pattern: TaskResult dataclass with to_dict/from_dict for serialization
+  - Pattern: Integrate storage into TaskExecutor.execute() flow automatically
+  - Gotcha: Different tools return different result formats - use OR chain to extract content
+---
+
+## 2026-01-07 - US-004
+- Differentiated research worker from primary worker
+- Files changed: daemon/senter_daemon.py, tests/test_workers_differentiated.py
+- **Learnings:**
+  - Pattern: Create separate worker function for different behaviors (research_worker_process vs model_worker_process)
+  - Pattern: Use different system prompts for different worker roles
+  - Pattern: Research worker uses lower temperature (0.5) for accuracy, longer output (2048 tokens)
+  - Pattern: Research worker stores directly to data/research/results/YYYY-MM-DD/
+  - Pattern: Primary worker filters by msg_type to only handle user_query, user_voice
+  - Gotcha: Research worker needs senter_root passed as string for Path conversion in subprocess
+---
+
+## 2026-01-07 - US-005
+- Implemented autonomous research trigger
+- Files changed: scheduler/research_trigger.py (NEW), scheduler/action_scheduler.py, daemon/ipc_server.py, daemon/ipc_client.py, tests/test_research_trigger.py
+- **Learnings:**
+  - Pattern: Create dedicated module (research_trigger.py) for topic extraction logic
+  - Pattern: ResearchTopicExtractor reads from SQLite learning database directly (cross-process safe)
+  - Pattern: ResearchTaskGenerator uses topic-specific prompt templates
+  - Pattern: Add IPC handler for manual trigger, scheduler job for automatic hourly trigger
+  - Pattern: Fall back to patterns table if no recent queries in events table
+  - Gotcha: trigger_background_research returns empty list gracefully if no data
+---
+
+## 2026-01-07 - US-006
+- Implemented 'what did Senter do' activity report
+- Files changed: daemon/ipc_server.py, daemon/ipc_client.py, scripts/senter_ctl.py, tests/test_activity_report.py
+- **Learnings:**
+  - Pattern: Aggregate data from multiple sources (task results, research folder, activity log)
+  - Pattern: Use datetime.fromisoformat() for human-readable timestamps
+  - Pattern: Include both raw data lists and computed summary stats
+  - Pattern: CLI report uses formatted output with sections (header, summary, tasks, research, breakdown)
+  - Pattern: Default to safe empty structures if data sources don't exist
+  - Gotcha: Handle missing directories gracefully with exists() check before iteration
+---
+
+## 2026-01-07 - US-007
+- Created behavioral event database schema
+- Files changed: learning/events_db.py (NEW), tests/test_events_database.py
+- **Learnings:**
+  - Pattern: UserEventsDB with separate file (events.db) for user interactions
+  - Pattern: Schema: timestamp, event_type, context (JSON), metadata (JSON)
+  - Pattern: log_query() and log_response() convenience methods with auto time_of_day
+  - Pattern: get_events() with filtering by type, since, until, limit
+  - Gotcha: Use json.loads/dumps for context and metadata columns
+---
+
+## 2026-01-07 - US-008
+- Implemented user interaction logging to behavioral database
+- Files changed: daemon/ipc_server.py, daemon/ipc_client.py, scripts/senter_ctl.py, tests/test_interaction_logging.py
+- **Learnings:**
+  - Pattern: Log in IPC handler _handle_query before sending to model and after response
+  - Pattern: _detect_topic() uses regex patterns with word boundaries for NLP-like detection
+  - Pattern: Priority order for topic matching: coding > research > learning > writing
+  - Pattern: CLI 'events' command shows formatted event list with counts
+  - Gotcha: Import UserEventsDB inside handler to avoid circular imports
+---
+
+## 2026-01-07 - US-009
+- Implemented time-based pattern detection
+- Files changed: learning/pattern_detector.py (NEW), tests/test_pattern_detection.py
+- **Learnings:**
+  - Pattern: PatternDetector class analyzes events over N days
+  - Pattern: Detect peak_hours using Counter on event timestamps
+  - Pattern: topics_by_time_of_day groups topics by morning/afternoon/evening/night
+  - Pattern: Store patterns in patterns.json for persistence across restarts
+  - Pattern: detect_and_save_patterns() function for scheduler integration
+  - Gotcha: Handle empty events gracefully with _empty_patterns() fallback
+---
+
+## 2026-01-07 - US-010 (Audio Pipeline)
+- Implemented audio_pipeline_process in daemon/senter_daemon.py
+- Files changed: daemon/senter_daemon.py, tests/test_audio_enabled.py
+- **Learnings:**
+  - Pattern: Create process wrapper that initializes components and bridges to queues
+  - Pattern: Use threading for audio capture callback within the process
+  - Pattern: Check has_attention state before processing audio
+  - Pattern: STTEngine lazy-loads Whisper model on first use
+  - Gotcha: sounddevice requires callback-based API, not polling
+  - Gotcha: Energy-based VAD fallback when Silero unavailable
+---
+
+## 2026-01-07 - US-011 (Gaze Detection)
+- Implemented gaze_detector_process in daemon/senter_daemon.py
+- Files changed: daemon/senter_daemon.py, tests/test_gaze_enabled.py
+- **Learnings:**
+  - Pattern: Smooth attention scores using rolling history (10 samples)
+  - Pattern: Use attention_timeout (2s) before declaring attention lost
+  - Pattern: MediaPipe Face Mesh gives eye landmarks for gaze estimation
+  - Pattern: Haar cascade fallback when MediaPipe unavailable
+  - Gotcha: mediapipe 0.10+ removed solutions API - check for legacy API availability
+  - Gotcha: Camera must be released in finally block to prevent resource leak
+---
+
+## 2026-01-07 - US-012 (Attention-Voice Wiring)
+- Updated message routing in daemon/senter_daemon.py
+- Files changed: daemon/senter_daemon.py, tests/test_attention_voice_flow.py
+- **Learnings:**
+  - Pattern: Add new message types to routing table in _route_message()
+  - Pattern: attention_gained/lost route to audio for activation control
+  - Pattern: user_voice routes to model_primary for processing
+  - Pattern: model_response routes to audio for TTS output
+  - Flow: gaze -> ATTENTION_GAINED -> audio activates -> speech detected -> USER_VOICE -> model -> MODEL_RESPONSE -> audio speaks
+---
+
+## Session Summary - 2026-01-07
+
+### Completed User Stories (12/12) - ALL DONE!
+- US-001: Real task execution in TaskExecutor
+- US-002: Research task queue for background work
+- US-003: Task result storage
+- US-004: Differentiated research worker
+- US-005: Autonomous research trigger
+- US-006: Activity report ("what did Senter do")
+- US-007: Behavioral event database schema
+- US-008: User interaction logging
+- US-009: Time-based pattern detection
+- US-010: Audio pipeline (VAD + Whisper STT + TTS)
+- US-011: Gaze detection (MediaPipe/Haar cascade)
+- US-012: Attention-voice wiring ("just look and talk")
+
+### Files Created
+- scheduler/research_trigger.py
+- learning/events_db.py
+- learning/pattern_detector.py
+- docs/AUDIO_GAZE_SETUP.md
+- tests/test_workers_differentiated.py
+- tests/test_research_trigger.py
+- tests/test_activity_report.py
+- tests/test_events_database.py
+- tests/test_interaction_logging.py
+- tests/test_pattern_detection.py
+- tests/test_audio_enabled.py
+- tests/test_gaze_enabled.py
+- tests/test_attention_voice_flow.py
+
+### Files Modified
+- daemon/senter_daemon.py (major: added audio_pipeline_process, gaze_detector_process, updated routing)
+- daemon/ipc_server.py
+- daemon/ipc_client.py
+- scripts/senter_ctl.py
+- scheduler/action_scheduler.py
+- config/daemon_config.json (enabled audio_pipeline, gaze_detection)
+- scripts/ralph/prd.json
+- scripts/ralph/progress.txt
+
+### Virtual Environment
+- Created .venv with Python 3.13
+- Installed: sounddevice, openai-whisper, opencv-python, mediapipe
 ---

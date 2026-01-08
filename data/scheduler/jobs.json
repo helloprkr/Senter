@@ -12,7 +12,7 @@
       "job_type": "digest",
       "job_params": {},
       "status": "active",
-      "created_at": 1767821402.154736,
+      "created_at": 1767827859.967938,
       "last_run": null,
       "next_run": null,
       "run_count": 0
@@ -30,7 +30,25 @@
         "check_type": "goals"
       },
       "status": "active",
-      "created_at": 1767821402.1547399,
+      "created_at": 1767827859.9679391,
+      "last_run": null,
+      "next_run": null,
+      "run_count": 0
+    },
+    {
+      "id": "background_research",
+      "name": "Background Research",
+      "description": "Generate research tasks from recent user queries",
+      "trigger_type": "interval",
+      "trigger_config": {
+        "seconds": 3600
+      },
+      "job_type": "research",
+      "job_params": {
+        "max_tasks": 2
+      },
+      "status": "active",
+      "created_at": 1767827859.96794,
       "last_run": null,
       "next_run": null,
       "run_count": 0

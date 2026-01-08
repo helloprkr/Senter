@@ -314,6 +314,17 @@ class ActionScheduler:
             job_params={"check_type": "goals"}
         )
 
+        # Background research every hour (US-005)
+        self.jobs["background_research"] = ScheduledJob(
+            id="background_research",
+            name="Background Research",
+            description="Generate research tasks from recent user queries",
+            trigger_type=TriggerType.INTERVAL,
+            trigger_config={"seconds": 3600},  # Every hour
+            job_type="research",
+            job_params={"max_tasks": 2}
+        )
+
         self._save_jobs()
         logger.info("Created default jobs")
 
