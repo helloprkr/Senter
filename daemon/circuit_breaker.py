@@ -122,6 +122,91 @@ def with_circuit_breaker(breaker: CircuitBreaker):
     return decorator
 
 
+# DI-003: Component Circuit Breaker Registry
+class CircuitBreakerRegistry:
+    """
+    Registry for managing circuit breakers per component (DI-003).
+
+    Integrates with message bus to prevent routing to failed components.
+    """
+
+    def __init__(self, failure_threshold: int = 5, reset_timeout: int = 30):
+        self.breakers: dict[str, CircuitBreaker] = {}
+        self.failure_threshold = failure_threshold
+        self.reset_timeout = reset_timeout
+
+    def get_or_create(self, component: str) -> CircuitBreaker:
+        """Get or create a circuit breaker for a component."""
+        if component not in self.breakers:
+            self.breakers[component] = CircuitBreaker(
+                name=component,
+                failure_threshold=self.failure_threshold,
+                reset_timeout=self.reset_timeout,
+                success_threshold=2
+            )
+        return self.breakers[component]
+
+    def record_failure(self, component: str):
+        """Record a failure for a component."""
+        breaker = self.get_or_create(component)
+        breaker._on_failure()
+
+    def record_success(self, component: str):
+        """Record a success for a component."""
+        breaker = self.get_or_create(component)
+        breaker._on_success()
+
+    def is_component_available(self, component: str) -> bool:
+        """Check if a component is available (circuit not open)."""
+        if component not in self.breakers:
+            return True
+
+        breaker = self.breakers[component]
+
+        # Check for half-open transition
+        if breaker.state == "open" and breaker._should_try_reset():
+            breaker.state = "half-open"
+            logger.info(f"Circuit {component}: half-open, testing...")
+            return True
+
+        return breaker.state != "open"
+
+    def get_available_components(self, components: list[str]) -> list[str]:
+        """Filter list to only available components."""
+        return [c for c in components if self.is_component_available(c)]
+
+    def get_all_status(self) -> dict[str, dict]:
+        """Get status of all circuit breakers."""
+        return {name: breaker.get_status() for name, breaker in self.breakers.items()}
+
+    def get_open_circuits(self) -> list[str]:
+        """Get list of components with open circuits."""
+        return [name for name, breaker in self.breakers.items() if breaker.is_open]
+
+    def reset_all(self):
+        """Reset all circuit breakers."""
+        for breaker in self.breakers.values():
+            breaker.reset()
+        logger.info("All circuit breakers reset")
+
+    def reset_component(self, component: str):
+        """Reset a specific component's circuit breaker."""
+        if component in self.breakers:
+            self.breakers[component].reset()
+
+
+# Global registry instance
+_registry: CircuitBreakerRegistry = None
+
+
+def get_circuit_registry() -> CircuitBreakerRegistry:
+    """Get the global circuit breaker registry."""
+    global _registry
+    if _registry is None:
+        _registry = CircuitBreakerRegistry()
+    return _registry
+
+
 def with_retry(
     max_retries: int = 3,
     base_delay: float = 1.0,
