@@ -329,3 +329,42 @@ Date: 2026-01-08
 - typecheck: PASSED
 - build: PASSED
 
+### P3-002: Context Sources in Query [PASSED]
+Date: 2026-01-08
+
+**Implementation:**
+1. Added `_build_context_sources_prompt` method in ipc_server.py:
+   - Fetches all active context sources from ContextSourcesDB
+   - Loads file contents for file sources
+   - Uses stored preview for web sources
+   - Truncates content to 2000 chars per source
+
+2. Added `_get_source_content` helper method:
+   - Reads file content for file sources
+   - Returns content_preview for web and other types
+   - Graceful error handling with fallback
+
+3. Updated `_handle_query` to include context sources:
+   - Builds context sources prompt
+   - Appends to system prompt if sources exist
+   - Sources are presented as reference material
+
+**Prompt format:**
+```
+The user has provided the following context sources for reference:
+
+--- Source Title (type: path) ---
+[content]
+
+--- End of context sources ---
+Use these sources to inform your responses when relevant.
+```
+
+**Verification:**
+- Python syntax: OK
+
+---
+## PHASE 3 COMPLETE
+All 2 Phase 3 stories (P3-001 through P3-002) have passed.
+Note: Phase 4 (Voice Interaction) requires audio pipeline integration.
+

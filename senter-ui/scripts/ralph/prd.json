@@ -331,8 +331,8 @@
       ],
       "qualityGate": "Ask question about content only in context source - get accurate answer",
       "priority": 11,
-      "passes": false,
-      "notes": "Depends on P3-001"
+      "passes": true,
+      "notes": "Implemented 2026-01-08: _build_context_sources_prompt includes sources in system prompt"
     },
     {
       "id": "P4-001",

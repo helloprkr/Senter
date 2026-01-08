@@ -230,6 +230,14 @@ class IPCServer:
             conversation_id = request.get("conversation_id")
             context_prompt = self._build_conversation_context(conversation_id, text)
 
+            # P3-002: Build context from pinned sources
+            sources_context = self._build_context_sources_prompt()
+
+            # Build system prompt with context sources
+            system_prompt = "You are Senter, a helpful AI assistant. You remember the context of our conversation."
+            if sources_context:
+                system_prompt += f"\n\n{sources_context}"
+
             # Put query in model queue
             if "model_primary" in self.daemon.queues:
                 self.daemon.queues["model_primary"].put({
@@ -237,7 +245,7 @@ class IPCServer:
                     "id": request_id,
                     "payload": {
                         "text": context_prompt if context_prompt else text,
-                        "system_prompt": "You are Senter, a helpful AI assistant. You remember the context of our conversation."
+                        "system_prompt": system_prompt
                     },
                     "correlation_id": request_id
                 }, timeout=5.0)
@@ -433,6 +441,64 @@ class IPCServer:
         except Exception as e:
             logger.warning(f"Failed to build conversation context: {e}")
             return None
+
+    def _build_context_sources_prompt(self) -> str:
+        """Build context from pinned sources (P3-002)"""
+        if not self.daemon:
+            return ""
+
+        try:
+            from learning.context_sources_db import ContextSourcesDB
+
+            db = ContextSourcesDB(Path(self.daemon.senter_root))
+            sources = db.get_all_sources(active_only=True)
+
+            if not sources:
+                return ""
+
+            context_parts = ["The user has provided the following context sources for reference:"]
+
+            for source in sources:
+                content = self._get_source_content(source)
+                if content:
+                    context_parts.append(f"\n--- {source.title} ({source.type}: {source.path}) ---")
+                    # Truncate to avoid context overflow
+                    max_content_len = 2000
+                    if len(content) > max_content_len:
+                        content = content[:max_content_len] + "... [truncated]"
+                    context_parts.append(content)
+
+            if len(context_parts) > 1:
+                context_parts.append("\n--- End of context sources ---")
+                context_parts.append("Use these sources to inform your responses when relevant.")
+                return "\n".join(context_parts)
+
+            return ""
+
+        except Exception as e:
+            logger.warning(f"Failed to build context sources: {e}")
+            return ""
+
+    def _get_source_content(self, source) -> str:
+        """Get content from a context source (P3-002)"""
+        try:
+            if source.type == "file":
+                # Read file content
+                file_path = Path(source.path).expanduser()
+                if file_path.exists() and file_path.is_file():
+                    return file_path.read_text()
+            elif source.type == "web":
+                # For URLs, use stored preview or fetch (simple approach)
+                if source.content_preview:
+                    return source.content_preview
+                # Could add httpx fetch here for live content
+            else:
+                # Return stored preview for other types
+                return source.content_preview or ""
+        except Exception as e:
+            logger.warning(f"Failed to get source content ({source.path}): {e}")
+
+        return source.content_preview or ""
 
     def _handle_status(self, request: dict = None) -> dict:
         """Handle status request"""
