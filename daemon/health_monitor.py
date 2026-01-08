@@ -216,6 +216,113 @@ class HealthMonitor:
             return all(h.is_alive for h in self.components.values())
 
 
+# DI-004: HTTP Health Endpoint Server
+class HealthHTTPServer:
+    """
+    HTTP server for health endpoint (DI-004).
+
+    Exposes /health endpoint for external monitoring tools.
+    """
+
+    def __init__(self, health_monitor: HealthMonitor, port: int = 8765):
+        self.health_monitor = health_monitor
+        self.port = port
+        self._server = None
+        self._thread: Optional[threading.Thread] = None
+        self._running = False
+        self._start_time = time.time()
+
+    def get_health_response(self) -> tuple[dict, int]:
+        """Generate health response with status code."""
+        status = self.health_monitor.get_status()
+        uptime = time.time() - self._start_time
+
+        # Determine overall health status
+        component_statuses = status.get("components", {})
+        alive_count = sum(1 for c in component_statuses.values() if c.get("is_alive"))
+        total_count = len(component_statuses)
+
+        if total_count == 0:
+            health_status = "unknown"
+            http_code = 200
+        elif alive_count == total_count:
+            health_status = "healthy"
+            http_code = 200
+        elif alive_count > 0:
+            health_status = "degraded"
+            http_code = 200
+        else:
+            health_status = "unhealthy"
+            http_code = 503
+
+        response = {
+            "status": health_status,
+            "uptime_seconds": round(uptime, 2),
+            "components": component_statuses,
+            "summary": {
+                "total": total_count,
+                "alive": alive_count,
+                "dead": total_count - alive_count
+            },
+            "timestamp": status.get("timestamp")
+        }
+
+        return response, http_code
+
+    def _make_handler(self):
+        """Create HTTP request handler class."""
+        from http.server import BaseHTTPRequestHandler
+        import json
+
+        health_server = self
+
+        class HealthHandler(BaseHTTPRequestHandler):
+            def log_message(self, format, *args):
+                # Suppress default logging
+                pass
+
+            def do_GET(self):
+                if self.path == "/health" or self.path == "/":
+                    response, code = health_server.get_health_response()
+                    self.send_response(code)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps(response, indent=2).encode())
+                elif self.path == "/ready":
+                    # Readiness check - are we accepting traffic?
+                    response, code = health_server.get_health_response()
+                    ready = response["status"] in ("healthy", "degraded")
+                    self.send_response(200 if ready else 503)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"ready": ready}).encode())
+                else:
+                    self.send_response(404)
+                    self.end_headers()
+
+        return HealthHandler
+
+    def start(self):
+        """Start the HTTP server in a background thread."""
+        if self._running:
+            return
+
+        from http.server import HTTPServer
+
+        self._running = True
+        self._server = HTTPServer(("0.0.0.0", self.port), self._make_handler())
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+        logger.info(f"Health HTTP server started on port {self.port}")
+
+    def stop(self):
+        """Stop the HTTP server."""
+        if self._server:
+            self._server.shutdown()
+            self._running = False
+            logger.info("Health HTTP server stopped")
+
+
 # Test
 if __name__ == "__main__":
     import multiprocessing
