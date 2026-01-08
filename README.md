@@ -1,515 +1,431 @@
-# Senter - Universal AI Personal Assistant
+# Senter
 
-![Senter v2.0](https://img.shields.io/badge/Senter-2.0.0-00ffaa?style=for-the-badge)
-![Python](https://img.shields.io/badge/Python-3.10+-blue?style=flat&logo=python&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green?style=flat)
+**An ambient AI companion that responds when you look at it and speak.**
 
-**An open-source life assistant building a symbiotic future where AI and humans collaborate to unlock their full potential.**
-
----
-
-## 📊 Latest Updates (January 7, 2026)
-
-### ✅ Recent Fixes (v2.0.1):
-- **Critical Bug Fixes**: Fixed 4 broken files (syntax errors, logic bugs)
-- **Focus Discovery**: `list_all_focuses()` now properly returns all focuses
-- **Path Handling**: Fixed Path vs string issues in parser
-- **Dependency Cleanup**: Reduced requirements to actually-used packages
-- **Documentation**: Updated to reflect actual implementation status
-
-### 🔧 Current State:
-
-**Working:**
-- ✅ **CLI/TUI Interface**: Python CLI and Textual TUI functional
-- ✅ **SENTER.md Parser**: Parses YAML frontmatter + markdown sections
-- ✅ **Focus Discovery**: Finds all 5 user focuses (general, coding, research, creative, user_personal)
-- ✅ **Web Search**: DuckDuckGo API integration functional
-- ✅ **OmniAgent**: LLM wrapper supports GGUF, OpenAI API, vLLM backends
-
-**Partial/Stub:**
-- ⚠️ **Agent Prompts**: 7 SENTER.md prompt templates (not Python agent classes - see note below)
-- ⚠️ **Routing**: Uses prompt-based routing, NOT semantic embeddings
-- ⚠️ **Background Tasks**: Threading infrastructure exists, evolution is stub
-
-**Not Implemented:**
-- ❌ **Self-Learning**: `_evolve_agents()` is a stub - no actual learning
-- ❌ **Semantic Routing**: `_embed_filter()` returns first N items, no embeddings
-- ❌ **STT (Speech-to-Text)**: Not integrated
-
-### 📝 Important Note: How "Agents" Work
-
-Senter's 7 "internal agents" (Router, Goal_Detector, Profiler, etc.) are **SENTER.md configuration files containing system prompts**, not standalone Python classes with algorithmic logic.
-
-The intelligence comes from the LLM you provide - agents are prompt templates that shape LLM behavior. This is a valid architecture pattern, but users should understand:
-- "Router" = a system prompt that asks the LLM to output JSON with routing decisions
-- "Goal_Detector" = a system prompt that asks the LLM to extract goals
-- There is no Python code doing goal detection, routing, or profiling
-
-### 🎯 Testing Progress:
-- Syntax check: ✅ All files compile
-- Parser import: ✅ Working
-- Focus config loading: ✅ Working
-- Web search: ✅ API calls work
-- CLI help: ✅ Working
-- Minimal test suite: ✅ 5/5 tests pass
+<p align="center">
+  <img src="https://img.shields.io/badge/version-2.1.0-00ffaa?style=for-the-badge" alt="Version 2.1.0">
+  <img src="https://img.shields.io/badge/python-3.10+-3776ab?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License">
+  <img src="https://img.shields.io/badge/status-fully%20functional-success?style=for-the-badge" alt="Status">
+</p>
 
 ---
 
-## 🌟 The Vision: Symbiotic AI-Human Partnership
+## The Promise: Just Look and Talk
 
-Senter is more than an AI assistant - it's a **manifesto for how AI and humans can work together**.
+Senter runs quietly in the background. When you look at your camera, it notices. When you speak, it listens, understands, and responds - out loud.
 
-**What Senter ultimately is designed to do:**
-
-Senter harnesses the power of Large Language Models to:
-
-1. **Process natural language into ordered data and intelligent actions** - Transform your messy, unstructured thoughts into clear, actionable insights
-2. **Pick up new functionality that user can call upon automatically when Senter encounters a script, function, or command line tool** - Seamlessly integrate any tool you write
-3. **Update its knowledge about user's interests** - Learn from every conversation, building rich context around what matters to you
-4. **Answer user's questions** - Provide helpful, context-aware responses using all available information
-
-### The Four Pillars of Symbiotic Partnership
-
-#### 1. **Knowledge Evolution** (Focuses)
-Every interest you have (Bitcoin, AI, coding, creative writing, research, etc.) becomes a **Focus** - a dynamic, living knowledge base:
-
-- Senter learns what you care about through conversations
-- Each Focus has its own evolving knowledge stored in SENTER.md
-- Focuses can be conversational (with wiki.md knowledge) or functional (single-purpose tools)
-- **No predefined templates** - Focuses grow organically based on your actual interests and goals
-
-#### 2. **Tool Auto-Discovery** (Functions/)
-Write any Python script, shell command, or tool, and Senter will:
-
-- Automatically discover it in your Functions/ directory
-- Call SENTER_Md_Writer agent to create a Focus for it
-- Integrate it seamlessly into conversations
-- Route relevant queries to that tool's Focus automatically
-- **No manual configuration** - just code, and Senter handles the rest
-
-#### 3. **Goal & Action Tracking** (Background Processes)
-Senter's internal agents continuously work in the background:
-
-- **Goal_Detector**: Extracts goals from your conversations, unlimited and Focus-specific
-- **Planner**: Breaks down complex goals into actionable steps
-- **Profiler**: Analyzes your patterns, preferences, and interaction style
-- **Context_Gatherer**: Updates SENTER.md files with conversation summaries
-- **Tool_Discovery**: Scans for new tools and calls SENTER_Md_Writer to create Focuses
-- **Web Search**: Provides current information via DuckDuckGo API integration
-
-### The Human's Role
-
-Senter is **your partner in learning and creating**, not your replacement:
-
-- You provide the creativity, goals, direction, and tools
-- Senter provides the knowledge, capabilities, organization, and synthesis
-- Together, you both become more effective than either alone
-
----
-
-## 🚀 What Makes Senter Unique?
-
-**Working Features:**
-1. **Everything is OmniAgent + SENTER.md**: Every capability is defined by a configuration file with system prompts
-2. **Model-Agnostic**: Bring your own model (GGUF, OpenAI API, vLLM) - Senter adapts to what you have
-3. **Privacy-First**: All processing happens locally when using local models
-4. **Extensible**: Add capabilities by creating a Focus directory with SENTER.md
-5. **Web-Integrated**: DuckDuckGo API for current information
-6. **Clean TUI**: Textual-based interface with professional logging
-
-**Planned/Partial Features:**
-- ⚠️ **Self-Organizing**: Tool discovery exists but automatic SENTER.md generation needs work
-- ⚠️ **Async Chain**: Threading infrastructure exists but not fully utilized
-- ⚠️ **Self-Learning**: Architecture planned but evolution logic is a stub
-
----
-
-## 📁 Universal SENTER.md Format
-
-**Every agent in Senter is defined by a single markdown file with YAML frontmatter:**
-
-```yaml
----
-model:
-  type: gguf|openai|vllm
-  path: /path/to/model.gguf  # For GGUF
-  endpoint: http://localhost:8000  # For OpenAI/vLLM
-  model_name: model-name  # For OpenAI/vLLM
-  n_gpu_layers: -1  # For GGUF
-  n_ctx: 8192  # Context window
-  max_tokens: 512
-  temperature: 0.7
-  is_vlm: false
-
-focus:
-  type: internal|conversational|functional
-  id: ajson://senter/focuses/<focus_name>
-  name: Human-Readable Name
-  created: 2026-01-04T00:00:00Z
-  version: 1.0
-
-system_prompt: |
-  [Multi-line system prompt defining agent's purpose, behavior, and capabilities]
-  
-  ## Your Vision
-  Senter is more than a tool - it's a symbiotic AI-human partnership.
-  
-  ## Your Mission
-  [What this agent does]
-  
-  ## Your Expertise
-  [Specific capabilities]
-  
-  ## Capabilities
-  [What this agent can do]
-  
-  ## Response Style
-  [How this agent should respond]
-  
-  ## Output Format
-  [Expected output format, e.g., JSON for internal agents]
-  
-  ## Evolution Notes
-  [To be updated by Profiler agent over time]
-  
-  ## Collaboration with Other Agents
-  [How this agent works with others]
-  
-  ## Tool Information (for functional Focuses)
-  [tool_name, tool_path, usage_examples]
-  
-  ## MCP Tools (optional, future)
-  [List of MCP-compliant tools this agent can use]
-  
-  ## User Preferences
-  [To be populated by Profiler agent]
-  
-  ## Patterns Observed
-  [To be populated by Profiler agent]
-  
-  ## Goals & Objectives
-  [To be populated by Goal_Detector agent]
-  
-  ## Evolution Notes
-  [To be populated by Profiler agent over time]
-  
----
-
-# Context Sections (Optional - parsed by other agents)
-
-## User Preferences
-[To be populated by Profiler agent based on conversation patterns]
-
-## Patterns Observed
-[To be populated by Profiler agent based on interaction history]
-
-## Goals & Objectives
-[To be populated by Goal_Detector agent based on extracted goals]
-
-## Evolution Notes
-[To be populated by Profiler agent over time]
-
-## Function Metadata (for functional Focuses only)
-functions:
-  - name: function_name
-    description: What it does
-    parameters: [list of parameters]
-    returns: What it returns
-
-## Tool Information (for tool Focuses only)
-tool_name: <name>
-tool_path: /path/to/tool/script
-usage_examples:
-  - Example usage 1
-  - Example usage 2
-
-## MCP Tools (optional, future integration)
-mcp_tools:
-  - server: server_name
-    name: tool_name
-    type: read/write/execute
-    description: What the tool does
-```
-
-**Key Points:**
-- YAML frontmatter contains all configuration
-- Optional markdown sections are parsed at inference time
-- Sections can be "None" for agents that don't need them
-- Universal format enables parsing, updates, and validation
-- MCP tools section ready for future integration
-```
-
-**Benefits:**
-- **Self-Documenting**: Every agent documents its own configuration
-- **Easy Extensibility**: Add any capability by creating a Focus with SENTER.md
-- **Automatic Maintenance**: Agents can update each other's SENTER.md files
-- **Future-Proof**: MCP integration planned for industry-standard tool connectivity
-
----
-
-## 📖 Architecture
+No wake words. No buttons. No friction.
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│              Senter OmniAgent Chain (Python)              │
-└─────────────────────────────────────────────────────────────────┘
-                               │
-               ┌───────────────┴───────────────┐
-               │                                │
-          ┌────▼────┐                   ┌────▼────┐ │
-          │  Router  │                   │  Chat Agent│ │
-          └────┬────┘                   └────┬────┘ │
-               │                                │
-     ┌─────────┼─────────┼─────────┼──────┐  │
-     │         │         │         │         │         │     │
- ┌───▼───┐ │Goal_Det│Tool_Discov│Context_Gather│ Planner   │Profil-er│
- │Chat Agent│  │ector    │ery      │er        │         │Chat     │
- └───▲───┘ │         │         │         │         │         │     └───▲──┘   │
-     │         │         │         │         │
-     └─────────┴─────────┴─────────┴─────────┴─────────┘
-               │                                │
-               │                                │
-     ┌─────────────────────────────────────────────────────────┐
-     │         User Focuses (omniagents)               │
-     │  coding, research, creative, user_personal, general  │
-     │  Each with SENTER.md configuration               │
-     └─────────────────────────────────────────────────────────┘
-               │
-         ▼
-┌──────────────────────────────────────────────────────────┐
-│     Functions/ (Python tools)                     │
-│  web_search.py, omniagent.py, omniagent_chain.py  │
-│  [Auto-discovered and integrated by Tool_Discovery]    │
-└──────────────────────────────────────────────────────────┘
+You look at your screen
+    ↓
+Gaze detector: "Attention gained"
+    ↓
+Audio pipeline activates
+    ↓
+You speak: "What's on my calendar today?"
+    ↓
+Whisper transcribes → LLM responds → TTS speaks the answer
 ```
 
 ---
 
-## 💡 Real-World Examples
+## Quick Start
 
-### Example 1: Bitcoin Trading Focus
-```
-You: "I want to learn about Bitcoin trading strategies"
-
-Senter [Goal_Detector]: Goal detected: "Learn Bitcoin trading strategies"
-Senter [Planner]: Breaking down into steps:
-  1. Research different trading approaches
-  2. Understand risk management
-  3. Learn about technical analysis
-  4. Practice with paper trading first
-
-You: "What's current BTC price?"
-
-Senter [Router]: Routes to Bitcoin Focus
-Senter [Web Search]: Current BTC: $67,432.50
-
-Senter [Context_Gatherer]: Updates Bitcoin Focus SENTER.md with:
-  - Current interests: Trading strategies, technical analysis
-  - Web sources checked
-```
-
-### Example 2: Automatically Discovered Tool
-```
-# User writes a Python script
-cat > Functions/encrypt_file.py <<'EOF'
-import os
-from cryptography.fernet import Fernet
-
-def encrypt_file(file_path, key):
-    with open(file_path, 'rb') as f:
-        data = f.read()
-    fernet = Fernet(key)
-    encrypted = fernet.encrypt(data)
-    
-    with open(file_path + '.enc', 'wb') as f:
-        f.write(encrypted)
-    print(f'Encrypted: {file_path}')
-EOF
-
-Senter [Tool_Discovery]: Found encrypt_file function
-Senter [SENTER_Md_Writer]: Creates Focuses/encrypt_file/SENTER.md
-  - system_prompt: "You are encryption tool. Encrypt files using AES-256 via Fernet."
-  - type: functional
-  - mcp_tools: []
-
-You: "Encrypt my document.pdf"
-
-Senter [Router]: Routes to encrypt_file Focus
-Senter [encrypt_file Focus]: Encrypting document.pdf using AES-256
-Senter [Context_Gatherer]: Updates encrypt_file Focus SENTER.md with usage patterns
-```
-
-### Example 3: Web-Enhanced Routing
-```
-You: "What's the weather like today?"
-
-Senter [Router]: Matches keywords: "weather" → research Focus
-Senter [Web Search]: DuckDuckGo search for current weather
-Senter [Research Focus]: Current weather for [location] is sunny, 22°C
-Senter [Context_Gatherer]: Updates research Focus SENTER.md with web query history
-```
-
----
-
-## 🔧 Configuration
-
-### Model Configuration
-
-Senter supports three model backends:
-
-1. **GGUF (Local LLaMA-based models)**
-   - Recommended: Hermes-3-Llama-3.2-3B (lightweight, fast)
-   - Alternative: Qwen VL 8B (vision capable)
-   - GPU acceleration with llama-cpp
-
-2. **OpenAI-Compatible API**
-   - OpenAI, Groq, DeepSeek, etc.
-   - Requires API key in config/user_profile.json
-
-3. **vLLM (OpenAI-compatible server)**
-   - Run your own model server
-   - Fast inference with batched requests
-   - Requires endpoint in config/user_profile.json
-
-### Focus Configuration
-
-Create new Focuses by:
-
-1. **Automatic**: Write a Python script in Functions/, Senter auto-discovers it
-2. **Manual**: Create `Focuses/my_focus/SENTER.md` with proper format
-3. **Dynamic**: Use `/create <name>` command - SENTER_Md_Writer generates configuration
-
----
-
-## 📊 Project Metrics
-
-**Codebase Statistics (as of Jan 7, 2026):**
-- Python files: 41 (including obsolete)
-- Markdown files: 29
-- Lines of code: ~7,000+
-- Test coverage: Minimal (basic import tests only)
-
-**System Architecture:**
-- 7 Agent prompt templates (SENTER.md files in Focuses/internal/)
-- 5 User Focuses (general, coding, research, creative, user_personal)
-- Web search integration (DuckDuckGo API)
-- Background task infrastructure (threading, mostly stubs)
-
-**What Works:**
-- CLI/TUI: Functional with LLM backend
-- Focus discovery and switching
-- SENTER.md parsing
-- Web search API calls
-- Model-agnostic LLM wrapper
-
-**What's Stub/Planned:**
-- Self-learning/evolution
-- Semantic routing (embedding-based)
-- Automatic SENTER.md generation
-
----
-
-## 📚 Documentation
-
-- [README.md](README.md) - This file, user guide
-- [SENTER_FORMAT_SPECIFICATION.md](SENTER_FORMAT_SPECIFICATION.md) - Complete format documentation
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture
-- [SENTER_DOCUMENTATION.md](SENTER_DOCUMENTATION.md) - Detailed developer docs
-- [MCP_INTEGRATION_ROADMAP.md](MCP_INTEGRATION_ROADMAP.md) - MCP integration plan
-
----
-
-## 🚧 Development Roadmap
-
-### Completed ✅
-- Universal SENTER.md format
-- All 7 internal agents working
-- Web search integration
-- Clean chat experience with logging
-- Dynamic Focus creation
-- MCP integration roadmap
-
-### In Progress 🚧
-- Advanced routing with embeddings (Q2 2026)
-- STT (speech-to-text) integration
-- Multi-modal support improvements
-
-### Future 🔮
-- MCP client implementation (Q1 2026)
-- Advanced bi-directional MCP communication
-- Tool marketplace/discovery
-- Specialized SENTER.md generation model (Unsloth training)
-
----
-
-## 🤝 Contributing
-
-Senter is designed to be **self-organizing**. The best way to contribute:
-
-1. **Create new tools**: Write Python scripts in Functions/, Senter auto-discovers them
-2. **Improve internal agents**: Enhance SENTER.md files for Router, Goal_Detector, etc.
-3. **Bug reports**: Test thoroughly, provide reproduction steps
-4. **Documentation**: Keep README and docs in sync with code
-
----
-
-## 📄 License
-
-MIT License - see LICENSE file for details
-
----
-
-## 🙏 Acknowledgments
-
-- **Qwen Team**: Qwen2.5-Omni-3B model (multimodal infrastructure)
-- **Nomic AI**: Nomic Embed Text model (semantic search)
-- **Soprano**: TTS model (streaming speech synthesis)
-- **Unsloth Team**: Fine-tuning framework (future SENTER.md training)
-- **DuckDuckGo**: Web search API for current information
-
----
-
-## 🌍 Senter in the Wild
-
-Senter is:
-- **Open Source**: Fully transparent, auditable codebase
-- **Privacy-First**: All processing happens locally, your data never leaves your machine
-- **Model-Agnostic**: Use any model you have
-- **Self-Organizing**: Agents create and configure other agents automatically
-- **Truly Extensible**: Add any capability by creating a Focus with SENTER.md
-- **Future-Proof**: Comprehensive MCP roadmap for industry-standard tool connectivity
-- **Web-Integrated**: DuckDuckGo API for current information
-- **Clean Experience**: Professional logging, no stdout spam
-
-**Built with love for a symbiotic AI-human future.** 🌟
-
----
-
-## 🎯 Quick Start
-
-### Basic Usage:
 ```bash
-cd /home/sovthpaw/ai-toolbox/Senter
+# Clone and enter
+cd "/path/to/Senter ⎊"
 
-# Start Senter CLI
-python3 scripts/senter.py
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
 
-# Launch Textual TUI
-python3 scripts/senter_app.py
+# Install dependencies
+pip install sounddevice openai-whisper opencv-python mediapipe
 
-# Test web search
-python3 Functions/web_search.py "what is AI?"
+# Start Senter
+python3 scripts/senter_ctl.py start
 
-# Check logs for troubleshooting
-tail -f logs/senter.log
+# Check status
+python3 scripts/senter_ctl.py status
+
+# Send a query
+python3 scripts/senter_ctl.py query "Hello, what can you do?"
+
+# Interactive shell
+python3 scripts/senter_ctl.py shell
+
+# Stop
+python3 scripts/senter_ctl.py stop
 ```
 
-### Project Stats:
-- **Python files**: ~38 (core system + agents + tools)
-- **Focus configs**: 17 (7 default + internal)
-- **Documentation files**: 4 (README + specs + architecture + roadmap)
-- **Total Lines**: ~4,000+ lines of well-architected code
+**Requirements:**
+- Python 3.10+
+- [Ollama](https://ollama.ai) running locally with `llama3.2` (or configure another model)
+- Camera and microphone access (grant permissions when prompted)
 
 ---
 
-**Ready for production use and future enhancements!** 🚀
+## Architecture
+
+Senter is a **multiprocess daemon** with 8 independent components communicating via message queues:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           SENTER DAEMON                                 │
+│                                                                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
+│  │    Gaze     │  │    Audio    │  │   Model     │  │   Model     │   │
+│  │  Detector   │─▶│  Pipeline   │─▶│  Primary    │  │  Research   │   │
+│  │  (camera)   │  │ (mic/speak) │  │  (queries)  │  │ (background)│   │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘   │
+│         │                │                │                │           │
+│         └────────────────┴────────────────┴────────────────┘           │
+│                              Message Bus                                │
+│         ┌────────────────┬────────────────┬────────────────┐           │
+│         │                │                │                │           │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
+│  │    Task     │  │  Scheduler  │  │  Reporter   │  │  Learning   │   │
+│  │   Engine    │  │   (cron)    │  │  (activity) │  │  (behavior) │   │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘   │
+│                                                                         │
+│  ┌─────────────┐                                                       │
+│  │ IPC Server  │◀──── Unix Socket (/tmp/senter.sock) ◀──── CLI        │
+│  └─────────────┘                                                       │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Component Overview
+
+| Component | Purpose | Key Features |
+|-----------|---------|--------------|
+| **Gaze Detector** | Watches camera for user attention | MediaPipe Face Mesh / Haar cascade fallback, attention scoring, timeout handling |
+| **Audio Pipeline** | Voice capture, transcription, TTS | Whisper STT, energy-based VAD, system TTS (macOS `say`) |
+| **Model Primary** | Handles user queries | Ollama integration, context-aware responses |
+| **Model Research** | Background research tasks | Lower temperature, longer output, stores results |
+| **Task Engine** | Plans and executes complex tasks | Goal decomposition, result storage |
+| **Scheduler** | Cron-like job execution | Hourly research triggers, daily digests |
+| **Reporter** | Activity logging | Aggregates what Senter did |
+| **Learning** | Behavioral database | User events, pattern detection, topic analysis |
+
+---
+
+## Features
+
+### Attention-Activated Voice Interface
+- **Gaze Detection**: Camera tracks your face; activates when you look at the screen
+- **Voice Activity Detection**: Distinguishes speech from background noise
+- **Speech-to-Text**: Whisper transcribes your words
+- **Text-to-Speech**: Responses spoken aloud
+
+### Background Intelligence
+- **Autonomous Research**: Scheduler triggers research based on your recent queries
+- **Pattern Detection**: Learns your peak usage hours and preferred topics
+- **Activity Reports**: Ask "what did you do today?" for a summary
+
+### Developer-Friendly
+- **IPC Interface**: Unix socket for programmatic control
+- **CLI Tools**: Complete control via `senter_ctl.py`
+- **Modular Processes**: Each component runs independently
+- **Comprehensive Logging**: All activity logged to `data/daemon.log`
+
+---
+
+## CLI Reference
+
+```bash
+# Daemon Control
+senter_ctl.py start              # Start the daemon
+senter_ctl.py stop               # Stop the daemon
+senter_ctl.py restart            # Restart the daemon
+senter_ctl.py status             # Show component health
+
+# Interaction
+senter_ctl.py query "..."        # Send a query
+senter_ctl.py shell              # Interactive chat mode
+
+# Monitoring
+senter_ctl.py logs               # View daemon logs
+senter_ctl.py report             # Activity report (what did Senter do)
+senter_ctl.py report -H 24       # Last 24 hours
+senter_ctl.py events             # User interaction history
+
+# Tasks
+senter_ctl.py goal "..."         # Create a new goal
+senter_ctl.py goals              # List active goals
+
+# Configuration
+senter_ctl.py config             # Edit configuration
+```
+
+---
+
+## Configuration
+
+Edit `config/daemon_config.json`:
+
+```json
+{
+  "components": {
+    "model_workers": {
+      "enabled": true,
+      "models": {
+        "primary": "llama3.2",
+        "research": "llama3.2"
+      }
+    },
+    "audio_pipeline": {
+      "enabled": true,
+      "stt_model": "whisper-small",
+      "vad_threshold": 0.5
+    },
+    "gaze_detection": {
+      "enabled": true,
+      "camera_id": 0,
+      "attention_threshold": 0.7
+    }
+  }
+}
+```
+
+### Model Options
+- Change `primary` and `research` to any Ollama model
+- Adjust `attention_threshold` (0.0-1.0) for gaze sensitivity
+- Modify `vad_threshold` for voice detection sensitivity
+
+---
+
+## Data Storage
+
+```
+data/
+├── daemon.log              # All component logs
+├── daemon.pid              # Process ID file
+├── senter.pid              # Daemon state
+├── state/                  # Crash recovery state
+├── learning/
+│   ├── behavior.db         # User behavior database
+│   ├── events.db           # Interaction events
+│   └── patterns.json       # Detected patterns
+├── tasks/
+│   └── results/            # Completed task results
+├── research/
+│   └── results/            # Background research output
+├── progress/
+│   └── activity/           # Activity logs
+└── scheduler/
+    └── jobs.json           # Scheduled jobs
+```
+
+---
+
+## How It Works
+
+### The Attention Flow
+
+```
+1. GAZE DETECTOR (every 66ms)
+   ├── Captures camera frame
+   ├── Detects face (MediaPipe or Haar cascade)
+   ├── Calculates attention score:
+   │   └── face_center (30%) + eye_openness (30%) + gaze_direction (40%)
+   ├── If score >= 0.7 for multiple frames:
+   │   └── Sends ATTENTION_GAINED → Audio Pipeline
+   └── If score < 0.7 for 2 seconds:
+       └── Sends ATTENTION_LOST → Audio Pipeline
+
+2. AUDIO PIPELINE (when attention gained)
+   ├── Starts listening to microphone
+   ├── Runs VAD on audio buffer
+   ├── When speech detected:
+   │   ├── Buffers audio until silence
+   │   ├── Sends to Whisper for transcription
+   │   └── Sends USER_VOICE → Model Primary
+   └── When MODEL_RESPONSE received:
+       └── Speaks response via TTS
+
+3. MODEL PRIMARY
+   ├── Receives USER_VOICE or USER_QUERY
+   ├── Sends to Ollama with system prompt
+   └── Returns MODEL_RESPONSE → Audio Pipeline (for TTS)
+```
+
+### Message Types
+
+| Message | From | To | Purpose |
+|---------|------|-----|---------|
+| `attention_gained` | Gaze | Audio | Activate voice listening |
+| `attention_lost` | Gaze | Audio | Deactivate voice listening |
+| `user_voice` | Audio | Model | Transcribed speech |
+| `user_query` | IPC | Model | CLI/API queries |
+| `model_response` | Model | Audio, Reporter | LLM output |
+| `speak` | Any | Audio | TTS request |
+
+---
+
+## Troubleshooting
+
+### Microphone Not Working
+```bash
+# Check permissions
+System Settings → Privacy & Security → Microphone → Enable Terminal/IDE
+
+# Test directly
+python3 -c "
+import sounddevice as sd
+import numpy as np
+r = sd.rec(48000, samplerate=16000, channels=1, dtype=np.float32)
+sd.wait()
+print(f'Max level: {np.max(np.abs(r)):.4f} (need > 0.01)')
+"
+```
+
+### Camera Using Wrong Device
+```bash
+# List cameras
+python3 -c "
+import cv2
+for i in range(3):
+    cap = cv2.VideoCapture(i)
+    if cap.isOpened():
+        print(f'Camera {i}: Available')
+        cap.release()
+"
+
+# Update config/daemon_config.json with correct camera_id
+```
+
+### Gaze Not Detecting
+- Ensure good lighting on your face
+- Face the camera directly
+- Lower `attention_threshold` in config (e.g., 0.5)
+
+### Logs
+```bash
+# Live logs
+tail -f data/daemon.log
+
+# Filter for specific component
+tail -f data/daemon.log | grep -E "(Audio|Gaze|Attention)"
+```
+
+---
+
+## Development
+
+### Project Structure
+
+```
+Senter ⎊/
+├── daemon/
+│   ├── senter_daemon.py    # Main daemon + all process functions
+│   ├── ipc_server.py       # Unix socket server
+│   ├── ipc_client.py       # Client library
+│   ├── message_bus.py      # Pub/sub messaging
+│   └── health_monitor.py   # Component health tracking
+├── audio/
+│   └── audio_pipeline.py   # VAD, STT, TTS classes
+├── vision/
+│   └── gaze_detector.py    # Face tracking, attention scoring
+├── engine/
+│   ├── task_engine.py      # Task planning and execution
+│   └── task_results.py     # Result storage
+├── scheduler/
+│   ├── action_scheduler.py # Cron-like job scheduling
+│   └── research_trigger.py # Topic extraction, task generation
+├── learning/
+│   ├── learning_db.py      # Behavioral database
+│   ├── events_db.py        # User interaction events
+│   └── pattern_detector.py # Time-based pattern analysis
+├── reporter/
+│   └── progress_reporter.py # Activity logging
+├── scripts/
+│   └── senter_ctl.py       # CLI control script
+├── config/
+│   └── daemon_config.json  # Configuration
+├── tests/
+│   └── test_*.py           # Test suite
+└── docs/
+    └── AUDIO_GAZE_SETUP.md # Hardware setup guide
+```
+
+### Running Tests
+
+```bash
+source .venv/bin/activate
+
+# All tests
+python3 -m pytest tests/
+
+# Specific test
+python3 tests/test_audio_enabled.py
+python3 tests/test_gaze_enabled.py
+python3 tests/test_attention_voice_flow.py
+```
+
+### Adding a New Component
+
+1. Create process function in `daemon/senter_daemon.py`:
+```python
+def my_component_process(input_queue, output_queue, shutdown_event, config):
+    while not shutdown_event.is_set():
+        # Process messages from input_queue
+        # Send results to output_queue
+        pass
+```
+
+2. Add start method to `SenterDaemon` class:
+```python
+def _start_my_component(self):
+    q, out = Queue(), Queue()
+    self.queues["my_component"] = q
+    self.output_queues["my_component"] = out
+    p = Process(target=my_component_process, args=(q, out, self.shutdown_event, self.config))
+    p.start()
+    self.processes["my_component"] = p
+```
+
+3. Update message routing in `_route_message()`:
+```python
+routing = {
+    "my_message_type": ["my_component"],
+    ...
+}
+```
+
+---
+
+## Philosophy
+
+Senter embodies a simple idea: **AI should be ambient, not intrusive**.
+
+- No wake words that interrupt your flow
+- No apps to switch to
+- No buttons to press
+
+Just look up. Speak. Get an answer.
+
+The goal is symbiotic computing - where the boundary between thinking and asking becomes imperceptible.
+
+---
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## Acknowledgments
+
+- **Ollama** - Local LLM inference
+- **OpenAI Whisper** - Speech-to-text
+- **MediaPipe** - Face mesh and gaze tracking
+- **OpenCV** - Computer vision
+- **macOS TTS** - Text-to-speech
+
+---
+
+<p align="center">
+  <strong>Built for a future where AI just... works.</strong>
+</p>
