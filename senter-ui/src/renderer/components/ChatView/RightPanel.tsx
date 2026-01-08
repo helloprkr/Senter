@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useStore } from '@/store'
 import { type ChatViewTab } from '@/types'
-import { Search, X, Clock, CheckCircle, Loader2 } from 'lucide-react'
+import { Search, X, Clock, CheckCircle, Loader2, BookOpen, RefreshCw } from 'lucide-react'
 
 // P2-001: Task interface
 interface DaemonTask {
@@ -12,6 +12,15 @@ interface DaemonTask {
   timestamp: number
   datetime: string
   result?: string
+}
+
+// P2-004: Journal entry interface
+interface JournalEntry {
+  date: string
+  summary: string
+  conversations_count: number
+  tasks_count: number
+  topics: string[]
 }
 
 const tabs: { id: ChatViewTab; label: string }[] = [
@@ -27,10 +36,22 @@ export function RightPanel() {
   const [tasksLoading, setTasksLoading] = useState(false)
   const [selectedTask, setSelectedTask] = useState<DaemonTask | null>(null)
 
+  // P2-004: Journal state
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
+  const [journalLoading, setJournalLoading] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+
   // P2-001: Fetch tasks when tab is active
   useEffect(() => {
     if (activeTab === 'tasks') {
       fetchTasks()
+    }
+  }, [activeTab])
+
+  // P2-004: Fetch journal entries when tab is active
+  useEffect(() => {
+    if (activeTab === 'journal') {
+      fetchJournal()
     }
   }, [activeTab])
 
@@ -49,6 +70,43 @@ export function RightPanel() {
       console.error('[RightPanel] Failed to fetch tasks:', error)
     } finally {
       setTasksLoading(false)
+    }
+  }
+
+  // P2-004: Fetch journal entries
+  const fetchJournal = async () => {
+    try {
+      setJournalLoading(true)
+      const response = await window.api.getJournal(undefined, 7)
+
+      if (response && typeof response === 'object' && 'success' in response) {
+        const res = response as { success: boolean; data?: { entries?: JournalEntry[] } }
+        if (res.success && res.data?.entries) {
+          setJournalEntries(res.data.entries)
+        }
+      }
+    } catch (error) {
+      console.error('[RightPanel] Failed to fetch journal:', error)
+    } finally {
+      setJournalLoading(false)
+    }
+  }
+
+  // P2-004: Generate today's journal entry
+  const generateTodayEntry = async () => {
+    try {
+      setIsGenerating(true)
+      const today = new Date().toISOString().split('T')[0]
+      const response = await window.api.generateJournal(today)
+
+      if (response && typeof response === 'object' && 'success' in response) {
+        // Refresh journal entries after generation
+        await fetchJournal()
+      }
+    } catch (error) {
+      console.error('[RightPanel] Failed to generate journal:', error)
+    } finally {
+      setIsGenerating(false)
     }
   }
 
@@ -168,8 +226,65 @@ export function RightPanel() {
         )}
 
         {activeTab === 'journal' && (
-          <div className="text-center text-brand-light/40 text-xs py-4">
-            Journal entries coming soon
+          <div className="space-y-2">
+            {/* Generate Today's Entry Button */}
+            <button
+              onClick={generateTodayEntry}
+              disabled={isGenerating}
+              className="w-full flex items-center justify-center gap-2 p-2 rounded-lg bg-brand-accent/20 hover:bg-brand-accent/30 border border-brand-accent/30 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3 h-3 text-brand-accent ${isGenerating ? 'animate-spin' : ''}`} />
+              <span className="text-xs font-medium text-brand-accent">
+                {isGenerating ? 'Generating...' : "Generate Today's Entry"}
+              </span>
+            </button>
+
+            {journalLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-4 h-4 text-brand-light/40 animate-spin" />
+              </div>
+            ) : journalEntries.length === 0 ? (
+              <div className="text-center text-brand-light/40 text-xs py-4">
+                <BookOpen className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                No journal entries yet.<br />
+                Generate one for today!
+              </div>
+            ) : (
+              journalEntries.map((entry) => (
+                <div
+                  key={entry.date}
+                  className="p-3 rounded-lg bg-brand-light/5 border border-brand-light/10 hover:bg-brand-light/10 transition-colors"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <BookOpen className="w-3 h-3 text-brand-accent" />
+                    <span className="text-xs font-medium text-brand-light">
+                      {new Date(entry.date).toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
+                    </span>
+                  </div>
+                  <p className="text-xs text-brand-light/80 mb-2 line-clamp-3">
+                    {entry.summary}
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {entry.topics.slice(0, 3).map((topic, i) => (
+                      <span
+                        key={i}
+                        className="text-xs px-1.5 py-0.5 rounded bg-brand-primary/20 text-brand-light/70"
+                      >
+                        {topic}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-3 mt-2 text-xs text-brand-light/50">
+                    <span>{entry.conversations_count} chats</span>
+                    <span>{entry.tasks_count} tasks</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
 

@@ -245,8 +245,8 @@
       ],
       "qualityGate": "See 3 days of journal entries, each accurately summarizes activity",
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented 2026-01-08: JournalDB backend, get_journal/generate_journal IPC handlers, Journal tab with entries and generate button"
     },
     {
       "id": "P2-005",

@@ -236,3 +236,32 @@ Date: 2026-01-08
 - typecheck: PASSED
 - build: PASSED
 
+### P2-004: Journal Auto-Generation [PASSED]
+Date: 2026-01-08
+
+**Implementation:**
+1. Created `learning/journal_db.py`:
+   - JournalDB class with SQLite storage
+   - `generate_entry_for_date` aggregates from events_db and task_results
+   - Returns structured entry with date, summary, topics, counts
+
+2. Added IPC handlers in daemon/ipc_server.py:
+   - `get_journal`: Returns journal entries for date range (default 7 days)
+   - `generate_journal`: Generates entry for specified date using LLM
+
+3. Added Electron IPC bridge:
+   - getJournal() and generateJournal() methods in senterBridge.ts
+   - Registered senter:getJournal and senter:generateJournal handlers
+   - Updated preload with new API methods
+
+4. Updated RightPanel Journal tab:
+   - Added journalEntries, journalLoading, isGenerating state
+   - fetchJournal() loads entries when tab becomes active
+   - generateTodayEntry() creates new entry with loading state
+   - Journal entries display: date, summary, topics, activity counts
+   - "Generate Today's Entry" button with spinner animation
+
+**Verification:**
+- typecheck: PASSED
+- build: PASSED
+
