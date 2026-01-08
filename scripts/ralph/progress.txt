@@ -249,3 +249,16 @@ Project: Senter 3.0 Depth Improvements
   - Error handling returns success=False with error message
   - UnicodeDecodeError fallback to latin-1 encoding
 ---
+
+## 2026-01-07 - US-017: Add project structure analysis
+- Implemented: ProjectStructure dataclass, analyze_project() function, project type detection
+- Files changed:
+  - tools/file_ops.py (added ProjectStructure, analyze_project, PROJECT_MARKERS)
+  - tests/test_depth_features.py (added 15 tests for project analysis)
+- Learnings:
+  - PROJECT_MARKERS defines detection rules for Python, JS, TS, Rust, Go, Java
+  - Score-based type detection: marker files worth 3 points, extensions worth 1
+  - Skip common directories: .git, node_modules, __pycache__, .venv
+  - Dependency extraction varies by project type (requirements.txt, package.json, etc.)
+  - Entry points detected from common patterns (main.py, index.js, etc.)
+---

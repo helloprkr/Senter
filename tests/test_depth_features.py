@@ -4340,3 +4340,222 @@ More content.
 
         assert result.success is False
         assert "not a file" in result.error.lower()
+
+
+# =============================================================================
+# US-017: Add project structure analysis
+# =============================================================================
+
+
+class TestProjectAnalysis:
+    """Tests for project structure analysis."""
+
+    def test_project_structure_dataclass(self):
+        """Test ProjectStructure dataclass creation."""
+        from tools.file_ops import ProjectStructure
+
+        ps = ProjectStructure(
+            root_path="/test/project",
+            project_type="python",
+            files=["main.py", "lib.py"],
+            dependencies=["requests", "flask"],
+            entry_points=["main.py"],
+            config_files=["pyproject.toml"],
+            total_files=2,
+            total_lines=100,
+            languages={"python": 2}
+        )
+
+        assert ps.root_path == "/test/project"
+        assert ps.project_type == "python"
+        assert len(ps.files) == 2
+        assert ps.success is True
+
+    def test_project_structure_error_state(self):
+        """Test ProjectStructure with error state."""
+        from tools.file_ops import ProjectStructure
+
+        ps = ProjectStructure(
+            root_path="/missing",
+            project_type="unknown",
+            files=[],
+            dependencies=[],
+            entry_points=[],
+            config_files=[],
+            total_files=0,
+            total_lines=0,
+            languages={},
+            success=False,
+            error="Directory not found"
+        )
+
+        assert ps.success is False
+        assert ps.error == "Directory not found"
+
+    def test_detect_project_type_python(self, tmp_path):
+        """Test project type detection for Python."""
+        from tools.file_ops import _detect_project_type
+
+        # Create Python project markers
+        (tmp_path / "requirements.txt").write_text("flask\n")
+        (tmp_path / "main.py").write_text("print('hello')")
+
+        files = list(tmp_path.iterdir())
+        result = _detect_project_type(tmp_path, files)
+
+        assert result == "python"
+
+    def test_detect_project_type_javascript(self, tmp_path):
+        """Test project type detection for JavaScript."""
+        from tools.file_ops import _detect_project_type
+
+        # Create JS project markers
+        (tmp_path / "package.json").write_text('{"name": "test"}')
+        (tmp_path / "index.js").write_text("console.log('hello')")
+
+        files = list(tmp_path.iterdir())
+        result = _detect_project_type(tmp_path, files)
+
+        assert result == "javascript"
+
+    def test_detect_project_type_unknown(self, tmp_path):
+        """Test project type detection for unknown project."""
+        from tools.file_ops import _detect_project_type
+
+        # Create random files
+        (tmp_path / "random.xyz").write_text("data")
+
+        files = list(tmp_path.iterdir())
+        result = _detect_project_type(tmp_path, files)
+
+        assert result == "unknown"
+
+    def test_extract_dependencies_python(self, tmp_path):
+        """Test dependency extraction for Python."""
+        from tools.file_ops import _extract_dependencies
+
+        (tmp_path / "requirements.txt").write_text("flask==2.0\nrequests>=2.28\n# comment\npytest")
+
+        deps = _extract_dependencies(tmp_path, "python")
+
+        assert "flask" in deps
+        assert "requests" in deps
+        assert "pytest" in deps
+
+    def test_extract_dependencies_javascript(self, tmp_path):
+        """Test dependency extraction for JavaScript."""
+        from tools.file_ops import _extract_dependencies
+
+        pkg_content = '{"dependencies": {"react": "18.0"}, "devDependencies": {"jest": "29.0"}}'
+        (tmp_path / "package.json").write_text(pkg_content)
+
+        deps = _extract_dependencies(tmp_path, "javascript")
+
+        assert "react" in deps
+        assert "jest" in deps
+
+    def test_find_entry_points_python(self, tmp_path):
+        """Test entry point detection for Python."""
+        from tools.file_ops import _find_entry_points
+
+        (tmp_path / "main.py").write_text("print('main')")
+        (tmp_path / "app.py").write_text("print('app')")
+        (tmp_path / "lib.py").write_text("print('lib')")
+
+        files = list(tmp_path.iterdir())
+        entry_points = _find_entry_points(tmp_path, files, "python")
+
+        assert "main.py" in entry_points
+        assert "app.py" in entry_points
+        assert "lib.py" not in entry_points
+
+    def test_analyze_project_not_found(self):
+        """Test analyzing non-existent directory."""
+        from tools.file_ops import analyze_project
+
+        result = analyze_project("/nonexistent/path")
+
+        assert result.success is False
+        assert "not found" in result.error.lower()
+
+    def test_analyze_project_success(self, tmp_path):
+        """Test successful project analysis."""
+        from tools.file_ops import analyze_project
+
+        # Create a Python project
+        (tmp_path / "requirements.txt").write_text("flask\n")
+        (tmp_path / "main.py").write_text("print('hello')")
+        (tmp_path / "lib.py").write_text("def foo():\n    pass")
+
+        result = analyze_project(str(tmp_path))
+
+        assert result.success is True
+        assert result.project_type == "python"
+        assert result.total_files >= 3
+        assert "python" in result.languages
+
+    def test_analyze_project_with_entry_points(self, tmp_path):
+        """Test project analysis finds entry points."""
+        from tools.file_ops import analyze_project
+
+        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'")
+        (tmp_path / "main.py").write_text("if __name__ == '__main__':\n    pass")
+
+        result = analyze_project(str(tmp_path))
+
+        assert result.success is True
+        assert "main.py" in result.entry_points
+
+    def test_analyze_project_with_config_files(self, tmp_path):
+        """Test project analysis finds config files."""
+        from tools.file_ops import analyze_project
+
+        (tmp_path / "pyproject.toml").write_text("[project]")
+        (tmp_path / ".gitignore").write_text("*.pyc")
+        (tmp_path / "main.py").write_text("pass")
+
+        result = analyze_project(str(tmp_path))
+
+        assert result.success is True
+        assert "pyproject.toml" in result.config_files
+
+    def test_analyze_project_skips_venv(self, tmp_path):
+        """Test project analysis skips .venv directory."""
+        from tools.file_ops import analyze_project
+
+        # Create main project file
+        (tmp_path / "main.py").write_text("pass")
+
+        # Create .venv with files
+        venv_dir = tmp_path / ".venv"
+        venv_dir.mkdir()
+        (venv_dir / "lib.py").write_text("pass")
+
+        result = analyze_project(str(tmp_path))
+
+        assert result.success is True
+        # .venv/lib.py should not be in the file list
+        assert not any(".venv" in f for f in result.files)
+
+    def test_analyze_project_line_count(self, tmp_path):
+        """Test project analysis counts lines."""
+        from tools.file_ops import analyze_project
+
+        (tmp_path / "main.py").write_text("line1\nline2\nline3\nline4\nline5")
+
+        result = analyze_project(str(tmp_path))
+
+        assert result.success is True
+        assert result.total_lines >= 4  # 4 newlines = 5 lines
+
+    def test_analyze_project_file_error(self, tmp_path):
+        """Test error when path is a file, not directory."""
+        from tools.file_ops import analyze_project
+
+        test_file = tmp_path / "file.txt"
+        test_file.write_text("content")
+
+        result = analyze_project(str(test_file))
+
+        assert result.success is False
+        assert "not a directory" in result.error.lower()
