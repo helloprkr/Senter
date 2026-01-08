@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Service Identifier -->
+    <key>Label</key>
+    <string>com.senter.daemon</string>
+
+    <!-- Program to run -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>__PYTHON_PATH__</string>
+        <string>__SENTER_ROOT__/daemon/senter_daemon.py</string>
+    </array>
+
+    <!-- Run at login -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Keep alive - restart on failure -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <!-- Working directory -->
+    <key>WorkingDirectory</key>
+    <string>__SENTER_ROOT__</string>
+
+    <!-- Environment variables -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SENTER_ROOT</key>
+        <string>__SENTER_ROOT__</string>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+    </dict>
+
+    <!-- Log files -->
+    <key>StandardOutPath</key>
+    <string>__SENTER_ROOT__/data/launchd_stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>__SENTER_ROOT__/data/launchd_stderr.log</string>
+
+    <!-- Throttle interval (seconds between restarts) -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <!-- Nice value (lower priority) -->
+    <key>Nice</key>
+    <integer>5</integer>
+
+    <!-- Process type - Background agent -->
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>
