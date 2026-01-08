@@ -4,6 +4,12 @@ export interface Message {
   type: 'user' | 'bot'
   content: string
   timestamp: Date
+  // V3-009: Research suggestion attached to bot messages
+  suggestedResearch?: {
+    topic: string
+    prompt: string
+    reason: string
+  }
 }
 
 export interface ConversationThread {
@@ -63,7 +69,7 @@ export interface BackendStatus {
 }
 
 // Tab types for chat view
-export type ChatViewTab = 'history' | 'journal' | 'tasks' | 'insights' | 'goals'
+export type ChatViewTab = 'history' | 'journal' | 'tasks' | 'insights' | 'goals' | 'digest'  // V3-007
 
 // Task types
 export interface Task {

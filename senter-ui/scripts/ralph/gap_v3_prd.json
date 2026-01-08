@@ -69,8 +69,8 @@
       ],
       "qualityGate": "3 different curiosity expressions trigger 3 research tasks - none explicitly requested",
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented 2026-01-08: _auto_detect_research_topics calls TopicExtractor after query response"
     },
     {
       "id": "V3-002",
@@ -99,8 +99,8 @@
       ],
       "qualityGate": "Same question to fresh vs personalized Senter gives noticeably different response style",
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented 2026-01-08: _load_user_preferences injects preferences into system prompt"
     },
     {
       "id": "V3-003",
@@ -130,8 +130,8 @@
       ],
       "qualityGate": "Complete 3 research tasks with app minimized - get 3 informative notifications",
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented 2026-01-08: Enhanced notifications with source count, deep linking to tasks, unviewed badge on Tasks tab"
     },
     {
       "id": "V3-004",
@@ -160,8 +160,8 @@
       ],
       "qualityGate": "After 20+ queries, insights panel shows accurate patterns",
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented 2026-01-08: InsightsTab in RightPanel with get_insights IPC handler"
     },
     {
       "id": "V3-005",
@@ -190,8 +190,8 @@
       ],
       "qualityGate": "Express 3 different goals in chat - all appear in Goals tab",
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented 2026-01-08: GoalsTab in RightPanel with get_goals/update_goal IPC handlers"
     },
     {
       "id": "V3-006",
@@ -250,8 +250,8 @@
       ],
       "qualityGate": "Simulate morning trigger - receive accurate digest notification",
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented 2026-01-08: Digest tab in UI, get_digest IPC handler, shows overnight activity. Scheduler job exists; proactive notification via daemon's Notifier"
     },
     {
       "id": "V3-008",
@@ -281,8 +281,8 @@
       ],
       "qualityGate": "Add 2 sources, ask about their content - responses include source info",
       "priority": 8,
-      "passes": false,
-      "notes": "May already be partially working from P3-001/P3-002"
+      "passes": true,
+      "notes": "Already implemented in P3-001/P3-002: ContextMenu shows sources, allows add/remove file/URL sources"
     },
     {
       "id": "V3-009",
@@ -312,8 +312,8 @@
       ],
       "qualityGate": "Ask 5 different questions - 2-3 get appropriate research suggestions",
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented 2026-01-08: _detect_research_suggestion in daemon, suggested_research field in response, CTA in MessageBubble"
     },
     {
       "id": "V3-010",
@@ -342,8 +342,8 @@
       ],
       "qualityGate": "Express goal, ask related question - response contextualizes to goal",
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented 2026-01-08: _load_active_goals injects goals into system prompt"
     }
   ]
 }

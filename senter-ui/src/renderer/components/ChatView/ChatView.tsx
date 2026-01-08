@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 import { useStore } from '@/store'
@@ -15,6 +15,27 @@ export function ChatView() {
     messages,
     isTyping,
   } = useStore()
+
+  // V3-009: Handle research suggestion click
+  const handleResearchClick = useCallback(async (topic: string) => {
+    try {
+      console.log('[ChatView] Triggering research for:', topic)
+      const response = await window.api.addResearchTask({
+        description: `Research: ${topic}`,
+        goal_id: 'suggested_research',
+      })
+
+      if (response && typeof response === 'object' && 'success' in response) {
+        const res = response as { success: boolean }
+        if (!res.success) {
+          throw new Error('Research task creation failed')
+        }
+      }
+    } catch (error) {
+      console.error('[ChatView] Failed to create research task:', error)
+      throw error
+    }
+  }, [])
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -56,7 +77,11 @@ export function ChatView() {
                     </div>
                   ) : (
                     messages.map((message) => (
-                      <MessageBubble key={message.id} message={message} />
+                      <MessageBubble
+                        key={message.id}
+                        message={message}
+                        onResearchClick={handleResearchClick}  // V3-009
+                      />
                     ))
                   )}
                   {isTyping && <TypingIndicator />}

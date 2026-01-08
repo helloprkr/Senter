@@ -77,6 +77,7 @@ class IPCServer:
             "get_insights": self._handle_get_insights,  # V3-004
             "get_goals": self._handle_get_goals,  # V3-005
             "update_goal": self._handle_update_goal,  # V3-005
+            "get_digest": self._handle_get_digest,  # V3-007
         }
 
     def run(self):
@@ -303,6 +304,11 @@ class IPCServer:
                     if auto_research_topics:
                         result["auto_research_queued"] = [t["topic"] for t in auto_research_topics]
 
+                    # V3-009: Detect if topic is researchable (suggestion, not auto-queue)
+                    research_suggestion = self._detect_research_suggestion(text, response_text)
+                    if research_suggestion:
+                        result["suggested_research"] = research_suggestion
+
                     return result
                 except Empty:
                     return {"error": "Request timed out waiting for model"}
@@ -477,6 +483,109 @@ class IPCServer:
         except Exception as e:
             logger.warning(f"V3-001: Auto-research detection failed: {e}")
             return []
+
+    def _detect_research_suggestion(self, user_text: str, response_text: str) -> dict | None:
+        """
+        V3-009: Detect if the current topic would benefit from deep research.
+        Returns a suggestion dict if appropriate, None otherwise.
+
+        Only suggests research for topics that:
+        - Are substantial (not simple facts)
+        - Haven't been recently researched
+        - Match patterns indicating research value
+        """
+        try:
+            import re
+            from pathlib import Path
+
+            if not self.daemon:
+                return None
+
+            text_combined = f"{user_text} {response_text}".lower()
+
+            # Don't suggest for very short exchanges
+            if len(user_text) < 20:
+                return None
+
+            # Patterns that indicate a topic could benefit from research
+            research_worthy_patterns = [
+                r"how does.*work",
+                r"what is the difference between",
+                r"best practices for",
+                r"compare.*to",
+                r"pros and cons",
+                r"when to use",
+                r"architecture.*design",
+                r"implement.*system",
+                r"explain.*concept",
+                r"deep dive into",
+                r"understand.*better",
+                r"learn.*about",
+                r"trade.?offs",
+                r"alternatives to",
+            ]
+
+            # Check if any pattern matches
+            matches_research_pattern = any(
+                re.search(pattern, text_combined)
+                for pattern in research_worthy_patterns
+            )
+
+            if not matches_research_pattern:
+                return None
+
+            # Extract the core topic from the user's question
+            # Try to find the subject of their question
+            topic_patterns = [
+                r"how does ([\w\s]+) work",
+                r"what is ([\w\s]+)",
+                r"difference between ([\w\s]+) and",
+                r"best practices for ([\w\s]+)",
+                r"compare ([\w\s]+) to",
+                r"understand ([\w\s]+)",
+                r"learn.*about ([\w\s]+)",
+            ]
+
+            topic = None
+            for pattern in topic_patterns:
+                match = re.search(pattern, user_text.lower())
+                if match:
+                    topic = match.group(1).strip()
+                    break
+
+            if not topic:
+                # Fallback: use key nouns from the question
+                # Just take the main subject
+                words = user_text.split()
+                important_words = [w for w in words if len(w) > 4 and w.lower() not in
+                                   ['about', 'could', 'would', 'should', 'please', 'thanks', 'think']]
+                if important_words:
+                    topic = ' '.join(important_words[:3])
+
+            if not topic or len(topic) < 3:
+                return None
+
+            # Check if recently researched
+            recently_researched_file = Path(self.daemon.senter_root) / "data" / "research" / "recently_researched.json"
+            if recently_researched_file.exists():
+                try:
+                    import json
+                    recently = json.loads(recently_researched_file.read_text())
+                    recent_topics = [r.get("topic", "").lower() for r in recently.get("topics", [])]
+                    if any(topic.lower() in rt or rt in topic.lower() for rt in recent_topics):
+                        return None  # Already researched recently
+                except Exception:
+                    pass
+
+            return {
+                "topic": topic.title(),
+                "prompt": f"Would you like me to research '{topic}' in depth?",
+                "reason": "This topic could benefit from comprehensive research with multiple sources."
+            }
+
+        except Exception as e:
+            logger.warning(f"V3-009: Research suggestion detection failed: {e}")
+            return None
 
     def _load_user_preferences(self) -> str:
         """
@@ -1794,4 +1903,114 @@ class IPCServer:
 
         except Exception as e:
             logger.error(f"update_goal error: {e}")
+            return {"error": str(e)}
+
+    def _handle_get_digest(self, request: dict = None) -> dict:
+        """
+        Handle get_digest request (V3-007) - get morning digest.
+        Generates digest of overnight activity: research completed, goals detected, etc.
+        """
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            from pathlib import Path
+            from datetime import datetime, timedelta
+            import os
+
+            senter_root = Path(self.daemon.senter_root)
+            period = request.get("period", "daily") if request else "daily"
+
+            # Get research results from yesterday/overnight
+            research_store = senter_root / "data" / "research" / "results"
+            recent_research = []
+
+            if research_store.exists():
+                yesterday = datetime.now() - timedelta(days=1)
+                for f in research_store.glob("*.json"):
+                    try:
+                        mtime = datetime.fromtimestamp(f.stat().st_mtime)
+                        if mtime >= yesterday:
+                            import json
+                            data = json.loads(f.read_text())
+                            recent_research.append({
+                                "topic": data.get("topic", f.stem),
+                                "source_count": data.get("source_count", 0),
+                                "completed_at": mtime.isoformat()
+                            })
+                    except Exception:
+                        pass
+
+            # Get goals from yesterday
+            new_goals = []
+            try:
+                from Functions.goal_tracker import GoalTracker
+                tracker = GoalTracker(senter_root=senter_root)
+                all_goals = tracker.get_goals(status="active")
+                for goal in all_goals:
+                    # Check if goal was created in the last 24 hours
+                    if hasattr(goal, 'created_at'):
+                        created = goal.created_at
+                        if isinstance(created, str):
+                            created = datetime.fromisoformat(created)
+                        if created >= datetime.now() - timedelta(days=1):
+                            new_goals.append({
+                                "description": goal.description,
+                                "priority": goal.priority,
+                                "status": goal.status
+                            })
+            except Exception as e:
+                logger.warning(f"Could not load goals for digest: {e}")
+
+            # Get task completions
+            completed_tasks = []
+            try:
+                tasks_file = senter_root / "data" / "tasks" / "task_results.json"
+                if tasks_file.exists():
+                    import json
+                    data = json.loads(tasks_file.read_text())
+                    yesterday = datetime.now() - timedelta(days=1)
+                    for task in data.get("tasks", []):
+                        if task.get("status") == "completed":
+                            completed_at = task.get("completed_at") or task.get("timestamp")
+                            if completed_at:
+                                if isinstance(completed_at, (int, float)):
+                                    completed_dt = datetime.fromtimestamp(completed_at)
+                                else:
+                                    completed_dt = datetime.fromisoformat(str(completed_at))
+                                if completed_dt >= yesterday:
+                                    completed_tasks.append({
+                                        "title": task.get("title", "Task"),
+                                        "completed_at": completed_dt.isoformat()
+                                    })
+            except Exception as e:
+                logger.warning(f"Could not load tasks for digest: {e}")
+
+            # Generate digest summary
+            summary_parts = []
+            if recent_research:
+                summary_parts.append(f"Researched {len(recent_research)} topic(s)")
+            if new_goals:
+                summary_parts.append(f"Detected {len(new_goals)} new goal(s)")
+            if completed_tasks:
+                summary_parts.append(f"Completed {len(completed_tasks)} task(s)")
+
+            summary = ", ".join(summary_parts) if summary_parts else "No overnight activity"
+
+            return {
+                "period": period,
+                "generated_at": datetime.now().isoformat(),
+                "summary": summary,
+                "research_completed": recent_research,
+                "new_goals": new_goals,
+                "tasks_completed": completed_tasks,
+                "stats": {
+                    "research_count": len(recent_research),
+                    "goals_count": len(new_goals),
+                    "tasks_count": len(completed_tasks)
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"get_digest error: {e}")
             return {"error": str(e)}

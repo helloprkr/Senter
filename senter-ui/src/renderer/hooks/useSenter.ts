@@ -49,7 +49,15 @@ export function useSenter(): UseSenterReturn {
       console.log('[useSenter] Got response:', response)
 
       if (response && typeof response === 'object' && 'success' in response) {
-        const res = response as { success: boolean; data?: { response?: string }; error?: string }
+        const res = response as {
+          success: boolean
+          data?: {
+            response?: string
+            // V3-009: Research suggestion from daemon
+            suggested_research?: { topic: string; prompt: string; reason: string }
+          }
+          error?: string
+        }
         console.log('[useSenter] Parsed response - success:', res.success, 'data:', res.data)
         if (res.success && res.data?.response) {
           const botMessage: Message = {
@@ -57,6 +65,8 @@ export function useSenter(): UseSenterReturn {
             type: 'bot',
             content: res.data.response,
             timestamp: new Date(),
+            // V3-009: Include suggested research if available
+            suggestedResearch: res.data.suggested_research,
           }
           addMessage(botMessage)
         } else {

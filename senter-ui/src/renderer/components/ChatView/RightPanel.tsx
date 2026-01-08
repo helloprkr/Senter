@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useStore } from '@/store'
 import { type ChatViewTab } from '@/types'
-import { Search, X, Clock, CheckCircle, Loader2, BookOpen, RefreshCw, BarChart3, Target, TrendingUp } from 'lucide-react'
+import { Search, X, Clock, CheckCircle, Loader2, BookOpen, RefreshCw, BarChart3, Target, TrendingUp, Sunrise } from 'lucide-react'
 
 // P2-001: Task interface
 interface DaemonTask {
@@ -12,6 +12,7 @@ interface DaemonTask {
   timestamp: number
   datetime: string
   result?: string
+  viewed?: boolean  // V3-003: Track if task has been viewed
 }
 
 // P2-004: Journal entry interface
@@ -54,12 +55,24 @@ interface UserGoal {
   subtasks: Array<{ description: string; completed: boolean }>
 }
 
+// V3-007: Digest interface
+interface DigestData {
+  period: string
+  generated_at: string
+  summary: string
+  research_completed: Array<{ topic: string; source_count: number; completed_at: string }>
+  new_goals: Array<{ description: string; priority: string; status: string }>
+  tasks_completed: Array<{ title: string; completed_at: string }>
+  stats: { research_count: number; goals_count: number; tasks_count: number }
+}
+
 const tabs: { id: ChatViewTab; label: string }[] = [
   { id: 'history', label: 'History' },
   { id: 'journal', label: 'Journal' },
   { id: 'tasks', label: 'Tasks' },
   { id: 'insights', label: 'Insights' },
   { id: 'goals', label: 'Goals' },
+  { id: 'digest', label: 'Digest' },  // V3-007
 ]
 
 export function RightPanel() {
@@ -68,6 +81,7 @@ export function RightPanel() {
   const [tasks, setTasks] = useState<DaemonTask[]>([])
   const [tasksLoading, setTasksLoading] = useState(false)
   const [selectedTask, setSelectedTask] = useState<DaemonTask | null>(null)
+  const [newTaskIds, setNewTaskIds] = useState<Set<string>>(new Set())  // V3-003: Track new unviewed tasks
 
   // P2-004: Journal state
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
@@ -81,6 +95,10 @@ export function RightPanel() {
   // V3-005: Goals state
   const [goals, setGoals] = useState<UserGoal[]>([])
   const [goalsLoading, setGoalsLoading] = useState(false)
+
+  // V3-007: Digest state
+  const [digest, setDigest] = useState<DigestData | null>(null)
+  const [digestLoading, setDigestLoading] = useState(false)
 
   // P2-001: Fetch tasks when tab is active
   useEffect(() => {
@@ -109,6 +127,68 @@ export function RightPanel() {
       fetchGoals()
     }
   }, [activeTab])
+
+  // V3-007: Fetch digest when tab is active
+  useEffect(() => {
+    if (activeTab === 'digest') {
+      fetchDigest()
+    }
+  }, [activeTab])
+
+  // V3-003: Listen for research completion updates and auto-refresh tasks
+  useEffect(() => {
+    const handleResearchUpdate = (data: unknown) => {
+      console.log('[RightPanel] Research update received:', data)
+      const updateData = data as { type?: string; taskId?: string; title?: string }
+      if (updateData.type === 'task_completed' && updateData.taskId) {
+        // Track new task as unviewed
+        setNewTaskIds(prev => new Set(prev).add(updateData.taskId!))
+        // Refresh tasks
+        fetchTasks()
+      }
+    }
+
+    window.api.onResearchUpdate(handleResearchUpdate)
+    // Note: Electron IPC listeners don't need cleanup in this pattern
+  }, [])
+
+  // V3-003: Listen for notification clicks to navigate to specific task
+  useEffect(() => {
+    const handleNavigateToTask = (data: { taskId: string }) => {
+      console.log('[RightPanel] Navigate to task:', data.taskId)
+      // Switch to tasks tab
+      setActiveTab('tasks')
+      // Find and select the task
+      const task = tasks.find(t => t.id === data.taskId)
+      if (task) {
+        setSelectedTask(task)
+        // Mark as viewed
+        setNewTaskIds(prev => {
+          const next = new Set(prev)
+          next.delete(data.taskId)
+          return next
+        })
+      } else {
+        // If task not loaded yet, refresh and try again
+        fetchTasks().then(() => {
+          // Will select after refresh via another mechanism if needed
+        })
+      }
+    }
+
+    window.api.onNavigateToTask(handleNavigateToTask)
+  }, [tasks, setActiveTab])
+
+  // V3-003: Clear new badge when viewing tasks tab
+  useEffect(() => {
+    if (activeTab === 'tasks' && newTaskIds.size > 0) {
+      // Clear after a short delay so user sees the new tasks first
+      const timer = setTimeout(() => {
+        setNewTaskIds(new Set())
+      }, 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [activeTab, newTaskIds.size])
 
   const fetchTasks = async () => {
     try {
@@ -213,6 +293,25 @@ export function RightPanel() {
     }
   }
 
+  // V3-007: Fetch morning digest
+  const fetchDigest = async () => {
+    try {
+      setDigestLoading(true)
+      const response = await window.api.getDigest()
+
+      if (response && typeof response === 'object' && 'success' in response) {
+        const res = response as { success: boolean; data?: DigestData }
+        if (res.success && res.data) {
+          setDigest(res.data)
+        }
+      }
+    } catch (error) {
+      console.error('[RightPanel] Failed to fetch digest:', error)
+    } finally {
+      setDigestLoading(false)
+    }
+  }
+
   // P1-004: Filter conversations by search term
   const filteredConversations = useMemo(() => {
     if (!searchQuery.trim()) return conversations
@@ -241,13 +340,19 @@ export function RightPanel() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-3 text-xs font-medium transition-all ${
+            className={`flex-1 py-3 text-xs font-medium transition-all relative ${
               activeTab === tab.id
                 ? 'text-brand-light bg-brand-primary/20 border-b-2 border-brand-accent'
                 : 'text-brand-light/60 hover:text-brand-light hover:bg-brand-light/5'
             }`}
           >
             {tab.label}
+            {/* V3-003: Show badge for new unviewed tasks */}
+            {tab.id === 'tasks' && newTaskIds.size > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 text-xs flex items-center justify-center bg-brand-accent text-white rounded-full">
+                {newTaskIds.size}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -438,35 +543,56 @@ export function RightPanel() {
                 )}
 
                 {/* Task list */}
-                {tasks.map((task) => (
-                  <button
-                    key={task.id}
-                    onClick={() => setSelectedTask(task)}
-                    className={`w-full text-left p-2 rounded-lg transition-colors ${
-                      selectedTask?.id === task.id
-                        ? 'bg-brand-primary/20 border border-brand-primary/30'
-                        : 'hover:bg-brand-light/5'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2">
-                      {task.status === 'completed' ? (
-                        <CheckCircle className="w-3 h-3 text-green-400 mt-0.5 flex-shrink-0" />
-                      ) : task.status === 'pending' ? (
-                        <Clock className="w-3 h-3 text-yellow-400 mt-0.5 flex-shrink-0" />
-                      ) : (
-                        <X className="w-3 h-3 text-red-400 mt-0.5 flex-shrink-0" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-brand-light truncate">
-                          {task.title}
-                        </p>
-                        <p className="text-xs text-brand-light/50">
-                          {new Date(task.datetime).toLocaleString()}
-                        </p>
+                {tasks.map((task) => {
+                  const isNew = newTaskIds.has(task.id)  // V3-003: Check if task is new
+                  return (
+                    <button
+                      key={task.id}
+                      onClick={() => {
+                        setSelectedTask(task)
+                        // V3-003: Mark as viewed when clicked
+                        if (isNew) {
+                          setNewTaskIds(prev => {
+                            const next = new Set(prev)
+                            next.delete(task.id)
+                            return next
+                          })
+                        }
+                      }}
+                      className={`w-full text-left p-2 rounded-lg transition-colors ${
+                        selectedTask?.id === task.id
+                          ? 'bg-brand-primary/20 border border-brand-primary/30'
+                          : isNew
+                          ? 'bg-brand-accent/10 border border-brand-accent/30 hover:bg-brand-accent/20'  // V3-003: Highlight new tasks
+                          : 'hover:bg-brand-light/5'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        {task.status === 'completed' ? (
+                          <CheckCircle className="w-3 h-3 text-green-400 mt-0.5 flex-shrink-0" />
+                        ) : task.status === 'pending' ? (
+                          <Clock className="w-3 h-3 text-yellow-400 mt-0.5 flex-shrink-0" />
+                        ) : (
+                          <X className="w-3 h-3 text-red-400 mt-0.5 flex-shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-medium text-brand-light truncate">
+                              {task.title}
+                            </p>
+                            {/* V3-003: New badge */}
+                            {isNew && (
+                              <span className="text-xs px-1 py-0.5 rounded bg-brand-accent text-white">NEW</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-brand-light/50">
+                            {new Date(task.datetime).toLocaleString()}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  )
+                })}
               </>
             )}
           </div>
@@ -627,6 +753,101 @@ export function RightPanel() {
                   )}
                 </div>
               ))
+            )}
+          </div>
+        )}
+
+        {/* V3-007: Digest Tab */}
+        {activeTab === 'digest' && (
+          <div className="space-y-3">
+            {/* Refresh Button */}
+            <button
+              onClick={fetchDigest}
+              disabled={digestLoading}
+              className="w-full flex items-center justify-center gap-2 p-2 rounded-lg bg-brand-accent/20 hover:bg-brand-accent/30 border border-brand-accent/30 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3 h-3 text-brand-accent ${digestLoading ? 'animate-spin' : ''}`} />
+              <span className="text-xs font-medium text-brand-accent">
+                {digestLoading ? 'Loading...' : 'Refresh Digest'}
+              </span>
+            </button>
+
+            {digestLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-4 h-4 text-brand-light/40 animate-spin" />
+              </div>
+            ) : !digest ? (
+              <div className="text-center text-brand-light/40 text-xs py-4">
+                <Sunrise className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                No digest available.<br />
+                Click refresh to generate!
+              </div>
+            ) : (
+              <>
+                {/* Summary */}
+                <div className="p-3 rounded-lg bg-brand-accent/10 border border-brand-accent/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sunrise className="w-4 h-4 text-brand-accent" />
+                    <span className="text-sm font-medium text-brand-light">Morning Digest</span>
+                  </div>
+                  <p className="text-xs text-brand-light/80">{digest.summary}</p>
+                  <p className="text-xs text-brand-light/50 mt-1">
+                    Generated: {new Date(digest.generated_at).toLocaleString()}
+                  </p>
+                </div>
+
+                {/* Research Completed */}
+                {digest.research_completed.length > 0 && (
+                  <div className="p-3 rounded-lg bg-brand-light/5 border border-brand-light/10">
+                    <span className="text-xs font-medium text-brand-light">Research Completed</span>
+                    <div className="mt-2 space-y-1">
+                      {digest.research_completed.map((r, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs">
+                          <span className="text-brand-light/70">{r.topic}</span>
+                          <span className="text-brand-accent">{r.source_count} sources</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* New Goals */}
+                {digest.new_goals.length > 0 && (
+                  <div className="p-3 rounded-lg bg-brand-light/5 border border-brand-light/10">
+                    <span className="text-xs font-medium text-brand-light">New Goals Detected</span>
+                    <div className="mt-2 space-y-1">
+                      {digest.new_goals.map((g, i) => (
+                        <div key={i} className="text-xs text-brand-light/70">
+                          <Target className="w-2.5 h-2.5 inline mr-1 text-brand-accent" />
+                          {g.description}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tasks Completed */}
+                {digest.tasks_completed.length > 0 && (
+                  <div className="p-3 rounded-lg bg-brand-light/5 border border-brand-light/10">
+                    <span className="text-xs font-medium text-brand-light">Tasks Completed</span>
+                    <div className="mt-2 space-y-1">
+                      {digest.tasks_completed.map((t, i) => (
+                        <div key={i} className="text-xs text-brand-light/70">
+                          <CheckCircle className="w-2.5 h-2.5 inline mr-1 text-green-400" />
+                          {t.title}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Stats */}
+                <div className="flex gap-3 text-xs text-brand-light/50 justify-center pt-2">
+                  <span>{digest.stats.research_count} researched</span>
+                  <span>{digest.stats.goals_count} goals</span>
+                  <span>{digest.stats.tasks_count} tasks</span>
+                </div>
+              </>
             )}
           </div>
         )}

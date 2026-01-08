@@ -49,6 +49,13 @@ contextBridge.exposeInMainWorld('api', {
   getGoals: (status?: string, limit?: number) => ipcRenderer.invoke('senter:getGoals', status, limit),
   updateGoal: (goalId: string, status: string) => ipcRenderer.invoke('senter:updateGoal', goalId, status),
 
+  // V3-007: Morning Digest
+  getDigest: (period?: string) => ipcRenderer.invoke('senter:getDigest', period),
+
+  // V3-009: Add Research Task
+  addResearchTask: (task: { description: string; goal_id?: string }) =>
+    ipcRenderer.invoke('senter:addResearchTask', task),
+
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
@@ -60,6 +67,10 @@ contextBridge.exposeInMainWorld('api', {
   },
   onStatusChange: (callback: (status: unknown) => void) => {
     ipcRenderer.on('senter:status-change', (_, status) => callback(status))
+  },
+  // V3-003: Navigate to specific task when notification clicked
+  onNavigateToTask: (callback: (data: { taskId: string }) => void) => {
+    ipcRenderer.on('senter:navigate-to-task', (_, data) => callback(data))
   },
 })
 
@@ -96,11 +107,14 @@ declare global {
       getInsights: (days?: number) => Promise<unknown>
       getGoals: (status?: string, limit?: number) => Promise<unknown>
       updateGoal: (goalId: string, status: string) => Promise<unknown>
+      getDigest: (period?: string) => Promise<unknown>  // V3-007
+      addResearchTask: (task: { description: string; goal_id?: string }) => Promise<unknown>  // V3-009
       minimizeWindow: () => void
       maximizeWindow: () => void
       closeWindow: () => void
       onResearchUpdate: (callback: (data: unknown) => void) => void
       onStatusChange: (callback: (status: unknown) => void) => void
+      onNavigateToTask: (callback: (data: { taskId: string }) => void) => void  // V3-003
     }
   }
 }

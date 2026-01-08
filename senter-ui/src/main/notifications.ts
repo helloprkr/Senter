@@ -4,9 +4,10 @@ interface NotificationOptions {
   title: string
   body: string
   mainWindow?: BrowserWindow
+  taskId?: string  // V3-003: Deep link to task
 }
 
-export function showNotification({ title, body, mainWindow }: NotificationOptions): void {
+export function showNotification({ title, body, mainWindow, taskId }: NotificationOptions): void {
   // Check if notifications are supported
   if (!Notification.isSupported()) {
     console.warn('Notifications are not supported on this system')
@@ -23,17 +24,35 @@ export function showNotification({ title, body, mainWindow }: NotificationOption
     if (mainWindow) {
       mainWindow.show()
       mainWindow.focus()
+      // V3-003: Navigate to specific task when notification clicked
+      if (taskId) {
+        mainWindow.webContents.send('senter:navigate-to-task', { taskId })
+      }
     }
   })
 
   notification.show()
 }
 
-export function showResearchComplete(topic: string, summary: string, mainWindow?: BrowserWindow): void {
+// V3-003: Enhanced research complete notification with task ID for deep linking
+export function showResearchComplete(
+  topic: string,
+  summary: string,
+  mainWindow?: BrowserWindow,
+  taskId?: string,
+  sourceCount?: number
+): void {
+  // V3-003: Include source count in notification if available
+  let body = summary.length > 100 ? summary.substring(0, 100) + '...' : summary
+  if (sourceCount !== undefined && sourceCount > 0) {
+    body = `Found ${sourceCount} source${sourceCount > 1 ? 's' : ''}. ${body}`
+  }
+
   showNotification({
     title: `Research Complete: ${topic}`,
-    body: summary.length > 100 ? summary.substring(0, 100) + '...' : summary,
+    body,
     mainWindow,
+    taskId,
   })
 }
 

@@ -162,6 +162,16 @@ class SenterClient {
   async updateGoal(goalId: string, status: string): Promise<SenterResponse> {
     return this.sendCommand('update_goal', { goal_id: goalId, status })
   }
+
+  // V3-007: Get morning digest
+  async getDigest(period = 'daily'): Promise<SenterResponse> {
+    return this.sendCommand('get_digest', { period })
+  }
+
+  // V3-009: Add research task (for suggested research)
+  async addResearchTask(task: { description: string; goal_id?: string }): Promise<SenterResponse> {
+    return this.sendCommand('add_research_task', task)
+  }
 }
 
 const senterClient = new SenterClient()
@@ -172,6 +182,7 @@ interface TaskInfo {
   title: string
   status: string
   result?: string
+  source_count?: number  // V3-003: Track source count for notifications
 }
 
 class TaskPoller {
@@ -256,10 +267,13 @@ class TaskPoller {
           ? (task.result.length > 150 ? task.result.substring(0, 150) + '...' : task.result)
           : 'Research completed'
 
+        // V3-003: Pass task ID and source count for deep linking
         showResearchComplete(
           task.title || 'Research Task',
           resultPreview,
-          this.mainWindow || undefined
+          this.mainWindow || undefined,
+          task.id,  // V3-003: Pass task ID for deep link
+          task.source_count  // V3-003: Pass source count for notification
         )
 
         // Notify renderer to refresh tasks
@@ -384,6 +398,18 @@ export function registerSenterIPC(): void {
   ipcMain.handle('senter:updateGoal', async (_, goalId: string, status: string) => {
     console.log('[SenterIPC] Received updateGoal request')
     return senterClient.updateGoal(goalId, status)
+  })
+
+  // V3-007: Morning Digest
+  ipcMain.handle('senter:getDigest', async (_, period?: string) => {
+    console.log('[SenterIPC] Received getDigest request')
+    return senterClient.getDigest(period)
+  })
+
+  // V3-009: Add Research Task
+  ipcMain.handle('senter:addResearchTask', async (_, task: { description: string; goal_id?: string }) => {
+    console.log('[SenterIPC] Received addResearchTask request')
+    return senterClient.addResearchTask(task)
   })
 
   console.log('[SenterIPC] IPC handlers registered')
