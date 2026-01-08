@@ -274,8 +274,8 @@
       ],
       "qualityGate": "Complete 3 research tasks with app minimized - get 3 notifications",
       "priority": 9,
-      "passes": false,
-      "notes": "Uses existing notifications.ts"
+      "passes": true,
+      "notes": "Implemented 2026-01-08: TaskPoller polls for completions, shows macOS notification, sends event to renderer"
     },
     {
       "id": "P3-001",

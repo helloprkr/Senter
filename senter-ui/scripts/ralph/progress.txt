@@ -265,3 +265,35 @@ Date: 2026-01-08
 - typecheck: PASSED
 - build: PASSED
 
+### P2-005: Desktop Notification When Research Complete [PASSED]
+Date: 2026-01-08
+
+**Implementation:**
+1. Created TaskPoller class in senterBridge.ts:
+   - Polls daemon every 5 seconds for task completions
+   - Tracks known completed task IDs to detect new completions
+   - Initializes with existing completions to avoid false notifications
+
+2. Integrated with Electron notifications:
+   - Uses existing showResearchComplete from notifications.ts
+   - Shows task title and result preview in notification
+   - Clicking notification focuses the app window
+
+3. Updated main/index.ts:
+   - Starts TaskPoller after window creation
+   - Sets mainWindow reference for notification click handling
+   - Stops poller on app quit
+
+4. Sends IPC event to renderer:
+   - Emits 'senter:research-update' when task completes
+   - Renderer can use this to auto-refresh Tasks tab
+
+**Verification:**
+- typecheck: PASSED
+- build: PASSED
+
+---
+## PHASE 2 COMPLETE
+All 5 Phase 2 stories (P2-001 through P2-005) have passed.
+Continuing to Phase 3: Context Sources
+

@@ -1,8 +1,10 @@
-import { ipcMain } from 'electron'
+import { ipcMain, BrowserWindow } from 'electron'
 import * as net from 'net'
+import { showResearchComplete } from '../notifications'
 
 const SOCKET_PATH = '/tmp/senter.sock'
 const CONNECTION_TIMEOUT = 10000
+const POLL_INTERVAL = 5000  // P2-005: Poll every 5 seconds for task completions
 
 interface SenterResponse {
   success: boolean
@@ -101,9 +103,131 @@ class SenterClient {
   async getTasks(limit = 20): Promise<SenterResponse> {
     return this.sendCommand('get_tasks', { limit })
   }
+
+  async getJournal(date?: string, limit = 7): Promise<SenterResponse> {
+    return this.sendCommand('get_journal', { date, limit })
+  }
+
+  async generateJournal(date?: string): Promise<SenterResponse> {
+    return this.sendCommand('generate_journal', { date })
+  }
 }
 
 const senterClient = new SenterClient()
+
+// P2-005: Task completion poller for notifications
+interface TaskInfo {
+  id: string
+  title: string
+  status: string
+  result?: string
+}
+
+class TaskPoller {
+  private knownCompletedTasks: Set<string> = new Set()
+  private pollInterval: ReturnType<typeof setInterval> | null = null
+  private mainWindow: BrowserWindow | null = null
+  private initialized = false
+
+  setMainWindow(window: BrowserWindow): void {
+    this.mainWindow = window
+    console.log('[TaskPoller] Main window set')
+  }
+
+  start(): void {
+    if (this.pollInterval) {
+      console.log('[TaskPoller] Already running')
+      return
+    }
+
+    console.log('[TaskPoller] Starting task completion polling')
+
+    // Initialize with current completed tasks (don't notify for existing ones)
+    this.initializeKnownTasks()
+
+    this.pollInterval = setInterval(() => {
+      this.checkForCompletions()
+    }, POLL_INTERVAL)
+  }
+
+  stop(): void {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval)
+      this.pollInterval = null
+      console.log('[TaskPoller] Stopped')
+    }
+  }
+
+  private async initializeKnownTasks(): Promise<void> {
+    try {
+      const response = await senterClient.getTasks(50)
+      if (response.success && response.data) {
+        const data = response.data as { tasks?: TaskInfo[] }
+        if (data.tasks) {
+          data.tasks.forEach(task => {
+            if (task.status === 'completed') {
+              this.knownCompletedTasks.add(task.id)
+            }
+          })
+          console.log(`[TaskPoller] Initialized with ${this.knownCompletedTasks.size} completed tasks`)
+          this.initialized = true
+        }
+      }
+    } catch (error) {
+      console.error('[TaskPoller] Failed to initialize:', error)
+    }
+  }
+
+  private async checkForCompletions(): Promise<void> {
+    if (!this.initialized) {
+      // Wait for initialization
+      return
+    }
+
+    try {
+      const response = await senterClient.getTasks(20)
+      if (!response.success || !response.data) return
+
+      const data = response.data as { tasks?: TaskInfo[] }
+      if (!data.tasks) return
+
+      // Find newly completed tasks
+      const newlyCompleted = data.tasks.filter(task =>
+        task.status === 'completed' && !this.knownCompletedTasks.has(task.id)
+      )
+
+      for (const task of newlyCompleted) {
+        console.log(`[TaskPoller] New task completed: ${task.title}`)
+        this.knownCompletedTasks.add(task.id)
+
+        // Show desktop notification
+        const resultPreview = task.result
+          ? (task.result.length > 150 ? task.result.substring(0, 150) + '...' : task.result)
+          : 'Research completed'
+
+        showResearchComplete(
+          task.title || 'Research Task',
+          resultPreview,
+          this.mainWindow || undefined
+        )
+
+        // Notify renderer to refresh tasks
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('senter:research-update', {
+            type: 'task_completed',
+            taskId: task.id,
+            title: task.title
+          })
+        }
+      }
+    } catch (error) {
+      // Silent fail - daemon might be unavailable
+      console.log('[TaskPoller] Check failed:', (error as Error).message)
+    }
+  }
+}
+
+const taskPoller = new TaskPoller()
 
 // Register IPC handlers
 export function registerSenterIPC(): void {
@@ -146,7 +270,17 @@ export function registerSenterIPC(): void {
     return senterClient.getTasks(limit)
   })
 
+  ipcMain.handle('senter:getJournal', async (_, date?: string, limit?: number) => {
+    console.log('[SenterIPC] Received getJournal request, date:', date)
+    return senterClient.getJournal(date, limit)
+  })
+
+  ipcMain.handle('senter:generateJournal', async (_, date?: string) => {
+    console.log('[SenterIPC] Received generateJournal request, date:', date)
+    return senterClient.generateJournal(date)
+  })
+
   console.log('[SenterIPC] IPC handlers registered')
 }
 
-export { senterClient }
+export { senterClient, taskPoller }
