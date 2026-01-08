@@ -2,17 +2,333 @@
 """
 Goal Tracking System for Senter
 Extracts, persists, and tracks user goals across conversations
+
+Enhanced for:
+- IA-001: Entity extraction (ACTION, OBJECT, DEADLINE, CONDITION)
+- GS-001: Auto-detection of goal progress
+- GS-002: Goal prioritization and scheduling
+- GS-003: Goal relationships (parent/child)
 """
 
 import json
 import logging
 import re
+import time
 from pathlib import Path
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timedelta
+from typing import Optional, List, Dict, Any, Tuple
 from dataclasses import dataclass, asdict, field
+from enum import Enum
 
 logger = logging.getLogger("senter.goals")
+
+
+# ========== IA-001: Entity Types for Goal Extraction ==========
+
+class EntityType(Enum):
+    """Entity types for goal extraction"""
+    ACTION = "action"      # What needs to be done
+    OBJECT = "object"      # What is being acted upon
+    DEADLINE = "deadline"  # When it needs to be done
+    CONDITION = "condition"  # Conditions or constraints
+
+
+@dataclass
+class ExtractedEntity:
+    """Single extracted entity from text"""
+    entity_type: EntityType
+    value: str
+    start_pos: int = 0
+    end_pos: int = 0
+    confidence: float = 0.5
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d["entity_type"] = self.entity_type.value
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ExtractedEntity":
+        data = data.copy()
+        data["entity_type"] = EntityType(data["entity_type"])
+        return cls(**data)
+
+
+@dataclass
+class GoalExtractionResult:
+    """Result of goal extraction with entity analysis"""
+    entities: List[ExtractedEntity] = field(default_factory=list)
+    action: Optional[str] = None
+    object_target: Optional[str] = None
+    deadline: Optional[str] = None
+    condition: Optional[str] = None
+    confidence: float = 0.0
+    needs_clarification: bool = False
+    clarification_questions: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d["entities"] = [e if isinstance(e, dict) else e.to_dict() for e in self.entities]
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "GoalExtractionResult":
+        data = data.copy()
+        data["entities"] = [
+            ExtractedEntity.from_dict(e) if isinstance(e, dict) else e
+            for e in data.get("entities", [])
+        ]
+        return cls(**data)
+
+
+class GoalEntityExtractor:
+    """
+    Extract entities from text for goal detection (IA-001)
+
+    Entity types:
+    - ACTION: Verbs indicating what needs to be done
+    - OBJECT: Noun phrases indicating target of action
+    - DEADLINE: Time references
+    - CONDITION: Conditional phrases
+    """
+
+    # Action verbs that indicate goals
+    ACTION_PATTERNS = [
+        (r"\b(finish|complete|build|create|write|implement|develop|design|fix|solve|learn|study|read|prepare|organize|plan|schedule|submit|deliver|send|review|update|improve|optimize|refactor|test|deploy|launch|release)\b", 0.8),
+        (r"\b(need to|have to|must|should|want to|going to|planning to|trying to|hope to|aim to|intend to)\s+([\w\s]+)", 0.9),
+    ]
+
+    # Time/deadline patterns
+    DEADLINE_PATTERNS = [
+        (r"\bby\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", 0.9),
+        (r"\bby\s+(tomorrow|tonight|today|next week|next month|end of (?:the\s+)?(?:day|week|month|year))\b", 0.9),
+        (r"\bby\s+(\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b", 0.95),
+        (r"\bdeadline[:\s]+(.+?)(?:\.|,|$)", 0.95),
+        (r"\bbefore\s+([\w\s]+?)(?:\.|,|$)", 0.7),
+        (r"\bwithin\s+(\d+\s+(?:hours?|days?|weeks?|months?))\b", 0.85),
+        (r"\bin\s+(\d+\s+(?:hours?|days?|weeks?|months?))\b", 0.7),
+    ]
+
+    # Condition patterns
+    CONDITION_PATTERNS = [
+        (r"\bif\s+(.+?)(?:then|,|$)", 0.8),
+        (r"\bwhen\s+(.+?)(?:then|,|$)", 0.7),
+        (r"\bonce\s+(.+?)(?:then|,|$)", 0.8),
+        (r"\bafter\s+(.+?)(?:then|,|$)", 0.75),
+        (r"\bunless\s+(.+?)(?:\.|,|$)", 0.8),
+        (r"\bprovided\s+(?:that\s+)?(.+?)(?:\.|,|$)", 0.85),
+    ]
+
+    def extract_entities(self, text: str) -> GoalExtractionResult:
+        """Extract all entities from text"""
+        result = GoalExtractionResult()
+        text_lower = text.lower()
+
+        # Extract actions
+        actions = self._extract_actions(text_lower)
+        result.entities.extend(actions)
+        if actions:
+            result.action = actions[0].value
+
+        # Extract objects (noun phrases after actions)
+        objects = self._extract_objects(text_lower, actions)
+        result.entities.extend(objects)
+        if objects:
+            result.object_target = objects[0].value
+
+        # Extract deadlines
+        deadlines = self._extract_deadlines(text_lower)
+        result.entities.extend(deadlines)
+        if deadlines:
+            result.deadline = deadlines[0].value
+
+        # Extract conditions
+        conditions = self._extract_conditions(text_lower)
+        result.entities.extend(conditions)
+        if conditions:
+            result.condition = conditions[0].value
+
+        # Calculate overall confidence
+        result.confidence = self._calculate_confidence(result)
+
+        # Determine if clarification is needed
+        result.needs_clarification = result.confidence < 0.6
+        if result.needs_clarification:
+            result.clarification_questions = self._generate_clarification_questions(result)
+
+        return result
+
+    def _extract_actions(self, text: str) -> List[ExtractedEntity]:
+        """Extract action entities"""
+        entities = []
+
+        for pattern, confidence in self.ACTION_PATTERNS:
+            for match in re.finditer(pattern, text, re.IGNORECASE):
+                value = match.group(1) if match.lastindex else match.group(0)
+                entities.append(ExtractedEntity(
+                    entity_type=EntityType.ACTION,
+                    value=value.strip(),
+                    start_pos=match.start(),
+                    end_pos=match.end(),
+                    confidence=confidence
+                ))
+
+        return entities[:3]  # Return top 3
+
+    def _extract_objects(self, text: str, actions: List[ExtractedEntity]) -> List[ExtractedEntity]:
+        """Extract object entities (what the action is applied to)"""
+        entities = []
+
+        # Look for noun phrases after action verbs
+        for action in actions:
+            # Find text after the action
+            after_action = text[action.end_pos:action.end_pos + 100]
+
+            # Extract noun phrase (simple heuristic)
+            noun_match = re.match(r"\s*(the\s+)?([\w\s]+?)(?:\s+(?:by|before|for|to|in|on|at|if|when)|[.,!?]|$)", after_action)
+            if noun_match:
+                value = noun_match.group(2).strip()
+                if len(value) > 2 and len(value) < 50:
+                    entities.append(ExtractedEntity(
+                        entity_type=EntityType.OBJECT,
+                        value=value,
+                        start_pos=action.end_pos + noun_match.start(2),
+                        end_pos=action.end_pos + noun_match.end(2),
+                        confidence=0.7
+                    ))
+
+        return entities[:2]
+
+    def _extract_deadlines(self, text: str) -> List[ExtractedEntity]:
+        """Extract deadline entities"""
+        entities = []
+
+        for pattern, confidence in self.DEADLINE_PATTERNS:
+            for match in re.finditer(pattern, text, re.IGNORECASE):
+                value = match.group(1) if match.lastindex else match.group(0)
+                entities.append(ExtractedEntity(
+                    entity_type=EntityType.DEADLINE,
+                    value=value.strip(),
+                    start_pos=match.start(),
+                    end_pos=match.end(),
+                    confidence=confidence
+                ))
+
+        return entities[:2]
+
+    def _extract_conditions(self, text: str) -> List[ExtractedEntity]:
+        """Extract condition entities"""
+        entities = []
+
+        for pattern, confidence in self.CONDITION_PATTERNS:
+            for match in re.finditer(pattern, text, re.IGNORECASE):
+                value = match.group(1) if match.lastindex else match.group(0)
+                entities.append(ExtractedEntity(
+                    entity_type=EntityType.CONDITION,
+                    value=value.strip(),
+                    start_pos=match.start(),
+                    end_pos=match.end(),
+                    confidence=confidence
+                ))
+
+        return entities[:2]
+
+    def _calculate_confidence(self, result: GoalExtractionResult) -> float:
+        """
+        Calculate overall confidence based on entity completeness
+
+        Scoring:
+        - ACTION present: +0.4
+        - OBJECT present: +0.3
+        - DEADLINE present: +0.2
+        - CONDITION present: +0.1 (optional)
+        """
+        score = 0.0
+
+        if result.action:
+            action_entity = next((e for e in result.entities if e.entity_type == EntityType.ACTION), None)
+            score += 0.4 * (action_entity.confidence if action_entity else 0.5)
+
+        if result.object_target:
+            object_entity = next((e for e in result.entities if e.entity_type == EntityType.OBJECT), None)
+            score += 0.3 * (object_entity.confidence if object_entity else 0.5)
+
+        if result.deadline:
+            deadline_entity = next((e for e in result.entities if e.entity_type == EntityType.DEADLINE), None)
+            score += 0.2 * (deadline_entity.confidence if deadline_entity else 0.5)
+
+        if result.condition:
+            score += 0.1  # Conditions are optional bonus
+
+        return round(score, 2)
+
+    def _generate_clarification_questions(self, result: GoalExtractionResult) -> List[str]:
+        """Generate questions to clarify incomplete goals"""
+        questions = []
+
+        if not result.action:
+            questions.append("What specifically would you like to accomplish?")
+
+        if not result.object_target and result.action:
+            questions.append(f"What exactly do you want to {result.action}?")
+
+        if not result.deadline:
+            questions.append("Is there a deadline or timeframe for this?")
+
+        return questions
+
+
+# Queue for low-confidence goals needing clarification
+class ClarificationQueue:
+    """Queue for goals needing clarification (IA-001)"""
+
+    def __init__(self, senter_root: Path):
+        self.senter_root = Path(senter_root)
+        self.queue_file = self.senter_root / "data" / "goals" / "clarification_queue.json"
+        self.queue_file.parent.mkdir(parents=True, exist_ok=True)
+        self._queue: List[Dict] = []
+        self._load()
+
+    def _load(self):
+        """Load queue from disk"""
+        if self.queue_file.exists():
+            try:
+                self._queue = json.loads(self.queue_file.read_text())
+            except:
+                self._queue = []
+
+    def _save(self):
+        """Save queue to disk"""
+        self.queue_file.write_text(json.dumps(self._queue, indent=2))
+
+    def add(self, extraction_result: GoalExtractionResult, original_text: str):
+        """Add a goal needing clarification"""
+        self._queue.append({
+            "timestamp": datetime.now().isoformat(),
+            "original_text": original_text,
+            "extraction": extraction_result.to_dict(),
+            "status": "pending"
+        })
+        self._save()
+
+    def get_pending(self) -> List[Dict]:
+        """Get pending clarifications"""
+        return [q for q in self._queue if q["status"] == "pending"]
+
+    def resolve(self, index: int, resolved_goal: Dict = None):
+        """Mark a clarification as resolved"""
+        if 0 <= index < len(self._queue):
+            self._queue[index]["status"] = "resolved"
+            if resolved_goal:
+                self._queue[index]["resolved_goal"] = resolved_goal
+            self._save()
+
+    def clear_old(self, days: int = 7):
+        """Clear old unresolved clarifications"""
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+        self._queue = [q for q in self._queue
+                       if q["status"] == "resolved" or q["timestamp"] > cutoff]
+        self._save()
 
 # Try to import embedding function for relevance search
 try:

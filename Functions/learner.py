@@ -2,18 +2,461 @@
 """
 Self-Learning System for Senter
 Analyzes conversations to learn user preferences and adapt behavior
+
+Enhanced for:
+- IA-003: Profiler with behavioral modeling
+- LS-001: Response length adaptation
+- LS-002: Formality matching
 """
 
 import json
 import logging
 import re
+import statistics
 from pathlib import Path
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timedelta
+from typing import Optional, List, Dict, Any, Tuple
 from dataclasses import dataclass, asdict, field
-from collections import Counter
+from collections import Counter, defaultdict
+from enum import Enum
 
 logger = logging.getLogger("senter.learner")
+
+
+# ========== IA-003: Behavioral Profile Classes ==========
+
+class CommunicationStyle(Enum):
+    """User communication style"""
+    CASUAL = "casual"
+    PROFESSIONAL = "professional"
+    TECHNICAL = "technical"
+    MIXED = "mixed"
+
+
+class ExpertiseLevel(Enum):
+    """User expertise level in a domain"""
+    BEGINNER = "beginner"
+    INTERMEDIATE = "intermediate"
+    ADVANCED = "advanced"
+    EXPERT = "expert"
+
+
+@dataclass
+class ExpertiseArea:
+    """User expertise in a specific area"""
+    domain: str
+    level: ExpertiseLevel
+    confidence: float = 0.5
+    evidence_count: int = 1
+    last_updated: str = ""
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d["level"] = self.level.value
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ExpertiseArea":
+        data = data.copy()
+        data["level"] = ExpertiseLevel(data["level"])
+        return cls(**data)
+
+
+@dataclass
+class ActivityPattern:
+    """User activity time pattern"""
+    hour: int  # 0-23
+    day_of_week: int  # 0-6 (Monday=0)
+    interaction_count: int = 0
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class BehavioralProfile:
+    """
+    Complete behavioral profile for a user (IA-003)
+
+    Includes:
+    - Communication style
+    - Expertise areas
+    - Peak activity hours
+    - Preferences
+    """
+    user_id: str = "default"
+
+    # Communication
+    communication_style: CommunicationStyle = CommunicationStyle.MIXED
+    formality_score: float = 0.5  # 0=casual, 1=formal
+    verbosity_preference: float = 0.5  # 0=brief, 1=detailed
+    humor_tolerance: float = 0.5  # 0=none, 1=lots
+
+    # Expertise areas
+    expertise_areas: List[ExpertiseArea] = field(default_factory=list)
+
+    # Activity patterns
+    peak_hours: List[int] = field(default_factory=list)  # Top 3 active hours
+    peak_days: List[int] = field(default_factory=list)   # Top 3 active days
+    activity_heatmap: Dict[str, int] = field(default_factory=dict)  # hour:day -> count
+
+    # Preferences
+    preferred_code_language: Optional[str] = None
+    preferred_explanation_style: str = "balanced"  # brief, balanced, detailed
+    topics_of_interest: List[str] = field(default_factory=list)
+
+    # Meta
+    total_interactions: int = 0
+    first_seen: str = ""
+    last_seen: str = ""
+    profile_confidence: float = 0.0
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d["communication_style"] = self.communication_style.value
+        d["expertise_areas"] = [e if isinstance(e, dict) else e.to_dict()
+                                for e in self.expertise_areas]
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "BehavioralProfile":
+        data = data.copy()
+        if "communication_style" in data:
+            data["communication_style"] = CommunicationStyle(data["communication_style"])
+        if "expertise_areas" in data:
+            data["expertise_areas"] = [
+                ExpertiseArea.from_dict(e) if isinstance(e, dict) else e
+                for e in data["expertise_areas"]
+            ]
+        return cls(**data)
+
+
+class BehavioralProfiler:
+    """
+    Analyze user behavior and build behavioral profile (IA-003)
+
+    Features:
+    - Track communication style over time
+    - Detect expertise areas from vocabulary
+    - Identify peak activity hours
+    - Learn preferences from feedback signals
+    """
+
+    # Technical vocabulary by domain
+    DOMAIN_VOCABULARY = {
+        "python": ["python", "pip", "django", "flask", "pandas", "numpy", "pytest", "def ", "import ", "__init__"],
+        "javascript": ["javascript", "nodejs", "npm", "react", "vue", "angular", "const ", "let ", "=>"],
+        "web": ["html", "css", "frontend", "backend", "api", "rest", "http", "websocket"],
+        "database": ["sql", "database", "postgres", "mysql", "mongodb", "redis", "query", "schema"],
+        "devops": ["docker", "kubernetes", "k8s", "ci/cd", "jenkins", "aws", "azure", "terraform"],
+        "ml": ["machine learning", "neural", "model", "training", "dataset", "tensorflow", "pytorch"],
+        "security": ["security", "encryption", "auth", "oauth", "jwt", "vulnerability", "penetration"],
+    }
+
+    # Expertise indicators
+    EXPERTISE_INDICATORS = {
+        ExpertiseLevel.BEGINNER: ["how do i", "what is", "help me understand", "i don't know", "confused about"],
+        ExpertiseLevel.INTERMEDIATE: ["i understand", "i know", "how can i improve", "better way to"],
+        ExpertiseLevel.ADVANCED: ["optimize", "architecture", "design pattern", "trade-off", "performance"],
+        ExpertiseLevel.EXPERT: ["implementation detail", "edge case", "internal", "low-level", "advanced"],
+    }
+
+    def __init__(self, senter_root: Path):
+        self.senter_root = Path(senter_root)
+        self.profile_file = self.senter_root / "data" / "learning" / "behavioral_profile.json"
+        self.profile_file.parent.mkdir(parents=True, exist_ok=True)
+        self.profile = self._load_profile()
+
+    def _load_profile(self) -> BehavioralProfile:
+        """Load profile from disk"""
+        if self.profile_file.exists():
+            try:
+                data = json.loads(self.profile_file.read_text())
+                return BehavioralProfile.from_dict(data)
+            except Exception as e:
+                logger.warning(f"Could not load behavioral profile: {e}")
+
+        # Create new profile
+        profile = BehavioralProfile(first_seen=datetime.now().isoformat())
+        return profile
+
+    def _save_profile(self):
+        """Save profile to disk"""
+        self.profile_file.write_text(json.dumps(self.profile.to_dict(), indent=2))
+
+    def analyze_interaction(self, messages: List[Dict], timestamp: datetime = None):
+        """
+        Analyze an interaction to update behavioral profile
+
+        Args:
+            messages: List of messages with 'role' and 'content'
+            timestamp: When the interaction occurred
+        """
+        timestamp = timestamp or datetime.now()
+        user_messages = [m["content"] for m in messages if m.get("role") == "user"]
+
+        if not user_messages:
+            return
+
+        all_text = " ".join(user_messages).lower()
+
+        # Update activity patterns
+        self._update_activity_pattern(timestamp)
+
+        # Analyze communication style
+        self._analyze_communication_style(user_messages)
+
+        # Detect expertise areas
+        self._detect_expertise(all_text)
+
+        # Update preferences from signals
+        self._update_preferences(messages)
+
+        # Update meta
+        self.profile.total_interactions += 1
+        self.profile.last_seen = timestamp.isoformat()
+
+        # Recalculate confidence
+        self._update_confidence()
+
+        # Save
+        self._save_profile()
+
+    def _update_activity_pattern(self, timestamp: datetime):
+        """Update activity heatmap"""
+        hour = timestamp.hour
+        day = timestamp.weekday()
+        key = f"{hour}:{day}"
+
+        if key not in self.profile.activity_heatmap:
+            self.profile.activity_heatmap[key] = 0
+        self.profile.activity_heatmap[key] += 1
+
+        # Update peak hours
+        hour_counts = defaultdict(int)
+        for k, count in self.profile.activity_heatmap.items():
+            h = int(k.split(":")[0])
+            hour_counts[h] += count
+
+        self.profile.peak_hours = sorted(hour_counts.keys(),
+                                          key=lambda x: hour_counts[x],
+                                          reverse=True)[:3]
+
+        # Update peak days
+        day_counts = defaultdict(int)
+        for k, count in self.profile.activity_heatmap.items():
+            d = int(k.split(":")[1])
+            day_counts[d] += count
+
+        self.profile.peak_days = sorted(day_counts.keys(),
+                                         key=lambda x: day_counts[x],
+                                         reverse=True)[:3]
+
+    def _analyze_communication_style(self, user_messages: List[str]):
+        """Analyze and update communication style"""
+        all_text = " ".join(user_messages).lower()
+
+        # Casual indicators
+        casual_patterns = [
+            r"\bhey\b", r"\bhi\b", r"\byeah\b", r"\bnope\b",
+            r"\bcool\b", r"\bawesome\b", r"\bthanks\b", r"\blol\b",
+        ]
+
+        # Professional indicators
+        professional_patterns = [
+            r"\bplease\b", r"\bkindly\b", r"\bwould you\b",
+            r"\bcould you\b", r"\bthank you\b", r"\bregards\b",
+        ]
+
+        # Technical indicators
+        technical_patterns = [
+            r"\bfunction\b", r"\bclass\b", r"\bmethod\b",
+            r"\bapi\b", r"\bdatabase\b", r"\bquery\b",
+        ]
+
+        casual_count = sum(1 for p in casual_patterns if re.search(p, all_text))
+        professional_count = sum(1 for p in professional_patterns if re.search(p, all_text))
+        technical_count = sum(1 for p in technical_patterns if re.search(p, all_text))
+
+        total = casual_count + professional_count + 1
+
+        # Update formality score (exponential moving average)
+        new_formality = professional_count / total
+        self.profile.formality_score = 0.7 * self.profile.formality_score + 0.3 * new_formality
+
+        # Determine style
+        if technical_count > 3:
+            self.profile.communication_style = CommunicationStyle.TECHNICAL
+        elif casual_count > professional_count + 2:
+            self.profile.communication_style = CommunicationStyle.CASUAL
+        elif professional_count > casual_count + 2:
+            self.profile.communication_style = CommunicationStyle.PROFESSIONAL
+        else:
+            self.profile.communication_style = CommunicationStyle.MIXED
+
+    def _detect_expertise(self, text: str):
+        """Detect expertise areas from text"""
+        for domain, keywords in self.DOMAIN_VOCABULARY.items():
+            matches = sum(1 for kw in keywords if kw in text)
+            if matches == 0:
+                continue
+
+            # Determine level from indicators
+            level = ExpertiseLevel.INTERMEDIATE  # Default
+            for exp_level, indicators in self.EXPERTISE_INDICATORS.items():
+                if any(ind in text for ind in indicators):
+                    level = exp_level
+                    break
+
+            # Update or add expertise
+            existing = next((e for e in self.profile.expertise_areas if e.domain == domain), None)
+            if existing:
+                existing.evidence_count += matches
+                # Update level if strong evidence
+                if matches > 2:
+                    existing.level = level
+                existing.confidence = min(0.95, existing.confidence + 0.05)
+                existing.last_updated = datetime.now().isoformat()
+            else:
+                self.profile.expertise_areas.append(ExpertiseArea(
+                    domain=domain,
+                    level=level,
+                    confidence=0.3 + (0.1 * matches),
+                    evidence_count=matches,
+                    last_updated=datetime.now().isoformat()
+                ))
+
+        # Prune low-confidence areas
+        self.profile.expertise_areas = [
+            e for e in self.profile.expertise_areas
+            if e.confidence > 0.2 or e.evidence_count > 3
+        ]
+
+        # Keep top 10
+        self.profile.expertise_areas = sorted(
+            self.profile.expertise_areas,
+            key=lambda x: x.confidence * x.evidence_count,
+            reverse=True
+        )[:10]
+
+    def _update_preferences(self, messages: List[Dict]):
+        """Update preferences from feedback signals"""
+        user_text = " ".join(m["content"].lower() for m in messages if m.get("role") == "user")
+
+        # Verbosity preference
+        if any(w in user_text for w in ["tldr", "briefly", "short", "summarize"]):
+            self.profile.verbosity_preference = max(0, self.profile.verbosity_preference - 0.1)
+            self.profile.preferred_explanation_style = "brief"
+        elif any(w in user_text for w in ["explain", "detail", "elaborate", "expand"]):
+            self.profile.verbosity_preference = min(1, self.profile.verbosity_preference + 0.1)
+            self.profile.preferred_explanation_style = "detailed"
+
+        # Code language detection
+        for lang in ["python", "javascript", "typescript", "rust", "go", "java"]:
+            if lang in user_text:
+                self.profile.preferred_code_language = lang
+                break
+
+        # Topics of interest
+        for topic, keywords in self.DOMAIN_VOCABULARY.items():
+            if any(kw in user_text for kw in keywords):
+                if topic not in self.profile.topics_of_interest:
+                    self.profile.topics_of_interest.append(topic)
+                    if len(self.profile.topics_of_interest) > 10:
+                        self.profile.topics_of_interest.pop(0)
+
+    def _update_confidence(self):
+        """Update overall profile confidence"""
+        factors = []
+
+        # Interaction count factor
+        if self.profile.total_interactions > 100:
+            factors.append(0.9)
+        elif self.profile.total_interactions > 50:
+            factors.append(0.7)
+        elif self.profile.total_interactions > 20:
+            factors.append(0.5)
+        else:
+            factors.append(0.3)
+
+        # Expertise coverage factor
+        if len(self.profile.expertise_areas) >= 3:
+            factors.append(0.8)
+        elif len(self.profile.expertise_areas) >= 1:
+            factors.append(0.5)
+        else:
+            factors.append(0.2)
+
+        # Activity pattern factor
+        if len(self.profile.activity_heatmap) >= 10:
+            factors.append(0.8)
+        elif len(self.profile.activity_heatmap) >= 5:
+            factors.append(0.5)
+        else:
+            factors.append(0.2)
+
+        self.profile.profile_confidence = statistics.mean(factors)
+
+    def get_profile_summary(self) -> Dict[str, Any]:
+        """Get a summary of the behavioral profile"""
+        return {
+            "user_id": self.profile.user_id,
+            "communication_style": self.profile.communication_style.value,
+            "formality": "formal" if self.profile.formality_score > 0.6 else
+                         "casual" if self.profile.formality_score < 0.4 else "neutral",
+            "verbosity": "detailed" if self.profile.verbosity_preference > 0.6 else
+                         "brief" if self.profile.verbosity_preference < 0.4 else "balanced",
+            "expertise": [{"domain": e.domain, "level": e.level.value}
+                         for e in self.profile.expertise_areas[:5]],
+            "peak_hours": self.profile.peak_hours,
+            "preferred_language": self.profile.preferred_code_language,
+            "topics": self.profile.topics_of_interest[:5],
+            "confidence": round(self.profile.profile_confidence, 2),
+            "interactions": self.profile.total_interactions
+        }
+
+    def get_system_prompt_additions(self) -> str:
+        """Get additions to system prompt based on behavioral profile"""
+        if self.profile.profile_confidence < 0.3:
+            return ""
+
+        additions = []
+
+        # Communication style
+        style = self.profile.communication_style
+        if style == CommunicationStyle.CASUAL:
+            additions.append("User prefers casual, friendly communication.")
+        elif style == CommunicationStyle.PROFESSIONAL:
+            additions.append("User prefers professional, formal communication.")
+        elif style == CommunicationStyle.TECHNICAL:
+            additions.append("User is technically sophisticated; use technical terminology freely.")
+
+        # Verbosity
+        if self.profile.preferred_explanation_style == "brief":
+            additions.append("User prefers brief, concise responses.")
+        elif self.profile.preferred_explanation_style == "detailed":
+            additions.append("User appreciates detailed explanations.")
+
+        # Expertise areas
+        expert_areas = [e for e in self.profile.expertise_areas
+                       if e.level in [ExpertiseLevel.ADVANCED, ExpertiseLevel.EXPERT]]
+        if expert_areas:
+            areas = ", ".join(e.domain for e in expert_areas[:3])
+            additions.append(f"User has advanced knowledge in: {areas}")
+
+        beginner_areas = [e for e in self.profile.expertise_areas
+                         if e.level == ExpertiseLevel.BEGINNER]
+        if beginner_areas:
+            areas = ", ".join(e.domain for e in beginner_areas[:3])
+            additions.append(f"User is learning about: {areas} - provide more explanation")
+
+        # Code language
+        if self.profile.preferred_code_language:
+            additions.append(f"When showing code, prefer {self.profile.preferred_code_language}.")
+
+        if additions:
+            return "\n[User Profile:]\n" + "\n".join(f"- {a}" for a in additions)
+        return ""
 
 # Try to import Ollama for LLM-based analysis
 try:
