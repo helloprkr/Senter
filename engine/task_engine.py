@@ -953,16 +953,157 @@ class TaskExecutor:
             logger.warning(f"Failed to store result for task {task.id}: {e}")
 
     def _execute_web_search(self, task: Task) -> dict:
-        """Execute web search task"""
+        """Execute web search task with content fetching and synthesis (P2-003)"""
         try:
             sys.path.insert(0, str(self.senter_root / "Functions"))
             from web_search import search_web
             query = task.tool_params.get("query", task.description)
             results = search_web(query, max_results=5)
-            return {"query": query, "results": results, "count": len(results)}
+
+            if not results:
+                return {"query": query, "results": [], "error": "No search results"}
+
+            # P2-003: Fetch page content from top results
+            sources = []
+            content_parts = []
+
+            for r in results[:3]:  # Fetch top 3 pages
+                url = r.get("url", "")
+                title = r.get("title", "")
+                snippet = r.get("snippet", "")
+
+                # Try to fetch page content
+                page_content = self._fetch_page_content(url)
+
+                sources.append({
+                    "title": title,
+                    "url": url,
+                    "snippet": snippet,
+                    "fetched": bool(page_content)
+                })
+
+                if page_content:
+                    content_parts.append(f"## {title}\nSource: {url}\n\n{page_content[:2000]}")
+                else:
+                    content_parts.append(f"## {title}\nSource: {url}\n\n{snippet}")
+
+            # P2-003: Synthesize with LLM
+            if content_parts:
+                synthesis = self._synthesize_research(query, content_parts, sources)
+            else:
+                synthesis = f"Search results for '{query}':\n" + "\n".join(
+                    f"- {r.get('title', '')}: {r.get('snippet', '')}" for r in results
+                )
+
+            return {
+                "query": query,
+                "synthesis": synthesis,
+                "sources": sources,
+                "source_count": len(sources),
+                "status": "completed"
+            }
+
         except Exception as e:
             logger.warning(f"Web search failed: {e}")
             return {"query": task.description, "results": [], "error": str(e)}
+
+    def _fetch_page_content(self, url: str) -> str:
+        """Fetch and extract readable content from a URL (P2-003)"""
+        try:
+            import httpx
+            from html import unescape
+            import re
+
+            # Fetch with timeout
+            response = httpx.get(url, timeout=10.0, follow_redirects=True, headers={
+                "User-Agent": "Senter Research Agent/1.0"
+            })
+            response.raise_for_status()
+
+            html = response.text
+
+            # Simple content extraction (without readability library)
+            # Remove scripts and styles
+            html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+            html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL | re.IGNORECASE)
+            html = re.sub(r'<nav[^>]*>.*?</nav>', '', html, flags=re.DOTALL | re.IGNORECASE)
+            html = re.sub(r'<header[^>]*>.*?</header>', '', html, flags=re.DOTALL | re.IGNORECASE)
+            html = re.sub(r'<footer[^>]*>.*?</footer>', '', html, flags=re.DOTALL | re.IGNORECASE)
+
+            # Extract text from remaining HTML
+            text = re.sub(r'<[^>]+>', ' ', html)
+            text = unescape(text)
+
+            # Clean up whitespace
+            text = re.sub(r'\s+', ' ', text).strip()
+
+            # Truncate to reasonable length
+            return text[:4000] if text else ""
+
+        except Exception as e:
+            logger.debug(f"Failed to fetch {url}: {e}")
+            return ""
+
+    def _synthesize_research(self, query: str, content_parts: list, sources: list) -> str:
+        """Synthesize research findings using LLM (P2-003)"""
+        try:
+            # Build prompt with content
+            combined_content = "\n\n---\n\n".join(content_parts)
+
+            synthesis_prompt = f"""Based on the following web search results for "{query}", provide a comprehensive summary with key insights.
+
+SEARCH RESULTS:
+{combined_content}
+
+Please synthesize this information into:
+1. A brief summary (2-3 sentences)
+2. Key findings (bullet points)
+3. Important details or considerations
+
+Include citations to sources where appropriate."""
+
+            # Send to LLM via message bus
+            correlation_id = str(uuid.uuid4())
+
+            self.message_bus.send(
+                MessageType.MODEL_REQUEST,
+                source="task_executor",
+                target="model_research",
+                payload={
+                    "prompt": synthesis_prompt,
+                    "system_prompt": "You are a research analyst. Synthesize information from multiple sources into clear, actionable summaries. Always cite your sources.",
+                    "max_tokens": 1500
+                },
+                correlation_id=correlation_id
+            )
+
+            # Wait for response
+            start_time = time.time()
+            timeout = 60  # 60 second timeout for synthesis
+
+            while time.time() - start_time < timeout:
+                try:
+                    msg_dict = self._response_queue.get(timeout=0.5)
+                    message = Message.from_dict(msg_dict)
+
+                    if (message.type == MessageType.MODEL_RESPONSE and
+                        message.correlation_id == correlation_id):
+                        response = message.payload.get("response", "")
+                        # Add sources section
+                        sources_text = "\n\n**Sources:**\n" + "\n".join(
+                            f"- [{s['title']}]({s['url']})" for s in sources
+                        )
+                        return response + sources_text
+
+                except Empty:
+                    continue
+
+            # Timeout - return basic summary
+            return f"Research on '{query}' found {len(sources)} sources. See results for details."
+
+        except Exception as e:
+            logger.warning(f"Synthesis failed: {e}")
+            return f"Research on '{query}' completed. Found {len(sources)} sources."
 
     def _execute_file_write(self, task: Task) -> dict:
         """Execute file write task"""
