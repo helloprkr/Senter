@@ -500,8 +500,8 @@
         "daemon/message_bus.py"
       ],
       "priority": 16,
-      "passes": false,
-      "notes": "Message Bus - Dead letter queue"
+      "passes": true,
+      "notes": "COMPLETED - Dead letter queue with persistence, 5 tests pass"
     },
     {
       "id": "MB-002",
@@ -528,8 +528,8 @@
         "daemon/senter_daemon.py"
       ],
       "priority": 17,
-      "passes": false,
-      "notes": "Message Bus - Correlation tracking"
+      "passes": true,
+      "notes": "COMPLETED - Correlation tracking with callbacks and timeout, 4 tests pass"
     },
     {
       "id": "MB-003",
@@ -556,8 +556,8 @@
         "daemon/senter_daemon.py"
       ],
       "priority": 18,
-      "passes": false,
-      "notes": "Message Bus - Message persistence"
+      "passes": true,
+      "notes": "COMPLETED - Message persistence with restore and ordering, 5 tests pass"
     },
     {
       "id": "MW-001",
