@@ -1,0 +1,58 @@
+appId: com.senter.app
+productName: Senter
+directories:
+  output: dist
+  buildResources: build
+files:
+  # Include Electron files
+  - "electron/**/*"
+  # Include static export
+  - "out/**/*"
+  # Include package.json for electron
+  - "package.json"
+  # Exclude unnecessary files
+  - "!**/.git/**"
+  - "!**/node_modules/.cache/**"
+  - "!**/*.map"
+  - "!**/*.md"
+  - "!**/src/**"
+  - "!**/app/**"
+  - "!**/components/**"
+  - "!**/hooks/**"
+  - "!**/lib/**"
+  - "!**/styles/**"
+  - "!**/types/**"
+  - "!**/public/**"
+  - "!**/.next/**"
+  - "!**/node_modules/**"
+extraResources:
+  - from: "out"
+    to: "out"
+    filter:
+      - "**/*"
+asar: true
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  category: public.app-category.productivity
+  icon: build/icon.icns
+  darkModeSupport: true
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+  window:
+    width: 540
+    height: 380
+
