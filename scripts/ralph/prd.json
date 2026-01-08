@@ -972,8 +972,8 @@
         "scripts/senter_ctl.py"
       ],
       "priority": 33,
-      "passes": false,
-      "notes": "Scheduler - Full cron support"
+      "passes": true,
+      "notes": "COMPLETED - CronParser with full cron support, 22 tests pass"
     },
     {
       "id": "SC-002",
@@ -1000,8 +1000,8 @@
         "daemon/message_bus.py"
       ],
       "priority": 34,
-      "passes": false,
-      "notes": "Scheduler - Event triggers"
+      "passes": true,
+      "notes": "COMPLETED - Event subscriptions with EventFilter, multiple subscribers"
     },
     {
       "id": "SC-003",
@@ -1028,8 +1028,8 @@
         "scripts/senter_ctl.py"
       ],
       "priority": 35,
-      "passes": false,
-      "notes": "Scheduler - Job history"
+      "passes": true,
+      "notes": "COMPLETED - JobExecution history with persistence and retention cleanup"
     },
     {
       "id": "PR-001",
