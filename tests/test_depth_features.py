@@ -957,3 +957,308 @@ class TestSemanticGoalDetection:
 
         assert len(goals) == 1
         assert "Python" in goals[0].description
+
+
+# ============================================================================
+# US-005: Goal progress detection via LLM
+# ============================================================================
+
+class TestGoalProgressDetection:
+    """Tests for goal progress detection."""
+
+    def test_detect_completion_finished_pattern(self):
+        """Test detecting 'finished X' completion pattern."""
+        from intelligence.goals import GoalDetector, Goal
+        from unittest.mock import MagicMock
+        from datetime import datetime
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        # Add a goal that can be completed
+        detector.goals["g1"] = Goal(
+            id="g1", description="Spanish lessons", category="learning",
+            confidence=0.8, evidence=[], created_at=datetime.now(),
+            last_mentioned=datetime.now(), progress=0.5, status="active"
+        )
+
+        # Simulate text indicating completion - uses topic that matches goal
+        detector._detect_progress_from_text("I finally finished Spanish lessons!")
+
+        assert detector.goals["g1"].status == "completed"
+        assert detector.goals["g1"].progress == 1.0
+
+    def test_detect_completion_done_with_pattern(self):
+        """Test detecting 'done with X' completion pattern."""
+        from intelligence.goals import GoalDetector, Goal
+        from unittest.mock import MagicMock
+        from datetime import datetime
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        detector.goals["proj1"] = Goal(
+            id="proj1", description="website project", category="project",
+            confidence=0.7, evidence=[], created_at=datetime.now(),
+            last_mentioned=datetime.now(), progress=0.3, status="active"
+        )
+
+        detector._detect_progress_from_text("I'm done with the website project")
+
+        assert detector.goals["proj1"].status == "completed"
+
+    def test_detect_percentage_progress(self):
+        """Test detecting percentage progress indicators."""
+        from intelligence.goals import GoalDetector, Goal
+        from unittest.mock import MagicMock
+        from datetime import datetime
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        detector.goals["book"] = Goal(
+            id="book", description="Write the book", category="project",
+            confidence=0.8, evidence=[], created_at=datetime.now(),
+            last_mentioned=datetime.now(), progress=0.2, status="active"
+        )
+
+        detector._detect_progress_from_text("I'm about 75% done with the book")
+
+        assert detector.goals["book"].progress == 0.75
+        assert detector.goals["book"].status == "active"
+
+    def test_detect_halfway_progress(self):
+        """Test detecting 'halfway' progress pattern."""
+        from intelligence.goals import GoalDetector, Goal
+        from unittest.mock import MagicMock
+        from datetime import datetime
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        detector.goals["course"] = Goal(
+            id="course", description="Complete the Python course", category="learning",
+            confidence=0.7, evidence=[], created_at=datetime.now(),
+            last_mentioned=datetime.now(), progress=0.2, status="active"
+        )
+
+        detector._detect_progress_from_text("I'm halfway through the Python course!")
+
+        assert detector.goals["course"].progress == 0.5
+
+    def test_detect_almost_done_progress(self):
+        """Test detecting 'almost done' progress pattern."""
+        from intelligence.goals import GoalDetector, Goal
+        from unittest.mock import MagicMock
+        from datetime import datetime
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        detector.goals["proj"] = Goal(
+            id="proj", description="Finish the project", category="project",
+            confidence=0.8, evidence=[], created_at=datetime.now(),
+            last_mentioned=datetime.now(), progress=0.6, status="active"
+        )
+
+        detector._detect_progress_from_text("I'm almost done with the project")
+
+        assert detector.goals["proj"].progress == 0.9
+
+    def test_progress_only_increases(self):
+        """Test that progress only increases, never decreases."""
+        from intelligence.goals import GoalDetector, Goal
+        from unittest.mock import MagicMock
+        from datetime import datetime
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        detector.goals["task"] = Goal(
+            id="task", description="Complete the task", category="project",
+            confidence=0.8, evidence=[], created_at=datetime.now(),
+            last_mentioned=datetime.now(), progress=0.8, status="active"
+        )
+
+        # Try to set lower progress
+        detector._update_goal_by_topic("task", progress=0.3, mark_complete=False)
+
+        # Progress should remain at 0.8
+        assert detector.goals["task"].progress == 0.8
+
+    def test_update_goal_by_topic_similarity_match(self):
+        """Test updating goal by similar topic."""
+        from intelligence.goals import GoalDetector, Goal
+        from unittest.mock import MagicMock
+        from datetime import datetime
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        detector.goals["spanish"] = Goal(
+            id="spanish", description="Learn Spanish fluently", category="learning",
+            confidence=0.8, evidence=[], created_at=datetime.now(),
+            last_mentioned=datetime.now(), progress=0.3, status="active"
+        )
+
+        # Update with similar but not exact topic
+        result = detector._update_goal_by_topic("spanish", progress=0.6)
+
+        assert result is not None
+        assert detector.goals["spanish"].progress == 0.6
+
+    def test_update_goal_by_topic_no_match(self):
+        """Test no update when topic doesn't match."""
+        from intelligence.goals import GoalDetector, Goal
+        from unittest.mock import MagicMock
+        from datetime import datetime
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        detector.goals["coding"] = Goal(
+            id="coding", description="Learn Python", category="learning",
+            confidence=0.8, evidence=[], created_at=datetime.now(),
+            last_mentioned=datetime.now(), progress=0.3, status="active"
+        )
+
+        # Try to update with unrelated topic
+        result = detector._update_goal_by_topic("cooking recipes", progress=0.8)
+
+        assert result is None
+        assert detector.goals["coding"].progress == 0.3
+
+    @pytest.mark.asyncio
+    async def test_detect_progress_with_llm(self):
+        """Test LLM-based progress detection."""
+        from intelligence.goals import GoalDetector, Goal
+        from unittest.mock import MagicMock, AsyncMock
+        from datetime import datetime
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        detector.goals["goal1"] = Goal(
+            id="goal1", description="Learn to cook", category="learning",
+            confidence=0.8, evidence=[], created_at=datetime.now(),
+            last_mentioned=datetime.now(), progress=0.2, status="active"
+        )
+
+        mock_model = AsyncMock()
+        mock_model.generate = AsyncMock(return_value='[{"goal_id": "goal1", "new_progress": 0.7, "completed": false, "evidence": "made good progress cooking"}]')
+
+        results = await detector.detect_progress_with_llm(
+            text="I've made good progress on my cooking skills",
+            model=mock_model
+        )
+
+        assert len(results) == 1
+        assert results[0]["goal_id"] == "goal1"
+        assert results[0]["progress"] == 0.7
+        assert detector.goals["goal1"].progress == 0.7
+
+    @pytest.mark.asyncio
+    async def test_detect_progress_with_llm_marks_complete(self):
+        """Test LLM progress detection marks goal complete."""
+        from intelligence.goals import GoalDetector, Goal
+        from unittest.mock import MagicMock, AsyncMock
+        from datetime import datetime
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        detector.goals["goal2"] = Goal(
+            id="goal2", description="Finish the report", category="project",
+            confidence=0.8, evidence=[], created_at=datetime.now(),
+            last_mentioned=datetime.now(), progress=0.9, status="active"
+        )
+
+        mock_model = AsyncMock()
+        mock_model.generate = AsyncMock(return_value='[{"goal_id": "goal2", "new_progress": 1.0, "completed": true, "evidence": "finished the report"}]')
+
+        results = await detector.detect_progress_with_llm(
+            text="I finally finished the report!",
+            model=mock_model
+        )
+
+        assert len(results) == 1
+        assert results[0]["completed"] is True
+        assert detector.goals["goal2"].status == "completed"
+        assert detector.goals["goal2"].progress == 1.0
+
+    @pytest.mark.asyncio
+    async def test_detect_progress_with_llm_no_model(self):
+        """Test progress detection returns empty without model."""
+        from intelligence.goals import GoalDetector
+        from unittest.mock import MagicMock
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+
+        detector = GoalDetector(mock_memory)
+
+        results = await detector.detect_progress_with_llm(
+            text="Some text",
+            model=None
+        )
+
+        assert results == []
+
+    @pytest.mark.asyncio
+    async def test_detect_progress_with_llm_handles_exception(self):
+        """Test progress detection handles LLM errors gracefully."""
+        from intelligence.goals import GoalDetector, Goal
+        from unittest.mock import MagicMock, AsyncMock
+        from datetime import datetime
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+
+        detector = GoalDetector(mock_memory)
+
+        detector.goals["g1"] = Goal(
+            id="g1", description="Test goal", category="personal",
+            confidence=0.5, evidence=[], created_at=datetime.now(),
+            last_mentioned=datetime.now(), progress=0.3, status="active"
+        )
+
+        mock_model = AsyncMock()
+        mock_model.generate = AsyncMock(side_effect=Exception("LLM error"))
+
+        results = await detector.detect_progress_with_llm(
+            text="Progress update",
+            model=mock_model
+        )
+
+        assert results == []
+        assert detector.goals["g1"].progress == 0.3  # Unchanged

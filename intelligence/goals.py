@@ -164,7 +164,218 @@ class GoalDetector:
                 if goal:
                     new_goals.append(goal)
 
+        # Check for progress indicators on existing goals
+        self._detect_progress_from_text(input_text)
+
         return new_goals
+
+    def _detect_progress_from_text(self, text: str) -> None:
+        """
+        Detect goal progress or completion indicators in text.
+
+        Updates goals when progress is mentioned.
+        Auto-marks complete when 'finished/done/completed' detected.
+        """
+        text_lower = text.lower()
+
+        # Check for progress indicators FIRST (before completion)
+        # This prevents "75% done" from being matched as completion
+
+        # Progress patterns with percentage or fraction
+        progress_patterns = [
+            r"(?:i'm|i\s+am)\s+(?:about\s+)?(\d+)%?\s+(?:done|complete|through)\s+(?:with\s+)?(.+?)(?:\.|!|$)",
+            r"(\d+)%\s+(?:done|complete|progress)\s+(?:on|with)\s+(.+?)(?:\.|!|$)",
+            r"(?:halfway|half\s+way)\s+(?:through|done\s+with)\s+(.+?)(?:\.|!|$)",
+            r"(?:almost|nearly)\s+(?:done|finished)\s+(?:with\s+)?(.+?)(?:\.|!|$)",
+            r"(?:made\s+)?(?:good|great|some)\s+progress\s+(?:on|with)\s+(.+?)(?:\.|!|$)",
+        ]
+
+        # Track topics that were matched by progress patterns
+        progress_matched_topics = set()
+
+        # Check for progress indicators first
+        for pattern in progress_patterns:
+            matches = re.findall(pattern, text_lower)
+            for match in matches:
+                if isinstance(match, tuple):
+                    if len(match) == 2:
+                        first, second = match
+                        if first.isdigit():
+                            progress = min(1.0, int(first) / 100.0)
+                            topic = second
+                        else:
+                            topic = first
+                            progress = 0.5
+                    else:
+                        topic = match[0]
+                        progress = 0.5
+                else:
+                    topic = match
+                    progress = 0.5
+
+                # "halfway" pattern
+                if "halfway" in text_lower or "half way" in text_lower:
+                    progress = 0.5
+                # "almost/nearly done" pattern
+                elif "almost" in text_lower or "nearly" in text_lower:
+                    progress = 0.9
+
+                if topic and len(topic) >= 3:
+                    progress_matched_topics.add(topic.strip().lower())
+                    self._update_goal_by_topic(topic, progress=progress, mark_complete=False)
+
+        # Skip completion check if progress patterns matched
+        # (prevents "75% done with X" from also triggering "done with X")
+        if progress_matched_topics:
+            return
+
+        # Completion patterns - only check if no progress patterns matched
+        # These are for explicit completion statements
+        completion_patterns = [
+            r"(?:i(?:'ve)?\s+)?(?:finally\s+)?finished\s+(.+?)(?:\.|!|$)",
+            r"(?:i(?:'ve)?\s+)?completed\s+(.+?)(?:\.|!|$)",
+            r"(?:i'm\s+)?done\s+with\s+(?:the\s+)?(.+?)(?:\.|!|$)",
+            r"(?:just\s+)?(?:wrapped\s+up|finished\s+up)\s+(.+?)(?:\.|!|$)",
+            r"(.+?)\s+is\s+(?:finally\s+)?(?:complete|finished)(?:\.|!|$)",
+        ]
+
+        for pattern in completion_patterns:
+            matches = re.findall(pattern, text_lower)
+            for match in matches:
+                topic = match.strip() if isinstance(match, str) else match
+                if topic and len(topic) >= 3:
+                    self._update_goal_by_topic(topic, progress=1.0, mark_complete=True)
+
+    def _update_goal_by_topic(
+        self,
+        topic: str,
+        progress: float,
+        mark_complete: bool = False
+    ) -> Optional[Goal]:
+        """
+        Find and update a goal matching the topic.
+
+        Args:
+            topic: Topic string to match against goal descriptions
+            progress: Progress value (0-1)
+            mark_complete: If True, mark goal as completed
+
+        Returns:
+            Updated Goal or None if no match found
+        """
+        if not topic or len(topic) < 3:
+            return None
+
+        topic_lower = topic.lower().strip()
+
+        # Find matching goal
+        for goal in self.goals.values():
+            if goal.status != "active":
+                continue
+
+            goal_desc_lower = goal.description.lower()
+
+            # Check for topic match
+            if (topic_lower in goal_desc_lower or
+                self._similarity(topic_lower, goal_desc_lower) > 0.5):
+
+                if mark_complete:
+                    goal.status = "completed"
+                    goal.progress = 1.0
+                else:
+                    # Only update if new progress is higher
+                    if progress > goal.progress:
+                        goal.progress = progress
+
+                self._persist_goal(goal)
+                return goal
+
+        return None
+
+    async def detect_progress_with_llm(
+        self,
+        text: str,
+        model: Optional[Any] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Use LLM to detect goal progress indicators in text.
+
+        Args:
+            text: User input text to analyze
+            model: LLM model with async generate() method
+
+        Returns:
+            List of dicts with goal_id, progress, and evidence
+        """
+        if not model or not text:
+            return []
+
+        active_goals = self.get_active_goals()
+        if not active_goals:
+            return []
+
+        goals_list = "\n".join([
+            f"- {g.id}: {g.description} (current progress: {g.progress:.0%})"
+            for g in active_goals[:10]
+        ])
+
+        prompt = f"""Analyze this user message for any progress updates on their goals.
+
+User's active goals:
+{goals_list}
+
+User message: "{text}"
+
+For each goal where progress is mentioned, return a JSON array with:
+- goal_id: The goal ID
+- new_progress: Number 0.0-1.0 representing completion percentage
+- completed: Boolean, true if explicitly finished/completed
+- evidence: Quote from message showing progress
+
+Example: [{{"goal_id": "abc123", "new_progress": 0.75, "completed": false, "evidence": "75% done with the project"}}]
+
+If no progress mentioned, return: []
+
+JSON array:"""
+
+        try:
+            response = await model.generate(prompt)
+            updates = self._parse_llm_goal_response(response)
+
+            results = []
+            for update in updates:
+                if not isinstance(update, dict) or 'goal_id' not in update:
+                    continue
+
+                goal_id = update.get('goal_id')
+                if goal_id not in self.goals:
+                    continue
+
+                goal = self.goals[goal_id]
+                new_progress = update.get('new_progress', goal.progress)
+                is_completed = update.get('completed', False)
+
+                if is_completed:
+                    goal.status = "completed"
+                    goal.progress = 1.0
+                elif new_progress > goal.progress:
+                    goal.progress = min(1.0, new_progress)
+
+                goal.evidence.append(update.get('evidence', text[:100]))
+                self._persist_goal(goal)
+
+                results.append({
+                    'goal_id': goal_id,
+                    'progress': goal.progress,
+                    'completed': goal.status == "completed",
+                    'evidence': update.get('evidence', '')
+                })
+
+            return results
+
+        except Exception as e:
+            print(f"Warning: LLM progress detection failed: {e}")
+            return []
 
     def _create_or_update_goal(
         self,
