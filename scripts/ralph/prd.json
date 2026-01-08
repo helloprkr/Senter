@@ -1,10 +1,10 @@
 {
-  "projectName": "Senter 3.0 - Gap Vision V2",
-  "branchName": "ralph/gap-vision-v2",
+  "projectName": "Senter 3.0 - Gap Vision V4",
+  "branchName": "ralph/gap-vision-v4",
   "userProfile": {
     "who": "Knowledge worker, developer, or creative professional",
-    "coreProblem": "Wants an AI that learns them, remembers context, and works proactively without sending data to the cloud",
-    "wowMoment": "Opening the app and seeing Senter already knows what they're working on"
+    "coreProblem": "Wants an AI that CREATES value autonomously, not just responds when asked",
+    "wowMoment": "Coming back to find Senter has DONE something useful without being asked"
   },
   "stack": {
     "language": "Python 3.10+ (backend), TypeScript (frontend)",
@@ -13,130 +13,172 @@
   },
   "verification": {
     "typecheck": "cd /Users/maximvs/Desktop/__2026_/Senter\\ 3.0\\ ⏅/ui && npx tsc --noEmit 2>&1 | head -20 || true",
-    "unitTest": "cd /Users/maximvs/Desktop/__2026_/Senter\\ 3.0\\ ⏅ && source .venv/bin/activate && pytest tests/ -v --tb=short 2>&1 | tail -30",
+    "unitTest": "cd /Users/maximvs/Desktop/__2026_/Senter\\ 3.0\\ ⏅ && source .venv/bin/activate && pytest tests/ -v --tb=short 2>&1 | tail -40",
     "integrationTest": "cd /Users/maximvs/Desktop/__2026_/Senter\\ 3.0\\ ⏅ && source .venv/bin/activate && python3 -c 'from daemon.http_server import SenterHTTPServer; print(\"Server OK\")'",
-    "lint": "cd /Users/maximvs/Desktop/__2026_/Senter\\ 3.0\\ ⏅ && source .venv/bin/activate && python3 -m ruff check core/ daemon/ memory/ --ignore E501 2>&1 | head -20 || true"
+    "lint": "cd /Users/maximvs/Desktop/__2026_/Senter\\ 3.0\\ ⏅ && source .venv/bin/activate && python3 -m ruff check core/ daemon/ memory/ intelligence/ --ignore E501 2>&1 | head -20 || true"
   },
+  "v4Challenge": "Can Senter create ONE valuable artifact without being asked?",
   "userStories": [
     {
-      "id": "US-V2-001",
-      "title": "User can start the app and have it actually respond",
-      "userValue": "When user types a message, Senter responds intelligently using the LLM",
-      "wowFactor": "Response comes quickly and feels conversational, not robotic",
+      "id": "US-V4-001",
+      "title": "Background activity capture actually runs",
+      "userValue": "Senter continuously monitors what user is doing (app, window, context)",
+      "wowFactor": "Open app → see 'You've been coding for 2 hours on Senter project'",
       "acceptanceCriteria": [
-        "App starts without errors when running start-mvp.sh",
-        "User types a message and receives a response within 5 seconds",
-        "Response is contextual and helpful, not generic or empty",
-        "Backend and frontend communicate correctly via HTTP API"
+        "Activity capture loop starts when HTTP server starts",
+        "Captures happen every 60 seconds automatically",
+        "After 2 minutes, snapshot_count > 0",
+        "Context shows actual detected activity (coding/writing/etc), not 'unknown'",
+        "/api/activity returns real data with project detection"
       ],
       "technicalRequirements": {
-        "tests": ["test_http_server_responds", "test_chat_endpoint_works"],
-        "performance": "Response within 5 seconds",
-        "polish": "Loading indicator while waiting, smooth message appearance"
+        "files": ["daemon/http_server.py"],
+        "changes": "Add asyncio.create_task for activity capture loop in start()",
+        "tests": ["test_activity_capture_runs", "test_activity_returns_real_context"],
+        "performance": "Capture completes in <1s, no UI blocking"
       },
       "priority": 1,
-      "valueDelivered": true,
-      "notes": "DONE: Server starts, responds intelligently with contextual answers, returns goals/trust/memories"
+      "valueDelivered": false,
+      "notes": ""
     },
     {
-      "id": "US-V2-002",
-      "title": "User can have a conversation Senter remembers",
-      "userValue": "Conversation history persists across sessions and influences responses",
-      "wowFactor": "Ask 'what were we talking about yesterday?' and get a real answer",
+      "id": "US-V4-002",
+      "title": "Auto-research produces visible results",
+      "userValue": "Senter researches user's learning goals while they work",
+      "wowFactor": "'While you were coding, I found 3 articles about Python best practices'",
       "acceptanceCriteria": [
-        "Previous conversations are loaded on startup",
-        "Senter references past discussions naturally in responses",
-        "Memory feels seamless, not like reading a transcript",
-        "At least 3 previous exchanges are considered in context"
+        "Auto-research loop starts when HTTP server starts",
+        "Research runs on learning-type goals every 30 minutes (shortened for demo)",
+        "Research results are stored and persisted",
+        "/api/away returns actual research entries with summaries and sources",
+        "At least one research result appears within 10 minutes of startup"
       ],
       "technicalRequirements": {
-        "tests": ["test_memory_persistence", "test_context_in_responses"],
-        "performance": "Memory retrieval under 500ms",
-        "polish": "Natural integration of past context, not forced"
+        "files": ["daemon/http_server.py", "intelligence/proactive.py"],
+        "changes": "Add auto-research task, store results, shorter interval for demo",
+        "tests": ["test_auto_research_runs", "test_away_has_research"],
+        "performance": "Research completes in background, doesn't block user"
       },
       "priority": 2,
-      "valueDelivered": true,
-      "notes": "DONE: 525 memories loaded, response references user name 'Jordan' and past goals from conversations"
+      "valueDelivered": false,
+      "notes": ""
     },
     {
-      "id": "US-V2-003",
-      "title": "User sees their AI-detected goals when they open the app",
-      "userValue": "Without entering anything, Senter shows what it thinks user is working toward",
-      "wowFactor": "Goals appear that user never explicitly entered - 'How did it know?'",
+      "id": "US-V4-003",
+      "title": "Chat responses stream in real-time",
+      "userValue": "See responses appear word-by-word like ChatGPT",
+      "wowFactor": "Feels alive and responsive, not like waiting for slow API",
       "acceptanceCriteria": [
-        "Goals panel shows at least one detected goal on app open",
-        "Goals are actually detected from conversation history",
-        "Goals have meaningful progress indicators",
-        "User can dismiss or correct goals"
+        "New SSE endpoint /api/chat/stream available",
+        "Tokens stream as they're generated from LLM",
+        "First token appears within 500ms",
+        "Frontend shows partial response as it arrives",
+        "Full response completes and is stored in memory"
       ],
       "technicalRequirements": {
-        "tests": ["test_goal_detection_runs", "test_goals_api_returns_data"],
-        "performance": "Goals appear within 2 seconds of app load",
-        "polish": "Beautiful progress bars, category icons, smooth animations"
+        "files": ["daemon/http_server.py", "core/engine.py", "models/openai_model.py"],
+        "changes": "Add SSE handler, streaming generate method, frontend EventSource",
+        "tests": ["test_streaming_endpoint", "test_first_token_latency"],
+        "performance": "First token <500ms, smooth streaming"
       },
       "priority": 3,
-      "valueDelivered": true,
-      "notes": "DONE: 7 goals detected and returned via API (Focus on python, etc.) with confidence scores and evidence"
+      "valueDelivered": false,
+      "notes": ""
     },
     {
-      "id": "US-V2-004",
-      "title": "User can see their activity context recognized",
-      "userValue": "Senter knows 'you're coding' or 'you're browsing' and shows it",
-      "wowFactor": "Context-aware badge updates as user switches applications",
+      "id": "US-V4-004",
+      "title": "ONE autonomous artifact: Daily Briefing created",
+      "userValue": "Senter creates a useful document WITHOUT being asked",
+      "wowFactor": "Find a 'daily_briefing.md' file with insights from your activity",
       "acceptanceCriteria": [
-        "Activity badge shows current context (coding, browsing, writing, etc.)",
-        "Context updates within 30 seconds of switching applications",
-        "At least 3 context types are detected correctly",
-        "Context is used in conversation responses"
+        "Briefing generator runs automatically once per session",
+        "Creates markdown file with: activity summary, goal progress, suggestions",
+        "File is placed in data/briefings/ with timestamp",
+        "Content is personalized based on actual memory and goals",
+        "User can find and read the briefing without asking Senter"
       ],
       "technicalRequirements": {
-        "tests": ["test_activity_monitor_runs", "test_activity_api_returns_context"],
-        "performance": "Context detection under 1 second",
-        "polish": "Smooth badge transitions, appropriate icons per context"
+        "files": ["daemon/http_server.py", "intelligence/proactive.py"],
+        "changes": "Add briefing generator task, markdown template, file writing",
+        "tests": ["test_briefing_created", "test_briefing_has_content"],
+        "performance": "Briefing generates in <10s"
       },
       "priority": 4,
-      "valueDelivered": true,
-      "notes": "DONE: Activity endpoint works, returns context/project/duration. ActivityMonitor initialized in server. Context starts 'unknown' and updates as captures happen."
+      "valueDelivered": false,
+      "notes": "THIS IS THE V4 LITMUS TEST - autonomous value creation"
     },
     {
-      "id": "US-V2-005",
-      "title": "User gets proactive suggestions that feel relevant",
-      "userValue": "Senter offers help before being asked based on detected goals/activity",
-      "wowFactor": "Suggestion appears right when user needed it",
+      "id": "US-V4-005",
+      "title": "Goals have actionable step-by-step plans",
+      "userValue": "Each detected goal has concrete next steps, not just a title",
+      "wowFactor": "'Here's your 5-step plan to learn Python, based on our conversations'",
       "acceptanceCriteria": [
-        "Suggestions appear as non-intrusive toasts",
-        "Suggestions are based on detected activity and goals",
-        "At least 50% of suggestions feel useful to the user",
-        "Easy to dismiss or act on suggestions"
+        "Goal objects have 'action_plan' field with steps",
+        "Each step has: description, status, estimated effort",
+        "Plans are generated using LLM based on goal + memory context",
+        "/api/goals returns goals with their action plans",
+        "At least one goal has 3+ actionable steps"
       ],
       "technicalRequirements": {
-        "tests": ["test_proactive_suggestions_generated", "test_suggestions_api"],
-        "performance": "Suggestions generated within 3 seconds",
-        "polish": "Elegant toast design, smooth appearance/dismissal"
+        "files": ["intelligence/goals.py", "daemon/http_server.py"],
+        "changes": "Add ActionPlan dataclass, plan generation method, API field",
+        "tests": ["test_goals_have_plans", "test_plan_has_steps"],
+        "performance": "Plan generation <5s per goal"
       },
       "priority": 5,
-      "valueDelivered": true,
-      "notes": "DONE: Lowered trust threshold to 0.3. Now returns goal-based suggestions like 'Get started on: Focus on python'"
+      "valueDelivered": false,
+      "notes": ""
     },
     {
-      "id": "US-V2-006",
-      "title": "User sees what Senter learned while they were away",
-      "userValue": "After time away, user gets a summary of what Senter did",
-      "wowFactor": "Senter actually researched something relevant to their goals",
+      "id": "US-V4-006",
+      "title": "Cross-system synthesis generates insights",
+      "userValue": "Senter connects dots between activity, goals, and memory",
+      "wowFactor": "'You've spent 3 days on ML research but it's not a goal - should it be?'",
       "acceptanceCriteria": [
-        "Away modal appears when user returns (>30 min away)",
-        "Summary includes at least one piece of new information",
-        "Research is related to user's actual detected goals",
-        "Sources are cited with links"
+        "Synthesis layer analyzes: activity patterns + goals + recent memory",
+        "Generates insights about contradictions or opportunities",
+        "Insights appear in /api/suggestions with type='synthesis'",
+        "At least one cross-system insight generated per session",
+        "Insights are actionable, not just observations"
       ],
       "technicalRequirements": {
-        "tests": ["test_away_detection", "test_background_research_runs"],
-        "performance": "Away summary ready within 5 seconds",
-        "polish": "Beautiful modal design, clear summary, actionable insights"
+        "files": ["intelligence/proactive.py", "daemon/http_server.py"],
+        "changes": "Add synthesis method that correlates across systems",
+        "tests": ["test_synthesis_runs", "test_synthesis_produces_insights"],
+        "performance": "Synthesis completes in <5s"
       },
       "priority": 6,
-      "valueDelivered": true,
-      "notes": "DONE: Away endpoint returns duration, summary, research array. Background research scheduled but needs time to accumulate results."
+      "valueDelivered": false,
+      "notes": ""
     }
-  ]
+  ],
+  "successCriteria": {
+    "backgroundIntelligence": "After 5 min: snapshot_count > 5, context != 'unknown'",
+    "research": "After 15 min: /api/away has at least 1 research entry",
+    "streaming": "First token <500ms, visible streaming in UI",
+    "artifact": "data/briefings/ contains at least 1 .md file with real content",
+    "actionPlan": "At least 1 goal has 3+ steps in action_plan",
+    "synthesis": "At least 1 suggestion has type='synthesis'"
+  },
+  "planCritique": {
+    "strengths": [
+      "Clear litmus test (US-V4-004) that proves autonomous value creation",
+      "Prioritized correctly: background loops first, then UX, then creation",
+      "Each story has measurable acceptance criteria",
+      "Builds on existing architecture rather than rewriting"
+    ],
+    "risks": [
+      "Activity capture may need macOS permissions (screen recording)",
+      "Auto-research depends on web search working",
+      "Streaming requires frontend changes too",
+      "Briefing quality depends on LLM prompt engineering"
+    ],
+    "mitigations": [
+      "Use window title detection (no permissions needed) as fallback",
+      "Mock web search results if network unavailable",
+      "Start with backend streaming, frontend can follow",
+      "Use structured templates for briefing to ensure quality"
+    ],
+    "alternativeApproach": "If file-based briefing too complex, create /api/briefing endpoint that generates on-demand but still demonstrates autonomous thinking"
+  }
 }
