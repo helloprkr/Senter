@@ -869,3 +869,248 @@ class MutationEngine:
         fixes.sort(key=lambda x: x["priority"], reverse=True)
 
         return fixes
+
+    async def propose_intelligent_mutation(
+        self,
+        episodes: List["Episode"],
+        model: Optional[Any] = None
+    ) -> Optional[Mutation]:
+        """
+        Use LLM to propose a targeted mutation based on failure analysis.
+
+        Instead of random mutations, this analyzes recent low-fitness episodes
+        and uses LLM to determine the best configuration change.
+
+        Args:
+            episodes: Recent episodes to analyze
+            model: LLM model with async generate() method
+
+        Returns:
+            Targeted Mutation or None if no model/analysis available
+        """
+        if not episodes:
+            return None
+
+        # First, get failure analysis
+        analysis = self.analyze_low_fitness_episodes(episodes)
+
+        if analysis.total_episodes == 0 or not any(analysis.patterns.values()):
+            # No failures to analyze
+            return None
+
+        # If no LLM available, use heuristic based on analysis
+        if model is None:
+            return self._propose_mutation_from_analysis(analysis)
+
+        # Build context for LLM
+        patterns_summary = ", ".join([
+            f"{k}: {v}" for k, v in analysis.patterns.items() if v > 0
+        ])
+
+        # Sample some low-fitness episodes for context
+        sample_episodes = []
+        for ep in episodes[:5]:
+            input_text = getattr(ep, "input", "")[:100]
+            response = getattr(ep, "response", "")[:100]
+            mode = getattr(ep, "mode", "DIALOGUE")
+            sample_episodes.append(f"- Input: '{input_text}...' Mode: {mode} Response: '{response}...'")
+
+        episodes_context = "\n".join(sample_episodes) if sample_episodes else "No samples"
+
+        prompt = f"""Analyze these failure patterns in an AI assistant system and propose a specific configuration change.
+
+Failure Analysis:
+- Total episodes analyzed: {analysis.total_episodes}
+- Average fitness: {analysis.avg_fitness:.2f}
+- Failure patterns: {patterns_summary}
+
+Sample low-fitness interactions:
+{episodes_context}
+
+Current suggested fixes from pattern analysis:
+{json.dumps(analysis.suggested_fixes[:3], indent=2) if analysis.suggested_fixes else "None"}
+
+Based on this analysis, propose ONE specific configuration change. Return JSON with:
+- mutation_type: One of (threshold_modification, prompt_refinement, protocol_tuning, capability_adjustment)
+- target: Config path to modify (e.g., "coupling.trust.initial", "coupling.human_model.frustration_threshold")
+- direction: "increase" or "decrease" for numeric values, or specific value for others
+- magnitude: How much to change (small, medium, large)
+- reason: Why this change would help
+
+Example output:
+{{"mutation_type": "threshold_modification", "target": "coupling.human_model.frustration_threshold", "direction": "decrease", "magnitude": "medium", "reason": "Missed frustration signals suggest threshold is too high"}}
+
+JSON:"""
+
+        try:
+            response = await model.generate(prompt)
+
+            # Parse LLM response
+            mutation_data = self._parse_llm_mutation_response(response)
+
+            if mutation_data is None:
+                return self._propose_mutation_from_analysis(analysis)
+
+            # Create mutation from LLM suggestion
+            mutation = self._create_mutation_from_llm(mutation_data, analysis.avg_fitness)
+
+            if mutation:
+                return mutation
+
+        except Exception as e:
+            print(f"Warning: LLM mutation proposal failed: {e}")
+
+        # Fall back to heuristic
+        return self._propose_mutation_from_analysis(analysis)
+
+    def _parse_llm_mutation_response(self, response: str) -> Optional[Dict[str, Any]]:
+        """Parse LLM response to extract mutation proposal."""
+        if not response:
+            return None
+
+        import re
+
+        # Try direct JSON parse
+        try:
+            return json.loads(response)
+        except json.JSONDecodeError:
+            pass
+
+        # Try to find JSON object in response
+        json_match = re.search(r'\{[\s\S]*?\}', response)
+        if json_match:
+            try:
+                return json.loads(json_match.group(0))
+            except json.JSONDecodeError:
+                pass
+
+        return None
+
+    def _create_mutation_from_llm(
+        self,
+        data: Dict[str, Any],
+        current_fitness: float
+    ) -> Optional[Mutation]:
+        """Create a Mutation object from LLM suggestion data."""
+        mutation_type = data.get("mutation_type", "threshold_modification")
+        target = data.get("target", "")
+        direction = data.get("direction", "")
+        magnitude = data.get("magnitude", "small")
+        reason = data.get("reason", "LLM-suggested improvement")
+
+        if not target:
+            return None
+
+        # Calculate value change based on direction and magnitude
+        current_value = self._get_genome_value(target, 0.5)
+
+        # Check bool first since bool is subclass of int in Python
+        if isinstance(current_value, bool):
+            # Boolean toggle
+            new_value = not current_value
+        elif isinstance(current_value, (int, float)):
+            # Numeric value
+            deltas = {"small": 0.05, "medium": 0.1, "large": 0.2}
+            delta = deltas.get(magnitude, 0.05)
+
+            if direction == "decrease":
+                new_value = max(0.01, current_value - delta)
+            else:  # increase or default
+                new_value = min(0.99, current_value + delta)
+
+            new_value = round(new_value, 3)
+        elif isinstance(current_value, list):
+            # List - not modifying via LLM for safety
+            return None
+        else:
+            # String or other - not modifying
+            return None
+
+        return Mutation(
+            id=str(uuid.uuid4())[:8],
+            mutation_type=mutation_type,
+            target=target,
+            old_value=current_value,
+            new_value=new_value,
+            reason=f"LLM Analysis: {reason}",
+            fitness_at_proposal=current_fitness,
+        )
+
+    def _propose_mutation_from_analysis(
+        self,
+        analysis: FailureAnalysis
+    ) -> Optional[Mutation]:
+        """
+        Propose a mutation based on failure analysis without LLM.
+
+        Uses pattern-based heuristics to suggest targeted changes.
+        """
+        if not analysis.suggested_fixes:
+            return None
+
+        # Take the highest priority fix
+        fix = analysis.suggested_fixes[0]
+        pattern = fix["pattern"]
+        fix_type = fix["fix_type"]
+
+        # Map patterns to specific mutations
+        mutations = {
+            "too_long": (
+                "threshold_modification",
+                "response.conciseness_weight",
+                0.5,
+                0.7,
+                "Response verbosity too high - increasing conciseness weight"
+            ),
+            "too_short": (
+                "threshold_modification",
+                "response.detail_weight",
+                0.5,
+                0.7,
+                "Responses too terse - increasing detail weight"
+            ),
+            "wrong_mode": (
+                "protocol_tuning",
+                "coupling.mode_detection.sensitivity",
+                0.5,
+                0.7,
+                "Mode detection missing signals - increasing sensitivity"
+            ),
+            "missed_frustration": (
+                "threshold_modification",
+                "coupling.human_model.frustration_threshold",
+                0.3,
+                0.2,
+                "Missing frustration signals - lowering detection threshold"
+            ),
+            "low_engagement": (
+                "prompt_refinement",
+                "response.engagement_hooks",
+                0.3,
+                0.5,
+                "Low engagement detected - adding engagement hooks"
+            ),
+            "off_topic": (
+                "prompt_refinement",
+                "response.relevance_weight",
+                0.5,
+                0.7,
+                "Responses off-topic - increasing relevance weight"
+            ),
+        }
+
+        if pattern not in mutations:
+            return None
+
+        mut_type, target, default, new_val, reason = mutations[pattern]
+        current = self._get_genome_value(target, default)
+
+        return Mutation(
+            id=str(uuid.uuid4())[:8],
+            mutation_type=mut_type,
+            target=target,
+            old_value=current,
+            new_value=new_val,
+            reason=reason,
+            fitness_at_proposal=analysis.avg_fitness,
+        )

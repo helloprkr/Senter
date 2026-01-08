@@ -1537,3 +1537,299 @@ class TestMutationFailureAnalysis:
 
         assert "5 episodes" in analysis.analysis_summary
         assert "too_long" in analysis.analysis_summary
+
+
+# ============================================================================
+# US-007: LLM-driven mutation proposals
+# ============================================================================
+
+class TestIntelligentMutationProposal:
+    """Tests for LLM-driven intelligent mutation proposals."""
+
+    @pytest.mark.asyncio
+    async def test_propose_intelligent_mutation_empty_episodes(self):
+        """Test that empty episodes returns None."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+        mutation = await engine.propose_intelligent_mutation([])
+
+        assert mutation is None
+
+    @pytest.mark.asyncio
+    async def test_propose_intelligent_mutation_no_failures(self):
+        """Test that no failures returns None."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+
+        class MockEpisode:
+            id = "ep1"
+            input = "test"
+            response = "adequate response"
+            mode = "DIALOGUE"
+            cognitive_state = {"fitness": 0.8}  # High fitness
+            joint_state = {"fitness": 0.8}
+
+        mutation = await engine.propose_intelligent_mutation([MockEpisode()])
+
+        assert mutation is None
+
+    @pytest.mark.asyncio
+    async def test_propose_intelligent_mutation_with_llm(self):
+        """Test LLM-driven mutation proposal."""
+        from evolution.mutations import MutationEngine
+        from unittest.mock import AsyncMock
+
+        engine = MutationEngine()
+
+        class MockEpisode:
+            id = "ep1"
+            input = "test input"
+            response = "x" * 3000  # Too long
+            mode = "DIALOGUE"
+            cognitive_state = {"fitness": 0.3}
+            joint_state = {"fitness": 0.3}
+
+        mock_model = AsyncMock()
+        mock_model.generate = AsyncMock(return_value='{"mutation_type": "threshold_modification", "target": "response.conciseness_weight", "direction": "increase", "magnitude": "medium", "reason": "Responses too verbose"}')
+
+        mutation = await engine.propose_intelligent_mutation(
+            episodes=[MockEpisode(), MockEpisode()],
+            model=mock_model
+        )
+
+        assert mutation is not None
+        assert "conciseness" in mutation.target or "LLM Analysis" in mutation.reason
+
+    @pytest.mark.asyncio
+    async def test_propose_intelligent_mutation_fallback_without_model(self):
+        """Test fallback to heuristic when no model provided."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+
+        class MockEpisode:
+            id = "ep1"
+            input = "test"
+            response = "x" * 3000  # Too long
+            mode = "DIALOGUE"
+            cognitive_state = {"fitness": 0.3}
+            joint_state = {"fitness": 0.3}
+
+        mutation = await engine.propose_intelligent_mutation(
+            episodes=[MockEpisode(), MockEpisode()],
+            model=None
+        )
+
+        assert mutation is not None
+        assert mutation.mutation_type in ["threshold_modification", "prompt_refinement", "protocol_tuning"]
+
+    @pytest.mark.asyncio
+    async def test_propose_intelligent_mutation_handles_llm_error(self):
+        """Test fallback when LLM fails."""
+        from evolution.mutations import MutationEngine
+        from unittest.mock import AsyncMock
+
+        engine = MutationEngine()
+
+        class MockEpisode:
+            id = "ep1"
+            input = "test"
+            response = "x" * 3000
+            mode = "DIALOGUE"
+            cognitive_state = {"fitness": 0.3}
+            joint_state = {"fitness": 0.3}
+
+        mock_model = AsyncMock()
+        mock_model.generate = AsyncMock(side_effect=Exception("LLM error"))
+
+        mutation = await engine.propose_intelligent_mutation(
+            episodes=[MockEpisode(), MockEpisode()],
+            model=mock_model
+        )
+
+        # Should fall back to heuristic
+        assert mutation is not None
+
+    @pytest.mark.asyncio
+    async def test_propose_intelligent_mutation_handles_invalid_json(self):
+        """Test fallback when LLM returns invalid JSON."""
+        from evolution.mutations import MutationEngine
+        from unittest.mock import AsyncMock
+
+        engine = MutationEngine()
+
+        class MockEpisode:
+            id = "ep1"
+            input = "test"
+            response = "x" * 3000
+            mode = "DIALOGUE"
+            cognitive_state = {"fitness": 0.3}
+            joint_state = {"fitness": 0.3}
+
+        mock_model = AsyncMock()
+        mock_model.generate = AsyncMock(return_value="Not valid JSON at all")
+
+        mutation = await engine.propose_intelligent_mutation(
+            episodes=[MockEpisode(), MockEpisode()],
+            model=mock_model
+        )
+
+        # Should fall back to heuristic
+        assert mutation is not None
+
+    def test_parse_llm_mutation_response_valid_json(self):
+        """Test parsing valid JSON response."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+
+        response = '{"mutation_type": "threshold_modification", "target": "test.value", "direction": "increase"}'
+        result = engine._parse_llm_mutation_response(response)
+
+        assert result is not None
+        assert result["mutation_type"] == "threshold_modification"
+        assert result["target"] == "test.value"
+
+    def test_parse_llm_mutation_response_embedded_json(self):
+        """Test parsing JSON embedded in text."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+
+        response = 'Here is my suggestion: {"mutation_type": "prompt_refinement", "target": "response.style"} and more text'
+        result = engine._parse_llm_mutation_response(response)
+
+        assert result is not None
+        assert result["mutation_type"] == "prompt_refinement"
+
+    def test_parse_llm_mutation_response_empty(self):
+        """Test parsing empty response."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+
+        assert engine._parse_llm_mutation_response("") is None
+        assert engine._parse_llm_mutation_response(None) is None
+
+    def test_create_mutation_from_llm_numeric(self):
+        """Test creating mutation from LLM data with numeric value."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine(genome={"test": {"value": 0.5}})
+
+        data = {
+            "mutation_type": "threshold_modification",
+            "target": "test.value",
+            "direction": "increase",
+            "magnitude": "medium",
+            "reason": "Test reason"
+        }
+
+        mutation = engine._create_mutation_from_llm(data, 0.4)
+
+        assert mutation is not None
+        assert mutation.target == "test.value"
+        assert mutation.new_value == 0.6  # 0.5 + 0.1 (medium)
+        assert "LLM Analysis" in mutation.reason
+
+    def test_create_mutation_from_llm_decrease(self):
+        """Test creating mutation with decrease direction."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine(genome={"threshold": 0.7})
+
+        data = {
+            "mutation_type": "threshold_modification",
+            "target": "threshold",
+            "direction": "decrease",
+            "magnitude": "large"
+        }
+
+        mutation = engine._create_mutation_from_llm(data, 0.3)
+
+        assert mutation is not None
+        assert mutation.new_value == 0.5  # 0.7 - 0.2 (large)
+
+    def test_create_mutation_from_llm_boolean(self):
+        """Test creating mutation with boolean toggle."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine(genome={"feature": {"enabled": True}})
+
+        data = {
+            "mutation_type": "protocol_tuning",
+            "target": "feature.enabled",
+            "direction": "toggle"
+        }
+
+        mutation = engine._create_mutation_from_llm(data, 0.4)
+
+        assert mutation is not None
+        assert mutation.new_value is False
+
+    def test_create_mutation_from_llm_no_target(self):
+        """Test that missing target returns None."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+
+        data = {"mutation_type": "threshold_modification"}
+
+        mutation = engine._create_mutation_from_llm(data, 0.4)
+
+        assert mutation is None
+
+    def test_propose_mutation_from_analysis_too_long(self):
+        """Test heuristic mutation for too_long pattern."""
+        from evolution.mutations import MutationEngine, FailureAnalysis
+
+        engine = MutationEngine()
+
+        analysis = FailureAnalysis(
+            total_episodes=10,
+            patterns={"too_long": 5, "too_short": 0, "wrong_mode": 0, "missed_frustration": 0, "low_engagement": 0, "off_topic": 0},
+            suggested_fixes=[{"pattern": "too_long", "fix_type": "prompt_refinement", "priority": 5}],
+            avg_fitness=0.3
+        )
+
+        mutation = engine._propose_mutation_from_analysis(analysis)
+
+        assert mutation is not None
+        assert "conciseness" in mutation.target
+
+    def test_propose_mutation_from_analysis_missed_frustration(self):
+        """Test heuristic mutation for missed_frustration pattern."""
+        from evolution.mutations import MutationEngine, FailureAnalysis
+
+        engine = MutationEngine()
+
+        analysis = FailureAnalysis(
+            total_episodes=10,
+            patterns={"too_long": 0, "too_short": 0, "wrong_mode": 0, "missed_frustration": 4, "low_engagement": 0, "off_topic": 0},
+            suggested_fixes=[{"pattern": "missed_frustration", "fix_type": "threshold_modification", "priority": 4}],
+            avg_fitness=0.35
+        )
+
+        mutation = engine._propose_mutation_from_analysis(analysis)
+
+        assert mutation is not None
+        assert "frustration" in mutation.target
+
+    def test_propose_mutation_from_analysis_no_fixes(self):
+        """Test that no fixes returns None."""
+        from evolution.mutations import MutationEngine, FailureAnalysis
+
+        engine = MutationEngine()
+
+        analysis = FailureAnalysis(
+            total_episodes=5,
+            patterns={"too_long": 0, "too_short": 0, "wrong_mode": 0, "missed_frustration": 0, "low_engagement": 0, "off_topic": 0},
+            suggested_fixes=[],
+            avg_fitness=0.5
+        )
+
+        mutation = engine._propose_mutation_from_analysis(analysis)
+
+        assert mutation is None
