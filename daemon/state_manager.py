@@ -187,6 +187,114 @@ class StateManager:
         return any(self.state_dir.glob("*.json"))
 
 
+# DI-002: Full daemon state class
+class DaemonState:
+    """
+    Captures complete daemon state for crash recovery (DI-002).
+
+    Includes:
+    - Session ID for tracking
+    - Active goals
+    - Pending tasks
+    - Scheduler jobs
+    - Component health status
+    """
+
+    def __init__(self, state_manager: StateManager):
+        self.state_manager = state_manager
+        self.state_file = state_manager.state_dir / "daemon_state.json"
+        self.session_id: str = ""
+        self._state: dict = {}
+
+    def capture(
+        self,
+        session_id: str,
+        active_goals: list = None,
+        pending_tasks: list = None,
+        scheduler_jobs: list = None,
+        component_status: dict = None
+    ) -> dict:
+        """Capture current daemon state."""
+        import uuid
+
+        self._state = {
+            "session_id": session_id,
+            "captured_at": time.time(),
+            "active_goals": active_goals or [],
+            "pending_tasks": pending_tasks or [],
+            "scheduler_jobs": scheduler_jobs or [],
+            "component_status": component_status or {},
+            "recovery_info": {
+                "tasks_in_flight": len(pending_tasks or []),
+                "goals_active": len(active_goals or [])
+            }
+        }
+        return self._state
+
+    def save(self) -> bool:
+        """Save daemon state to file."""
+        if not self._state:
+            return False
+
+        try:
+            temp_file = self.state_file.with_suffix('.tmp')
+            temp_file.write_text(json.dumps(self._state, indent=2, default=str))
+            temp_file.rename(self.state_file)
+            logger.debug(f"Daemon state saved (session: {self._state.get('session_id', 'unknown')[:8]})")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save daemon state: {e}")
+            return False
+
+    def load(self) -> Optional[dict]:
+        """Load daemon state from file."""
+        if not self.state_file.exists():
+            return None
+
+        try:
+            state = json.loads(self.state_file.read_text())
+            age = time.time() - state.get("captured_at", 0)
+            logger.info(f"Loaded daemon state (age: {age:.0f}s, session: {state.get('session_id', 'unknown')[:8]})")
+            return state
+        except Exception as e:
+            logger.error(f"Failed to load daemon state: {e}")
+            return None
+
+    def recover(self) -> dict:
+        """
+        Recover daemon state and return tasks to re-queue.
+
+        Returns dict with:
+        - pending_tasks: Tasks to re-execute
+        - active_goals: Goals to continue
+        - scheduler_jobs: Jobs to reschedule
+        """
+        state = self.load()
+        if not state:
+            return {"pending_tasks": [], "active_goals": [], "scheduler_jobs": []}
+
+        recovery = {
+            "pending_tasks": state.get("pending_tasks", []),
+            "active_goals": state.get("active_goals", []),
+            "scheduler_jobs": state.get("scheduler_jobs", []),
+            "previous_session": state.get("session_id"),
+            "recovered_at": time.time()
+        }
+
+        logger.info(
+            f"Recovery: {len(recovery['pending_tasks'])} tasks, "
+            f"{len(recovery['active_goals'])} goals to restore"
+        )
+
+        return recovery
+
+    def clear(self):
+        """Clear saved daemon state (normal shutdown)."""
+        if self.state_file.exists():
+            self.state_file.unlink()
+            logger.info("Daemon state cleared (clean shutdown)")
+
+
 # Mixin class for components to add state support
 class StatefulComponent:
     """
