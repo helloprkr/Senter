@@ -4559,3 +4559,223 @@ class TestProjectAnalysis:
 
         assert result.success is False
         assert "not a directory" in result.error.lower()
+
+
+# ============================================================================
+# US-018: Wire ActivityMonitor into daemon background loop
+# ============================================================================
+
+class TestDaemonActivityIntegration:
+    """Tests for ActivityMonitor integration with SenterDaemon."""
+
+    def test_senter_daemon_has_activity_monitor_attribute(self):
+        """Test SenterDaemon has activity_monitor attribute."""
+        from daemon.senter_daemon import SenterDaemon
+        from pathlib import Path
+
+        daemon = SenterDaemon(Path("genome.yaml"))
+
+        assert hasattr(daemon, "activity_monitor")
+        assert daemon.activity_monitor is None  # Not initialized until start()
+
+    def test_senter_daemon_has_activity_capture_task(self):
+        """Test SenterDaemon has activity_capture_task attribute."""
+        from daemon.senter_daemon import SenterDaemon
+        from pathlib import Path
+
+        daemon = SenterDaemon(Path("genome.yaml"))
+
+        assert hasattr(daemon, "activity_capture_task")
+        assert daemon.activity_capture_task is None  # Not started until start()
+
+    def test_senter_daemon_capture_interval_default(self):
+        """Test activity_capture_interval is 60 seconds by default."""
+        from daemon.senter_daemon import SenterDaemon
+        from pathlib import Path
+
+        daemon = SenterDaemon(Path("genome.yaml"))
+
+        assert daemon.activity_capture_interval == 60
+
+    def test_get_activity_summary_unavailable(self):
+        """Test get_activity_summary returns unavailable when monitor not initialized."""
+        from daemon.senter_daemon import SenterDaemon
+        from pathlib import Path
+
+        daemon = SenterDaemon(Path("genome.yaml"))
+
+        result = daemon.get_activity_summary()
+
+        assert result["status"] == "unavailable"
+        assert "not initialized" in result["message"].lower()
+
+    def test_get_activity_summary_with_mock_monitor(self):
+        """Test get_activity_summary with mocked ActivityMonitor."""
+        from daemon.senter_daemon import SenterDaemon
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        daemon = SenterDaemon(Path("genome.yaml"))
+        daemon.activity_monitor = MagicMock()
+        daemon.activity_monitor.get_current_context.return_value = "coding"
+        daemon.activity_monitor.get_activity_summary.return_value = {"total_snapshots": 10}
+        daemon.activity_monitor.snapshots = [1, 2, 3]
+
+        result = daemon.get_activity_summary()
+
+        assert result["status"] == "ok"
+        assert result["current_context"] == "coding"
+        assert result["summary"]["total_snapshots"] == 10
+        assert result["snapshot_count"] == 3
+
+    def test_process_request_activity_action_unavailable(self):
+        """Test _process_request with activity action when monitor unavailable."""
+        import asyncio
+        from daemon.senter_daemon import SenterDaemon
+        from pathlib import Path
+
+        daemon = SenterDaemon(Path("genome.yaml"))
+
+        async def run_test():
+            result = await daemon._process_request({"action": "activity"})
+            return result
+
+        result = asyncio.run(run_test())
+
+        assert result["status"] == "unavailable"
+
+    def test_process_request_activity_action_available(self):
+        """Test _process_request with activity action when monitor available."""
+        import asyncio
+        from daemon.senter_daemon import SenterDaemon
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        daemon = SenterDaemon(Path("genome.yaml"))
+        daemon.activity_monitor = MagicMock()
+        daemon.activity_monitor.get_current_context.return_value = "research"
+        daemon.activity_monitor.get_activity_summary.return_value = {}
+        daemon.activity_monitor.snapshots = []
+
+        async def run_test():
+            result = await daemon._process_request({"action": "activity"})
+            return result
+
+        result = asyncio.run(run_test())
+
+        assert result["status"] == "ok"
+        assert result["current_context"] == "research"
+
+    @pytest.mark.asyncio
+    async def test_run_activity_capture_calls_capture(self):
+        """Test _run_activity_capture calls ActivityMonitor.capture_current_activity."""
+        from daemon.senter_daemon import SenterDaemon
+        from pathlib import Path
+        from unittest.mock import AsyncMock
+        import asyncio
+
+        daemon = SenterDaemon(Path("genome.yaml"))
+        daemon.running = True
+        daemon.activity_capture_interval = 0.01  # Very short for testing
+        daemon.activity_monitor = AsyncMock()
+
+        # Run capture loop briefly then stop
+        async def stop_after_delay():
+            await asyncio.sleep(0.05)
+            daemon.running = False
+
+        task = asyncio.create_task(daemon._run_activity_capture())
+        stop_task = asyncio.create_task(stop_after_delay())
+
+        await asyncio.wait([task, stop_task], timeout=0.2)
+
+        # Should have called capture_current_activity at least once
+        assert daemon.activity_monitor.capture_current_activity.called
+
+    @pytest.mark.asyncio
+    async def test_run_activity_capture_handles_errors(self):
+        """Test _run_activity_capture handles errors gracefully."""
+        from daemon.senter_daemon import SenterDaemon
+        from pathlib import Path
+        from unittest.mock import AsyncMock
+        import asyncio
+
+        daemon = SenterDaemon(Path("genome.yaml"))
+        daemon.running = True
+        daemon.activity_capture_interval = 0.01
+        daemon.activity_monitor = AsyncMock()
+        daemon.activity_monitor.capture_current_activity.side_effect = Exception("Test error")
+
+        # Run briefly - should not crash
+        async def stop_after_delay():
+            await asyncio.sleep(0.05)
+            daemon.running = False
+
+        task = asyncio.create_task(daemon._run_activity_capture())
+        stop_task = asyncio.create_task(stop_after_delay())
+
+        # This should complete without raising
+        await asyncio.wait([task, stop_task], timeout=0.2)
+
+        # Loop should have continued despite error
+        assert daemon.activity_monitor.capture_current_activity.call_count >= 1
+
+    @pytest.mark.asyncio
+    async def test_daemon_stop_cancels_activity_task(self):
+        """Test daemon stop() cancels activity_capture_task."""
+        import asyncio
+        from daemon.senter_daemon import SenterDaemon
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        daemon = SenterDaemon(Path("genome.yaml"))
+        daemon.running = True
+
+        # Track if cancel was called
+        cancel_called = False
+
+        async def mock_activity_loop():
+            nonlocal cancel_called
+            try:
+                await asyncio.sleep(10)
+            except asyncio.CancelledError:
+                cancel_called = True
+                raise
+
+        # Create a real task that we can cancel
+        task = asyncio.create_task(mock_activity_loop())
+        daemon.activity_capture_task = task
+
+        daemon.worker = None
+        daemon.server = None
+        daemon.engine = None
+        daemon.socket_path = MagicMock()
+        daemon.socket_path.exists.return_value = False
+        daemon.pid_file = MagicMock()
+        daemon.pid_file.exists.return_value = False
+
+        await daemon.stop()
+
+        # Cancel should have been called
+        assert cancel_called or task.cancelled()
+
+    def test_senter_daemon_has_run_activity_capture_method(self):
+        """Test SenterDaemon has _run_activity_capture method."""
+        from daemon.senter_daemon import SenterDaemon
+        from pathlib import Path
+        import asyncio
+
+        daemon = SenterDaemon(Path("genome.yaml"))
+
+        assert hasattr(daemon, "_run_activity_capture")
+        assert asyncio.iscoroutinefunction(daemon._run_activity_capture)
+
+    def test_senter_daemon_has_get_activity_summary_method(self):
+        """Test SenterDaemon has get_activity_summary method."""
+        from daemon.senter_daemon import SenterDaemon
+        from pathlib import Path
+
+        daemon = SenterDaemon(Path("genome.yaml"))
+
+        assert hasattr(daemon, "get_activity_summary")
+        assert callable(daemon.get_activity_summary)

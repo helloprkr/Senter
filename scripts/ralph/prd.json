@@ -355,7 +355,7 @@
         "visual": false
       },
       "priority": 18,
-      "passes": false,
+      "passes": true,
       "notes": "Integration: Wire activity monitoring to daemon"
     },
     {

@@ -482,6 +482,11 @@ class SenterDaemon:
         self.server = None
         self.running = False
 
+        # ActivityMonitor integration (US-018)
+        self.activity_monitor = None
+        self.activity_capture_task = None
+        self.activity_capture_interval = 60  # seconds
+
     async def start(self) -> None:
         """Start the daemon."""
         # Write PID file
@@ -496,7 +501,16 @@ class SenterDaemon:
 
         # Start background worker
         self.worker = BackgroundWorker(self.engine, self.task_queue)
-        worker_task = asyncio.create_task(self.worker.start())
+        asyncio.create_task(self.worker.start())
+
+        # Initialize and start ActivityMonitor (US-018)
+        try:
+            from intelligence.activity import ActivityMonitor
+            self.activity_monitor = ActivityMonitor()
+            self.activity_capture_task = asyncio.create_task(self._run_activity_capture())
+            print("[DAEMON] ActivityMonitor started")
+        except ImportError as e:
+            print(f"[DAEMON] ActivityMonitor not available: {e}")
 
         # Start IPC server
         self.running = True
@@ -520,10 +534,54 @@ class SenterDaemon:
         async with self.server:
             await self.server.serve_forever()
 
+    async def _run_activity_capture(self) -> None:
+        """
+        Run activity capture loop (US-018).
+
+        Captures activity snapshots every activity_capture_interval seconds.
+        """
+        while self.running:
+            try:
+                if self.activity_monitor:
+                    await self.activity_monitor.capture_current_activity()
+            except Exception as e:
+                print(f"[DAEMON] Activity capture error: {e}")
+
+            await asyncio.sleep(self.activity_capture_interval)
+
+    def get_activity_summary(self) -> Dict[str, Any]:
+        """
+        Get current activity summary (US-018).
+
+        Returns:
+            Activity summary dictionary
+        """
+        if not self.activity_monitor:
+            return {
+                "status": "unavailable",
+                "message": "ActivityMonitor not initialized"
+            }
+
+        return {
+            "status": "ok",
+            "current_context": self.activity_monitor.get_current_context(),
+            "summary": self.activity_monitor.get_activity_summary(),
+            "snapshot_count": len(self.activity_monitor.snapshots),
+        }
+
     async def stop(self) -> None:
         """Stop the daemon gracefully."""
         print("[DAEMON] Shutting down...")
         self.running = False
+
+        # Stop activity capture task
+        if self.activity_capture_task:
+            self.activity_capture_task.cancel()
+            try:
+                await self.activity_capture_task
+            except asyncio.CancelledError:
+                pass
+            print("[DAEMON] ActivityMonitor stopped")
 
         if self.worker:
             await self.worker.stop()
@@ -547,8 +605,7 @@ class SenterDaemon:
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         """Handle IPC requests from CLI."""
-        addr = writer.get_extra_info("peername")
-        print(f"[DAEMON] Client connected")
+        print("[DAEMON] Client connected")
 
         try:
             while True:
@@ -569,7 +626,7 @@ class SenterDaemon:
         except Exception as e:
             print(f"[DAEMON] Client error: {e}")
         finally:
-            print(f"[DAEMON] Client disconnected")
+            print("[DAEMON] Client disconnected")
             writer.close()
             await writer.wait_closed()
 
@@ -650,6 +707,10 @@ class SenterDaemon:
         elif action == "shutdown":
             asyncio.create_task(self.stop())
             return {"status": "ok", "message": "Shutting down"}
+
+        elif action == "activity":
+            # Return activity monitoring summary (US-018)
+            return self.get_activity_summary()
 
         return {"status": "error", "message": f"Unknown action: {action}"}
 

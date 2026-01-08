@@ -262,3 +262,17 @@ Project: Senter 3.0 Depth Improvements
   - Dependency extraction varies by project type (requirements.txt, package.json, etc.)
   - Entry points detected from common patterns (main.py, index.js, etc.)
 ---
+
+## 2026-01-07 - US-018: Wire ActivityMonitor into daemon background loop
+- Implemented: ActivityMonitor integration with SenterDaemon
+- Files changed:
+  - daemon/senter_daemon.py (added activity_monitor, capture task, IPC action)
+  - tests/test_depth_features.py (added 12 tests for daemon activity integration)
+- Learnings:
+  - Initialize ActivityMonitor in start() method after engine is ready
+  - Use asyncio.create_task() for activity capture loop
+  - Activity capture interval defaults to 60 seconds
+  - Add "activity" action to _process_request for IPC command handling
+  - Cancel activity_capture_task in stop() with proper CancelledError handling
+  - get_activity_summary() returns status, current_context, summary, snapshot_count
+---
