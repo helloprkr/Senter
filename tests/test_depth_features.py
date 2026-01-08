@@ -2848,3 +2848,245 @@ class TestAnticipatoryNeedPrediction:
 
         assert status["need_patterns_count"] == 1
         assert status["prefetched_research_count"] == 1
+
+
+# ============================================================================
+# US-011: Activity-context-aware suggestions
+# ============================================================================
+
+class TestActivityAwareSuggestions:
+    """Tests for activity-context-aware suggestions."""
+
+    def test_proactive_engine_accepts_activity_monitor(self):
+        """Test ProactiveSuggestionEngine accepts activity_monitor parameter."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        mock_activity = MagicMock()
+
+        engine = ProactiveSuggestionEngine(
+            mock_engine,
+            goal_detector=None,
+            activity_monitor=mock_activity
+        )
+
+        assert engine.activity_monitor == mock_activity
+
+    def test_activity_resource_map_initialized(self):
+        """Test that activity_resource_map is initialized with default mappings."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        assert "coding" in engine.activity_resource_map
+        assert "writing" in engine.activity_resource_map
+        assert "research" in engine.activity_resource_map
+        assert "learning" in engine.activity_resource_map
+
+    def test_break_suggestion_threshold_default(self):
+        """Test default break suggestion threshold is 120 minutes."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        assert engine.break_suggestion_minutes == 120
+
+    def test_check_break_needed_no_summary(self):
+        """Test _check_break_needed returns None with no summary."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        result = engine._check_break_needed({})
+        assert result is None
+
+        result = engine._check_break_needed(None)
+        assert result is None
+
+    def test_check_break_needed_under_threshold(self):
+        """Test no break suggestion when under threshold."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        summary = {"time_by_context": {"coding": 60}}  # 1 hour
+
+        result = engine._check_break_needed(summary)
+        assert result is None
+
+    def test_check_break_needed_over_threshold(self):
+        """Test break suggestion when over threshold."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        summary = {"time_by_context": {"coding": 150}}  # 2.5 hours
+
+        result = engine._check_break_needed(summary)
+
+        assert result is not None
+        assert result["type"] == "activity_break"
+        assert result["activity_context"] == "coding"
+        assert result["duration_minutes"] == 150
+        assert "2.5 hours" in result["action"]
+
+    def test_suggest_resources_for_activity_coding(self):
+        """Test resource suggestions for coding activity."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        result = engine._suggest_resources_for_activity("coding", "MyProject")
+
+        assert result is not None
+        assert result["type"] == "activity_resource"
+        assert result["activity_context"] == "coding"
+        assert result["project"] == "MyProject"
+        assert "documentation" in result["suggested_resources"]
+
+    def test_suggest_resources_for_activity_unknown(self):
+        """Test no resource suggestions for unknown activity."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        result = engine._suggest_resources_for_activity("unknown_activity", None)
+        assert result is None
+
+    def test_suggest_for_context_coding(self):
+        """Test context-specific suggestion for coding."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        result = engine._suggest_for_context("coding", "TestProject", {})
+
+        assert result is not None
+        assert result["type"] == "activity_coding"
+        assert "TestProject" in result["action"]
+
+    def test_suggest_for_context_research(self):
+        """Test context-specific suggestion for research."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        result = engine._suggest_for_context("research", None, {})
+
+        assert result is not None
+        assert result["type"] == "activity_research"
+        assert "organize" in result["action"].lower() or "research" in result["action"].lower()
+
+    def test_suggest_for_context_writing(self):
+        """Test context-specific suggestion for writing."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        result = engine._suggest_for_context("writing", None, {})
+
+        assert result is not None
+        assert result["type"] == "activity_writing"
+
+    def test_suggest_for_context_none(self):
+        """Test no suggestion for empty context."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        result = engine._suggest_for_context(None, None, {})
+        assert result is None
+
+        result = engine._suggest_for_context("", None, {})
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_activity_context_suggestions_no_monitor(self):
+        """Test _activity_context_suggestions returns empty without monitor."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine, activity_monitor=None)
+
+        result = await engine._activity_context_suggestions()
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_activity_context_suggestions_with_monitor(self):
+        """Test _activity_context_suggestions generates suggestions with monitor."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+
+        mock_activity = MagicMock()
+        mock_activity.get_current_context.return_value = "coding"
+        mock_activity.get_current_project.return_value = "TestProject"
+        mock_activity.get_activity_summary.return_value = {
+            "time_by_context": {"coding": 30}
+        }
+
+        engine = ProactiveSuggestionEngine(mock_engine, activity_monitor=mock_activity)
+
+        result = await engine._activity_context_suggestions()
+
+        # Should have resource and context suggestions (no break, under threshold)
+        assert len(result) >= 1
+
+    @pytest.mark.asyncio
+    async def test_activity_context_suggestions_includes_break(self):
+        """Test _activity_context_suggestions includes break suggestion when needed."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+
+        mock_activity = MagicMock()
+        mock_activity.get_current_context.return_value = "coding"
+        mock_activity.get_current_project.return_value = "TestProject"
+        mock_activity.get_activity_summary.return_value = {
+            "time_by_context": {"coding": 150}  # Over threshold
+        }
+
+        engine = ProactiveSuggestionEngine(mock_engine, activity_monitor=mock_activity)
+
+        result = await engine._activity_context_suggestions()
+
+        # Should include break suggestion
+        break_suggestions = [s for s in result if s["type"] == "activity_break"]
+        assert len(break_suggestions) == 1
+
+    def test_get_activity_suggestion_status(self):
+        """Test get_activity_suggestion_status method."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        mock_activity = MagicMock()
+
+        engine = ProactiveSuggestionEngine(mock_engine, activity_monitor=mock_activity)
+
+        status = engine.get_activity_suggestion_status()
+
+        assert status["has_activity_monitor"] is True
+        assert status["break_threshold_minutes"] == 120
+        assert "coding" in status["resource_categories"]
+
+    def test_get_activity_suggestion_status_no_monitor(self):
+        """Test get_activity_suggestion_status without monitor."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        status = engine.get_activity_suggestion_status()
+
+        assert status["has_activity_monitor"] is False

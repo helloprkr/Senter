@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from core.engine import Senter
     from .goals import GoalDetector
+    from .activity import ActivityMonitor
 
 
 @dataclass
@@ -64,9 +65,15 @@ class ProactiveSuggestionEngine:
     - Context awareness
     """
 
-    def __init__(self, engine: "Senter", goal_detector: Optional["GoalDetector"] = None):
+    def __init__(
+        self,
+        engine: "Senter",
+        goal_detector: Optional["GoalDetector"] = None,
+        activity_monitor: Optional["ActivityMonitor"] = None
+    ):
         self.engine = engine
         self.goal_detector = goal_detector
+        self.activity_monitor = activity_monitor
         self.last_suggestions: Dict[str, datetime] = {}
         self.suggestion_cooldown = timedelta(hours=4)
         self.created_task_ids: Dict[str, datetime] = {}  # goal_id -> last task creation time
@@ -76,6 +83,15 @@ class ProactiveSuggestionEngine:
         self.need_patterns: Dict[str, NeedPattern] = {}
         self.prefetched_research: Dict[str, Dict[str, Any]] = {}  # topic -> research results
         self.min_pattern_frequency = 3  # Minimum occurrences to consider a pattern
+        # Activity-based suggestion thresholds
+        self.break_suggestion_minutes = 120  # Suggest break after 2 hours
+        self.activity_resource_map: Dict[str, List[str]] = {
+            "coding": ["documentation", "stack overflow", "code examples"],
+            "writing": ["grammar tools", "style guides", "templates"],
+            "research": ["academic papers", "tutorials", "expert articles"],
+            "learning": ["courses", "practice exercises", "quizzes"],
+            "design": ["inspiration", "color tools", "templates"],
+        }
 
     async def generate_suggestions(self) -> List[Dict[str, Any]]:
         """Generate current suggestions."""
@@ -93,6 +109,11 @@ class ProactiveSuggestionEngine:
         # Pattern-based suggestions
         pattern_suggestions = await self._pattern_based_suggestions()
         suggestions.extend(pattern_suggestions)
+
+        # Activity-context-aware suggestions
+        if self.activity_monitor:
+            activity_suggestions = await self._activity_context_suggestions()
+            suggestions.extend(activity_suggestions)
 
         # Filter by cooldown and trust level
         filtered = self._filter_suggestions(suggestions)
@@ -304,6 +325,170 @@ class ProactiveSuggestionEngine:
             pass
 
         return suggestions
+
+    async def _activity_context_suggestions(self) -> List[Dict]:
+        """
+        Generate suggestions based on ActivityMonitor context.
+
+        Considers:
+        - Current activity type for relevant resource suggestions
+        - Activity duration for break suggestions
+        - Project context for targeted help
+        """
+        suggestions = []
+
+        if not self.activity_monitor:
+            return suggestions
+
+        try:
+            # Get current activity context
+            current_context = self.activity_monitor.get_current_context()
+            current_project = self.activity_monitor.get_current_project()
+            activity_summary = self.activity_monitor.get_activity_summary(hours=4)
+
+            # Check for break suggestion based on activity duration
+            break_suggestion = self._check_break_needed(activity_summary)
+            if break_suggestion:
+                suggestions.append(break_suggestion)
+
+            # Suggest relevant resources based on current activity
+            resource_suggestion = self._suggest_resources_for_activity(
+                current_context, current_project
+            )
+            if resource_suggestion:
+                suggestions.append(resource_suggestion)
+
+            # Context-specific suggestions
+            context_suggestion = self._suggest_for_context(
+                current_context, current_project, activity_summary
+            )
+            if context_suggestion:
+                suggestions.append(context_suggestion)
+
+        except Exception:
+            # Activity suggestions are optional
+            pass
+
+        return suggestions
+
+    def _check_break_needed(self, activity_summary: Dict[str, Any]) -> Optional[Dict]:
+        """Check if user needs a break based on continuous activity."""
+        if not activity_summary:
+            return None
+
+        # Get time spent on primary activity
+        time_by_context = activity_summary.get("time_by_context", {})
+        if not time_by_context:
+            return None
+
+        # Find the dominant activity and its duration
+        for context, minutes in time_by_context.items():
+            if minutes >= self.break_suggestion_minutes:
+                suggestion_id = f"break_{context}"
+                if self._should_suggest(suggestion_id):
+                    hours = minutes / 60
+                    return {
+                        "type": "activity_break",
+                        "id": suggestion_id,
+                        "priority": 0.75,
+                        "title": "Time for a break?",
+                        "action": f"You've been {context} for {hours:.1f} hours. A short break might help you stay fresh!",
+                        "task_type": "wellness",
+                        "activity_context": context,
+                        "duration_minutes": minutes,
+                    }
+
+        return None
+
+    def _suggest_resources_for_activity(
+        self,
+        context: str,
+        project: Optional[str]
+    ) -> Optional[Dict]:
+        """Suggest relevant resources based on current activity."""
+        if not context:
+            return None
+
+        # Map context to resource types
+        resources = self.activity_resource_map.get(context, [])
+        if not resources:
+            return None
+
+        suggestion_id = f"resource_{context}"
+        if not self._should_suggest(suggestion_id):
+            return None
+
+        resource_list = ", ".join(resources[:2])
+        project_context = f" for {project}" if project else ""
+
+        return {
+            "type": "activity_resource",
+            "id": suggestion_id,
+            "priority": 0.5,
+            "title": f"Resources for {context}",
+            "action": f"I can help find {resource_list}{project_context}. Would you like me to research?",
+            "task_type": "research",
+            "activity_context": context,
+            "project": project,
+            "suggested_resources": resources,
+        }
+
+    def _suggest_for_context(
+        self,
+        context: str,
+        project: Optional[str],
+        activity_summary: Dict[str, Any]
+    ) -> Optional[Dict]:
+        """Generate context-specific suggestions."""
+        if not context:
+            return None
+
+        suggestion_id = f"context_{context}_{project or 'general'}"
+        if not self._should_suggest(suggestion_id):
+            return None
+
+        # Context-specific actions
+        if context == "coding" and project:
+            return {
+                "type": "activity_coding",
+                "id": suggestion_id,
+                "priority": 0.45,
+                "title": f"Working on {project}",
+                "action": f"I see you're coding on {project}. Want me to help with documentation or code review?",
+                "task_type": "assist",
+                "activity_context": context,
+                "project": project,
+            }
+        elif context == "research":
+            return {
+                "type": "activity_research",
+                "id": suggestion_id,
+                "priority": 0.45,
+                "title": "Research assistance",
+                "action": "I can help organize your research findings or find related sources. Interested?",
+                "task_type": "research",
+                "activity_context": context,
+            }
+        elif context == "writing":
+            return {
+                "type": "activity_writing",
+                "id": suggestion_id,
+                "priority": 0.45,
+                "title": "Writing support",
+                "action": "Need help with proofreading, restructuring, or expanding your writing?",
+                "task_type": "assist",
+                "activity_context": context,
+            }
+
+        return None
+
+    def get_activity_suggestion_status(self) -> Dict[str, Any]:
+        """Get status of activity-based suggestions."""
+        return {
+            "has_activity_monitor": self.activity_monitor is not None,
+            "break_threshold_minutes": self.break_suggestion_minutes,
+            "resource_categories": list(self.activity_resource_map.keys()),
+        }
 
     def _should_suggest(self, suggestion_id: str) -> bool:
         """Check if suggestion is past cooldown."""
