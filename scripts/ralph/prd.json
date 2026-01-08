@@ -667,8 +667,8 @@
         "audio/audio_pipeline.py"
       ],
       "priority": 22,
-      "passes": false,
-      "notes": "Audio Pipeline - Enable by default"
+      "passes": true,
+      "notes": "COMPLETED - Safety checks, env var override, graceful fallback"
     },
     {
       "id": "AP-002",
@@ -694,8 +694,8 @@
         "audio/audio_pipeline.py"
       ],
       "priority": 23,
-      "passes": false,
-      "notes": "Audio Pipeline - Silero VAD"
+      "passes": true,
+      "notes": "COMPLETED - Silero VAD with energy fallback, speech events"
     },
     {
       "id": "AP-003",
@@ -722,8 +722,8 @@
         "config/daemon_config.json"
       ],
       "priority": 24,
-      "passes": false,
-      "notes": "Audio Pipeline - STT model selection"
+      "passes": true,
+      "notes": "COMPLETED - Whisper model selection with confidence scores"
     },
     {
       "id": "AP-004",
@@ -750,8 +750,8 @@
         "scripts/senter_ctl.py"
       ],
       "priority": 25,
-      "passes": false,
-      "notes": "Audio Pipeline - External microphone"
+      "passes": true,
+      "notes": "COMPLETED - Device enumeration, selection by name/ID, fallback"
     },
     {
       "id": "GD-001",

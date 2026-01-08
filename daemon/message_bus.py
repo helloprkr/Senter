@@ -67,6 +67,7 @@ class MessageType(Enum):
     # Audio
     SPEAK = "speak"
     AUDIO_LEVEL = "audio_level"
+    SPEECH_EVENT = "speech_event"  # VAD speech start/end events (AP-002)
 
     # System
     HEALTH_CHECK = "health_check"

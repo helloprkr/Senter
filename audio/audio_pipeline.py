@@ -11,12 +11,14 @@ Handles all audio I/O for Senter:
 Works with gaze detection: only transcribes when user is paying attention.
 """
 
+import os
 import time
 import logging
 import sys
 import subprocess
 import threading
-from typing import Optional
+from dataclasses import dataclass
+from typing import Optional, List, Dict, Any, Callable
 from pathlib import Path
 from multiprocessing import Event
 from queue import Empty
@@ -48,6 +50,127 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from daemon.message_bus import MessageBus, MessageType, Message
 
 logger = logging.getLogger('senter.audio')
+
+
+@dataclass
+class AudioDevice:
+    """Audio input device info (AP-004)"""
+    id: int
+    name: str
+    channels: int
+    sample_rate: float
+    is_default: bool = False
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "channels": self.channels,
+            "sample_rate": self.sample_rate,
+            "is_default": self.is_default
+        }
+
+
+@dataclass
+class TranscriptionResult:
+    """STT transcription result with confidence (AP-003)"""
+    text: str
+    confidence: float
+    language: str = "en"
+    duration: float = 0.0
+
+    def to_dict(self) -> dict:
+        return {
+            "text": self.text,
+            "confidence": self.confidence,
+            "language": self.language,
+            "duration": self.duration
+        }
+
+
+def is_audio_disabled() -> bool:
+    """Check if audio is disabled via environment variable (AP-001)"""
+    return os.environ.get("SENTER_DISABLE_AUDIO", "").lower() in ("1", "true", "yes")
+
+
+def list_audio_devices() -> List[AudioDevice]:
+    """List available audio input devices (AP-004)"""
+    devices = []
+
+    if not SOUNDDEVICE_AVAILABLE:
+        logger.warning("sounddevice not available - cannot enumerate devices")
+        return devices
+
+    try:
+        import sounddevice as sd
+        device_list = sd.query_devices()
+        default_input = sd.default.device[0]  # Input device index
+
+        for i, dev in enumerate(device_list):
+            # Only include input devices (max_input_channels > 0)
+            if dev['max_input_channels'] > 0:
+                devices.append(AudioDevice(
+                    id=i,
+                    name=dev['name'],
+                    channels=dev['max_input_channels'],
+                    sample_rate=dev['default_samplerate'],
+                    is_default=(i == default_input)
+                ))
+    except Exception as e:
+        logger.error(f"Error listing audio devices: {e}")
+
+    return devices
+
+
+def get_device_by_name_or_id(identifier: str) -> Optional[int]:
+    """Get device ID by name or ID string (AP-004)"""
+    if not identifier:
+        return None
+
+    # Try parsing as int first
+    try:
+        device_id = int(identifier)
+        devices = list_audio_devices()
+        if any(d.id == device_id for d in devices):
+            return device_id
+    except ValueError:
+        pass
+
+    # Search by name (case-insensitive partial match)
+    devices = list_audio_devices()
+    identifier_lower = identifier.lower()
+    for dev in devices:
+        if identifier_lower in dev.name.lower():
+            return dev.id
+
+    return None
+
+
+def check_microphone_available(device_id: Optional[int] = None) -> bool:
+    """Check if microphone is available (AP-001)"""
+    if not SOUNDDEVICE_AVAILABLE:
+        return False
+
+    try:
+        import sounddevice as sd
+
+        # Test opening a stream
+        kwargs = {
+            "samplerate": 16000,
+            "channels": 1,
+            "dtype": np.float32 if NUMPY_AVAILABLE else "float32",
+            "blocksize": 1600
+        }
+        if device_id is not None:
+            kwargs["device"] = device_id
+
+        with sd.InputStream(**kwargs):
+            pass
+
+        return True
+    except Exception as e:
+        logger.warning(f"Microphone not available: {e}")
+        return False
 
 
 class AudioBuffer:
@@ -125,14 +248,23 @@ class AudioBuffer:
 
 class VoiceActivityDetector:
     """
-    Detects voice activity in audio.
-    Uses energy-based detection with optional Silero VAD.
+    Detects voice activity in audio (AP-002).
+    Uses Silero VAD with energy-based fallback.
     """
 
-    def __init__(self, threshold: float = 0.5):
+    def __init__(
+        self,
+        threshold: float = 0.5,
+        energy_threshold: float = 0.01,
+        message_bus: Optional[MessageBus] = None
+    ):
         self.threshold = threshold
+        self.energy_threshold = energy_threshold
+        self.message_bus = message_bus
         self._silero_model = None
         self._use_silero = False
+        self._is_speaking = False
+        self._speech_start_time: Optional[float] = None
 
         # Try to load Silero VAD
         try:
@@ -144,68 +276,197 @@ class VoiceActivityDetector:
                 trust_repo=True
             )
             self._use_silero = True
-            logger.info("Loaded Silero VAD")
+            logger.info("Loaded Silero VAD model")
         except Exception as e:
             logger.info(f"Using energy-based VAD (Silero unavailable: {e})")
 
-    def is_speech(self, audio: np.ndarray) -> bool:
-        """Check if audio contains speech"""
+    @property
+    def using_silero(self) -> bool:
+        """Whether Silero VAD is active (AP-002)"""
+        return self._use_silero
+
+    def get_speech_probability(self, audio: np.ndarray) -> float:
+        """Get speech probability (0.0 to 1.0) (AP-002)"""
         if self._use_silero and self._silero_model is not None:
             try:
                 import torch
-                audio_tensor = torch.from_numpy(audio)
-                speech_prob = self._silero_model(audio_tensor, 16000).item()
-                return speech_prob > self.threshold
-            except:
-                pass
+                audio_tensor = torch.from_numpy(audio.astype(np.float32))
+                return float(self._silero_model(audio_tensor, 16000).item())
+            except Exception as e:
+                logger.debug(f"Silero inference failed: {e}")
 
-        # Fallback: energy-based detection
+        # Fallback: energy-based estimation
         energy = np.sqrt(np.mean(audio ** 2))
-        return energy > 0.01
+        # Scale energy to 0-1 range (rough approximation)
+        return min(1.0, energy / 0.1)
+
+    def is_speech(self, audio: np.ndarray) -> bool:
+        """Check if audio contains speech (AP-002)"""
+        prob = self.get_speech_probability(audio)
+        is_speech_now = prob > self.threshold
+
+        # Emit speech start/end events
+        if is_speech_now and not self._is_speaking:
+            self._is_speaking = True
+            self._speech_start_time = time.time()
+            self._emit_event("speech_start")
+        elif not is_speech_now and self._is_speaking:
+            self._is_speaking = False
+            duration = time.time() - self._speech_start_time if self._speech_start_time else 0
+            self._emit_event("speech_end", {"duration": duration})
+            self._speech_start_time = None
+
+        return is_speech_now
+
+    def is_speech_energy(self, audio: np.ndarray) -> bool:
+        """Energy-based speech detection fallback (AP-002)"""
+        energy = np.sqrt(np.mean(audio ** 2))
+        return energy > self.energy_threshold
+
+    def _emit_event(self, event_type: str, data: Optional[dict] = None):
+        """Emit speech event to message bus (AP-002)"""
+        if self.message_bus is None:
+            return
+
+        try:
+            event_data = data or {}
+            event_data["event"] = event_type
+            event_data["timestamp"] = time.time()
+            event_data["using_silero"] = self._use_silero
+
+            self.message_bus.send(
+                MessageType.SPEECH_EVENT,
+                source="vad",
+                payload=event_data
+            )
+        except Exception as e:
+            logger.debug(f"Failed to emit VAD event: {e}")
+
+    def set_threshold(self, threshold: float):
+        """Update VAD threshold (AP-002)"""
+        self.threshold = max(0.0, min(1.0, threshold))
+
+    def reset(self):
+        """Reset VAD state"""
+        if self._is_speaking:
+            self._emit_event("speech_end", {"duration": 0, "reason": "reset"})
+        self._is_speaking = False
+        self._speech_start_time = None
 
 
 class STTEngine:
     """
-    Speech-to-Text engine using Whisper.
+    Speech-to-Text engine using Whisper (AP-003).
+
+    Supports model sizes: tiny, base, small, medium, large
+    Auto-downloads models on first use.
+    Returns transcription with confidence score.
     """
 
+    # Supported Whisper models (AP-003)
+    SUPPORTED_MODELS = ["tiny", "base", "small", "medium", "large"]
+
     def __init__(self, model_name: str = "small"):
-        self.model_name = model_name
+        self.model_name = self._normalize_model_name(model_name)
         self._model = None
+        self._model_loaded = False
+
+    def _normalize_model_name(self, name: str) -> str:
+        """Normalize model name to Whisper format (AP-003)"""
+        # Map friendly names
+        model_map = {
+            "whisper-tiny": "tiny",
+            "whisper-base": "base",
+            "whisper-small": "small",
+            "whisper-medium": "medium",
+            "whisper-large": "large",
+        }
+        normalized = model_map.get(name.lower(), name.lower())
+
+        # Validate model name
+        if normalized not in self.SUPPORTED_MODELS:
+            logger.warning(f"Unknown model '{name}', defaulting to 'small'")
+            normalized = "small"
+
+        return normalized
 
     @property
     def model(self):
-        if self._model is None and WHISPER_AVAILABLE:
+        if self._model is None and WHISPER_AVAILABLE and not self._model_loaded:
+            self._model_loaded = True  # Prevent repeated load attempts
             try:
-                # Map friendly names
-                model_map = {
-                    "whisper-tiny": "tiny",
-                    "whisper-base": "base",
-                    "whisper-small": "small",
-                    "whisper-medium": "medium",
-                }
-                model_size = model_map.get(self.model_name, self.model_name)
-                self._model = whisper.load_model(model_size)
-                logger.info(f"Loaded Whisper model: {model_size}")
+                logger.info(f"Loading Whisper model: {self.model_name} (auto-download if needed)")
+                self._model = whisper.load_model(self.model_name)
+                logger.info(f"Loaded Whisper model: {self.model_name}")
             except Exception as e:
-                logger.error(f"Could not load Whisper: {e}")
+                logger.error(f"Could not load Whisper model '{self.model_name}': {e}")
         return self._model
 
+    def set_model(self, model_name: str) -> bool:
+        """Change the STT model (AP-003)"""
+        new_name = self._normalize_model_name(model_name)
+        if new_name != self.model_name:
+            self.model_name = new_name
+            self._model = None
+            self._model_loaded = False
+            logger.info(f"STT model changed to: {new_name}")
+            return True
+        return False
+
     def transcribe(self, audio: np.ndarray) -> str:
-        """Transcribe audio to text"""
+        """Transcribe audio to text (simple interface)"""
+        result = self.transcribe_with_confidence(audio)
+        return result.text if result else ""
+
+    def transcribe_with_confidence(self, audio: np.ndarray) -> Optional[TranscriptionResult]:
+        """Transcribe audio with confidence score (AP-003)"""
         if self.model is None:
-            return ""
+            return TranscriptionResult(text="", confidence=0.0)
 
         try:
+            # Transcribe with Whisper
             result = self.model.transcribe(
                 audio,
                 language="en",
                 fp16=False
             )
-            return result["text"].strip()
+
+            text = result["text"].strip()
+
+            # Calculate confidence from segment probabilities
+            confidence = self._calculate_confidence(result)
+
+            # Calculate duration
+            duration = len(audio) / 16000 if NUMPY_AVAILABLE else 0.0
+
+            return TranscriptionResult(
+                text=text,
+                confidence=confidence,
+                language=result.get("language", "en"),
+                duration=duration
+            )
         except Exception as e:
             logger.error(f"Transcription error: {e}")
-            return ""
+            return TranscriptionResult(text="", confidence=0.0)
+
+    def _calculate_confidence(self, result: dict) -> float:
+        """Calculate overall confidence from Whisper result (AP-003)"""
+        segments = result.get("segments", [])
+        if not segments:
+            return 0.5  # Default if no segments
+
+        # Average no_speech probability (invert it for confidence)
+        no_speech_probs = [s.get("no_speech_prob", 0.0) for s in segments]
+        if no_speech_probs:
+            avg_no_speech = sum(no_speech_probs) / len(no_speech_probs)
+            return 1.0 - avg_no_speech
+
+        return 0.5
+
+    @staticmethod
+    def get_available_models() -> List[str]:
+        """List available Whisper models (AP-003)"""
+        return STTEngine.SUPPORTED_MODELS.copy()
 
 
 class TTSEngine:
@@ -452,7 +713,14 @@ class TTSEngine:
 
 class AudioPipeline:
     """
-    Main audio pipeline controller.
+    Main audio pipeline controller (AP-001, AP-004).
+
+    Features:
+    - Safety checks and graceful fallback
+    - Environment variable override (SENTER_DISABLE_AUDIO)
+    - External microphone support with device selection
+    - VAD with Silero/energy fallback
+    - STT model selection with confidence scores
     """
 
     def __init__(
@@ -461,17 +729,24 @@ class AudioPipeline:
         tts_model: str,
         vad_threshold: float,
         message_bus: MessageBus,
-        shutdown_event: Event
+        shutdown_event: Event,
+        audio_device: Optional[str] = None,
+        tts_voice: Optional[str] = None
     ):
         self.stt_model = stt_model
         self.tts_model = tts_model
         self.vad_threshold = vad_threshold
         self.message_bus = message_bus
         self.shutdown_event = shutdown_event
+        self.audio_device = audio_device  # Device name or ID (AP-004)
+        self.tts_voice = tts_voice
 
         # State
         self.is_listening = False
         self.has_attention = False
+        self._enabled = True
+        self._microphone_available = False
+        self._device_id: Optional[int] = None
 
         # Components (lazy loaded)
         self._audio_buffer = None
@@ -482,34 +757,78 @@ class AudioPipeline:
         # Message queue
         self._queue = None
 
+    def get_status(self) -> Dict[str, Any]:
+        """Get pipeline status for CLI (AP-001)"""
+        return {
+            "enabled": self._enabled,
+            "microphone_available": self._microphone_available,
+            "is_listening": self.is_listening,
+            "has_attention": self.has_attention,
+            "stt_model": self.stt_model,
+            "tts_model": self.tts_model,
+            "vad_threshold": self.vad_threshold,
+            "audio_device": self.audio_device,
+            "device_id": self._device_id,
+            "using_silero": self._vad.using_silero if self._vad else False
+        }
+
     def run(self):
         """Main pipeline loop"""
         logger.info("Audio pipeline starting...")
 
+        # Check if disabled via environment variable (AP-001)
+        if is_audio_disabled():
+            logger.warning("Audio pipeline disabled via SENTER_DISABLE_AUDIO environment variable")
+            self._enabled = False
+            self._wait_for_shutdown()
+            return
+
         # Check dependencies
         if not NUMPY_AVAILABLE:
-            logger.error("numpy required for audio pipeline")
+            logger.error("numpy required for audio pipeline - disabling")
+            self._enabled = False
+            self._wait_for_shutdown()
             return
 
         if not SOUNDDEVICE_AVAILABLE:
             logger.warning("sounddevice not available - audio capture disabled")
+            self._microphone_available = False
+        else:
+            # Resolve audio device (AP-004)
+            if self.audio_device:
+                self._device_id = get_device_by_name_or_id(self.audio_device)
+                if self._device_id is None:
+                    logger.warning(f"Audio device '{self.audio_device}' not found, using default")
+
+            # Check microphone availability (AP-001)
+            self._microphone_available = check_microphone_available(self._device_id)
+            if not self._microphone_available:
+                logger.warning("Microphone not available - audio capture disabled")
 
         # Initialize components
         self._audio_buffer = AudioBuffer()
-        self._vad = VoiceActivityDetector(self.vad_threshold)
+        self._vad = VoiceActivityDetector(self.vad_threshold, message_bus=self.message_bus)
         self._stt = STTEngine(self.stt_model)
-        self._tts = TTSEngine(self.tts_model)
+        self._tts = TTSEngine(self.tts_model, voice=self.tts_voice)
 
         # Register with message bus
         self._queue = self.message_bus.register("audio")
 
-        # Start capture thread if sounddevice available
-        if SOUNDDEVICE_AVAILABLE:
+        # Start capture thread if microphone available
+        if self._microphone_available:
             capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
             capture_thread.start()
+            logger.info(f"Audio capture started (device: {self._device_id or 'default'})")
 
-        logger.info("Audio pipeline started")
+        logger.info(f"Audio pipeline started (microphone: {self._microphone_available})")
 
+    def _wait_for_shutdown(self):
+        """Wait for shutdown when disabled"""
+        while not self.shutdown_event.is_set():
+            time.sleep(0.5)
+
+    def run_loop(self):
+        """Main processing loop (called after run() setup)"""
         while not self.shutdown_event.is_set():
             try:
                 self._process_messages()
@@ -521,25 +840,32 @@ class AudioPipeline:
         logger.info("Audio pipeline stopped")
 
     def _capture_loop(self):
-        """Continuous audio capture"""
+        """Continuous audio capture with device selection (AP-004)"""
         try:
             def audio_callback(indata, frames, time_info, status):
                 if status:
                     logger.warning(f"Audio status: {status}")
                 self._audio_buffer.write(indata.copy())
 
-            with sd.InputStream(
-                samplerate=16000,
-                channels=1,
-                dtype=np.float32,
-                callback=audio_callback,
-                blocksize=1600
-            ):
+            # Build stream kwargs with optional device (AP-004)
+            stream_kwargs = {
+                "samplerate": 16000,
+                "channels": 1,
+                "dtype": np.float32,
+                "callback": audio_callback,
+                "blocksize": 1600
+            }
+            if self._device_id is not None:
+                stream_kwargs["device"] = self._device_id
+
+            with sd.InputStream(**stream_kwargs):
+                logger.info(f"Audio capture active (device ID: {self._device_id or 'default'})")
                 while not self.shutdown_event.is_set():
                     time.sleep(0.1)
 
         except Exception as e:
             logger.error(f"Audio capture error: {e}")
+            self._microphone_available = False
 
     def _process_messages(self):
         """Process incoming messages"""
