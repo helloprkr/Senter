@@ -173,3 +173,28 @@ Project: Senter 3.0 Depth Improvements
   - Cache prefetched research with 6-hour TTL
   - Store patterns internally for efficient prediction lookup
 ---
+
+## 2026-01-07 - US-011: Add activity-context-aware suggestions
+- Implemented: _activity_context_suggestions, _check_break_needed, _suggest_resources_for_activity, _suggest_for_context
+- Files changed:
+  - intelligence/proactive.py (added activity_monitor parameter, activity context methods)
+  - tests/test_depth_features.py (added 17 tests for activity-aware suggestions)
+- Learnings:
+  - Activity suggestions integrate with ActivityMonitor via get_current_context/get_activity_summary
+  - Break suggestions based on time_by_context from activity summary
+  - activity_resource_map provides domain-specific resource suggestions
+  - Context-specific suggestions for coding/research/writing activities
+---
+
+## 2026-01-07 - US-012: Add preference learning to ProceduralMemory
+- Implemented: UserPreference dataclass, track_response_fitness, update_preference, get/set preference methods
+- Files changed:
+  - memory/procedural.py (added UserPreference dataclass, preference learning methods)
+  - tests/test_depth_features.py (added 16 tests for preference learning)
+- Learnings:
+  - UserPreference stores name, value, confidence (0-1), and signal_count
+  - Confidence increases with consistent signals via diminishing returns formula
+  - Conflicting signals decrease confidence; below 0.3 threshold triggers value flip
+  - track_response_fitness infers preferences from high-fitness responses
+  - get_preference_instructions converts preferences to LLM prompt instructions
+---

@@ -4,10 +4,9 @@ Tests for Senter 3.0 Depth Improvement Features.
 These tests cover the 8 critical gaps implemented via Ralph Wiggums.
 """
 
-import asyncio
 import pytest
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 
 # ============================================================================
@@ -593,8 +592,8 @@ class TestActivityGoalSuggestion:
     @pytest.mark.asyncio
     async def test_suggest_goal_from_context_requires_minimum_snapshots(self):
         """Test that goal suggestion requires minimum 10 snapshots."""
-        from intelligence.activity import ActivityMonitor, ActivitySnapshot
-        from unittest.mock import MagicMock, AsyncMock
+        from intelligence.activity import ActivityMonitor
+        from unittest.mock import MagicMock
 
         # Create mock engine with goal detector
         mock_goal_detector = MagicMock()
@@ -1966,7 +1965,6 @@ class TestSelfInitiatedTasks:
         """Test that cooldown prevents duplicate task creation."""
         from intelligence.proactive import ProactiveSuggestionEngine
         from intelligence.goals import GoalDetector, Goal
-        from datetime import datetime, timedelta
 
         mock_trust = MagicMock()
         mock_trust.level = 0.8
@@ -2797,7 +2795,6 @@ class TestAnticipatoryNeedPrediction:
     def test_clear_prefetched_research_single(self):
         """Test clearing single topic from cache."""
         from intelligence.proactive import ProactiveSuggestionEngine
-        from datetime import datetime
 
         mock_engine = MagicMock()
         engine = ProactiveSuggestionEngine(mock_engine)
@@ -2813,7 +2810,6 @@ class TestAnticipatoryNeedPrediction:
     def test_clear_prefetched_research_all(self):
         """Test clearing all cached research."""
         from intelligence.proactive import ProactiveSuggestionEngine
-        from datetime import datetime
 
         mock_engine = MagicMock()
         engine = ProactiveSuggestionEngine(mock_engine)
@@ -3090,3 +3086,257 @@ class TestActivityAwareSuggestions:
         status = engine.get_activity_suggestion_status()
 
         assert status["has_activity_monitor"] is False
+
+
+# ============================================================================
+# US-012: Preference learning in ProceduralMemory
+# ============================================================================
+
+class TestProceduralPreferenceLearning:
+    """Tests for preference learning in ProceduralMemory."""
+
+    def _create_memory(self):
+        """Create an in-memory ProceduralMemory for testing."""
+        import sqlite3
+        from memory.procedural import ProceduralMemory
+
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+
+        # Create procedural table
+        conn.execute("""
+            CREATE TABLE procedural (
+                id TEXT PRIMARY KEY,
+                pattern_type TEXT NOT NULL,
+                pattern_data TEXT NOT NULL,
+                success_count INTEGER DEFAULT 0,
+                failure_count INTEGER DEFAULT 0,
+                last_used TEXT
+            )
+        """)
+        conn.commit()
+
+        return ProceduralMemory(conn, {})
+
+    def test_user_preference_dataclass(self):
+        """Test UserPreference dataclass structure."""
+        from memory.procedural import UserPreference
+
+        pref = UserPreference(
+            name="length",
+            value="concise",
+            confidence=0.7,
+            signal_count=5
+        )
+
+        assert pref.name == "length"
+        assert pref.value == "concise"
+        assert pref.confidence == 0.7
+        assert pref.signal_count == 5
+
+    def test_user_preference_to_dict(self):
+        """Test UserPreference.to_dict method."""
+        from memory.procedural import UserPreference
+
+        pref = UserPreference(
+            name="formality",
+            value="formal",
+            confidence=0.8,
+            signal_count=3
+        )
+
+        data = pref.to_dict()
+
+        assert data["name"] == "formality"
+        assert data["value"] == "formal"
+        assert data["confidence"] == 0.8
+        assert "last_updated" in data
+
+    def test_user_preference_from_dict(self):
+        """Test UserPreference.from_dict method."""
+        from memory.procedural import UserPreference
+        from datetime import datetime
+
+        data = {
+            "name": "length",
+            "value": "detailed",
+            "confidence": 0.6,
+            "signal_count": 2,
+            "last_updated": datetime.now().isoformat()
+        }
+
+        pref = UserPreference.from_dict(data)
+
+        assert pref.name == "length"
+        assert pref.value == "detailed"
+        assert pref.confidence == 0.6
+
+    def test_track_response_fitness_low_score(self):
+        """Test that low fitness scores don't create preferences."""
+        memory = self._create_memory()
+
+        result = memory.track_response_fitness(
+            response_length=100,
+            formality="casual",
+            detail_level="concise",
+            fitness_score=0.3  # Below threshold
+        )
+
+        assert result is None
+
+    def test_track_response_fitness_high_score(self):
+        """Test that high fitness scores create preferences."""
+        memory = self._create_memory()
+
+        result = memory.track_response_fitness(
+            response_length=100,
+            formality="casual",
+            detail_level="concise",
+            fitness_score=0.8  # Above threshold
+        )
+
+        assert result is not None
+        assert result["length"] == "concise"
+        assert result["formality"] == "casual"
+        assert result["detail_level"] == "concise"
+
+    def test_track_response_fitness_length_inference(self):
+        """Test length inference based on response length."""
+        memory = self._create_memory()
+
+        # Short response -> concise
+        result = memory.track_response_fitness(100, "formal", "concise", 0.8)
+        assert result["length"] == "concise"
+
+        # Medium response -> moderate
+        result = memory.track_response_fitness(300, "formal", "moderate", 0.8)
+        assert result["length"] == "moderate"
+
+        # Long response -> detailed
+        result = memory.track_response_fitness(600, "formal", "detailed", 0.8)
+        assert result["length"] == "detailed"
+
+    def test_update_preference_creates_new(self):
+        """Test update_preference creates new preference if not exists."""
+        memory = self._create_memory()
+
+        pref = memory.update_preference("length", "concise", 0.8)
+
+        assert pref.name == "length"
+        assert pref.value == "concise"
+        assert pref.confidence == 0.5  # Initial confidence
+        assert pref.signal_count == 1
+
+    def test_update_preference_consistent_signal_increases_confidence(self):
+        """Test that consistent signals increase confidence."""
+        memory = self._create_memory()
+
+        # First signal
+        pref1 = memory.update_preference("length", "concise", 0.8)
+        initial_confidence = pref1.confidence
+
+        # Second consistent signal
+        pref2 = memory.update_preference("length", "concise", 0.8)
+
+        assert pref2.confidence > initial_confidence
+        assert pref2.signal_count == 2
+
+    def test_update_preference_conflicting_signal_decreases_confidence(self):
+        """Test that conflicting signals decrease confidence."""
+        memory = self._create_memory()
+
+        # First signal
+        memory.update_preference("length", "concise", 0.8)
+
+        # Multiple consistent signals to build confidence
+        for _ in range(5):
+            memory.update_preference("length", "concise", 0.8)
+
+        pref_before = memory.get_preference("length")
+
+        # Conflicting signal
+        pref_after = memory.update_preference("length", "detailed", 0.8)
+
+        # Confidence should decrease but value stays same (not flipped yet)
+        assert pref_after.confidence < pref_before.confidence
+
+    def test_get_preference(self):
+        """Test get_preference retrieves stored preference."""
+        memory = self._create_memory()
+
+        memory.update_preference("formality", "formal", 0.8)
+
+        pref = memory.get_preference("formality")
+
+        assert pref is not None
+        assert pref.name == "formality"
+        assert pref.value == "formal"
+
+    def test_get_preference_not_found(self):
+        """Test get_preference returns None for non-existent preference."""
+        memory = self._create_memory()
+
+        pref = memory.get_preference("nonexistent")
+
+        assert pref is None
+
+    def test_get_all_preferences(self):
+        """Test get_all_preferences retrieves all preferences."""
+        memory = self._create_memory()
+
+        memory.update_preference("length", "concise", 0.8)
+        memory.update_preference("formality", "casual", 0.7)
+
+        prefs = memory.get_all_preferences()
+
+        assert "length" in prefs
+        assert "formality" in prefs
+        assert prefs["length"].value == "concise"
+        assert prefs["formality"].value == "casual"
+
+    def test_get_preference_instructions_empty(self):
+        """Test get_preference_instructions with no preferences."""
+        memory = self._create_memory()
+
+        instructions = memory.get_preference_instructions()
+
+        assert instructions == []
+
+    def test_get_preference_instructions_with_preferences(self):
+        """Test get_preference_instructions generates correct instructions."""
+        memory = self._create_memory()
+
+        # Build up confidence with multiple signals
+        for _ in range(5):
+            memory.update_preference("length", "concise", 0.9)
+            memory.update_preference("formality", "formal", 0.9)
+
+        instructions = memory.get_preference_instructions()
+
+        assert len(instructions) >= 1
+        assert any("concise" in i.lower() for i in instructions)
+
+    def test_get_preference_instructions_filters_by_confidence(self):
+        """Test that low-confidence preferences are filtered out."""
+        memory = self._create_memory()
+
+        # Single signal = low confidence (0.5)
+        memory.update_preference("length", "concise", 0.5)
+
+        # Should be filtered at default threshold (0.5)
+        instructions = memory.get_preference_instructions(min_confidence=0.6)
+
+        assert len(instructions) == 0
+
+    def test_clear_preferences(self):
+        """Test clear_preferences removes all preferences."""
+        memory = self._create_memory()
+
+        memory.update_preference("length", "concise", 0.8)
+        memory.update_preference("formality", "formal", 0.7)
+
+        count = memory.clear_preferences()
+
+        assert count == 2
+        assert memory.get_preference("length") is None
+        assert memory.get_preference("formality") is None
