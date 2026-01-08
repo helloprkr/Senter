@@ -127,3 +127,34 @@ Date: 2026-01-08
 - typecheck: PASSED
 - build: PASSED
 
+### P1-004: History Search [PASSED]
+Date: 2026-01-08
+
+**Implementation:**
+1. Added search state to RightPanel:
+   - useState for searchQuery
+   - useMemo for filteredConversations with real-time filtering
+
+2. Search input with icons:
+   - Search icon on left
+   - Clear (X) button when query present
+   - Styled with brand colors
+
+3. Filter logic:
+   - Matches conversation title (case-insensitive)
+   - Matches message content (case-insensitive)
+   - Returns all conversations when search is empty
+
+4. Updated empty state message:
+   - "No matching conversations" when search has no results
+   - "No conversation history" when no conversations exist
+
+**Verification:**
+- typecheck: PASSED
+- build: PASSED
+
+---
+## PHASE 1 COMPLETE
+All 4 Phase 1 stories (P1-001 through P1-004) have passed.
+Continuing to Phase 2: Autonomous Research
+
