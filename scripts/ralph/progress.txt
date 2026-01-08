@@ -114,7 +114,7 @@ Project: Senter Complete Implementation v3
 
 ## Phase 2 Session - 2026-01-07
 
-### Critical Gaps Completed (8/10)
+### Critical Gaps Completed (9/10)
 - CG-001: Real task execution ✓ (from Phase 1)
 - CG-002: Research task queue ✓ (from Phase 1)
 - CG-003: Audio/gaze integration ✓ (from Phase 1)
@@ -141,8 +141,15 @@ Project: Senter Complete Implementation v3
   - Routing table updated for goal messages
   - Created tests/test_goal_execution_pipeline.py (8 tests)
 
+- CG-009: At-rest encryption for sensitive data ✓
+  - Created daemon/encryption.py with EncryptionManager class
+  - Fernet symmetric encryption with PBKDF2 key derivation
+  - macOS Keychain integration via keyring (falls back to file)
+  - EncryptedJSONStorage for transparent JSON encryption
+  - Graceful fallback when cryptography unavailable
+  - Created tests/test_encryption.py (10 tests)
+
 ### Remaining Critical Gaps
-- CG-009: At-rest encryption for sensitive data
 - CG-010: MCP client for tool discovery
 
 ### Key Patterns Discovered (Phase 2)
