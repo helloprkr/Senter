@@ -21,6 +21,18 @@ contextBridge.exposeInMainWorld('api', {
     created?: string
   }) => ipcRenderer.invoke('senter:saveConversation', conversation),
   getTasks: (limit?: number) => ipcRenderer.invoke('senter:getTasks', limit),
+  getJournal: (date?: string, limit?: number) => ipcRenderer.invoke('senter:getJournal', date, limit),
+  generateJournal: (date?: string) => ipcRenderer.invoke('senter:generateJournal', date),
+
+  // P3-001: Context Sources
+  getContextSources: () => ipcRenderer.invoke('senter:getContextSources'),
+  addContextSource: (source: {
+    type: string
+    title: string
+    path: string
+    description?: string
+  }) => ipcRenderer.invoke('senter:addContextSource', source),
+  removeContextSource: (id: string) => ipcRenderer.invoke('senter:removeContextSource', id),
 
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
@@ -52,6 +64,16 @@ declare global {
         created?: string
       }) => Promise<unknown>
       getTasks: (limit?: number) => Promise<unknown>
+      getJournal: (date?: string, limit?: number) => Promise<unknown>
+      generateJournal: (date?: string) => Promise<unknown>
+      getContextSources: () => Promise<unknown>
+      addContextSource: (source: {
+        type: string
+        title: string
+        path: string
+        description?: string
+      }) => Promise<unknown>
+      removeContextSource: (id: string) => Promise<unknown>
       minimizeWindow: () => void
       maximizeWindow: () => void
       closeWindow: () => void

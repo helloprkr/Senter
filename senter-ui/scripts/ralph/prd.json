@@ -303,8 +303,8 @@
       ],
       "qualityGate": "Add 3 sources, restart app, all 3 still there",
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented 2026-01-08: ContextSourcesDB, IPC handlers, ContextMenu with add/remove UI"
     },
     {
       "id": "P3-002",

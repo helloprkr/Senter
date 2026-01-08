@@ -297,3 +297,35 @@ Date: 2026-01-08
 All 5 Phase 2 stories (P2-001 through P2-005) have passed.
 Continuing to Phase 3: Context Sources
 
+### P3-001: Context Sources - Add and Display [PASSED]
+Date: 2026-01-08
+
+**Implementation:**
+1. Created `learning/context_sources_db.py`:
+   - ContextSourcesDB class with SQLite storage
+   - CRUD operations: add_source, get_all_sources, remove_source
+   - Stores type, title, path, description, content_preview
+
+2. Added IPC handlers in daemon/ipc_server.py:
+   - `get_context_sources`: Returns all active sources
+   - `add_context_source`: Creates new source with file preview
+   - `remove_context_source`: Deletes source by ID
+
+3. Added Electron IPC bridge:
+   - getContextSources(), addContextSource(), removeContextSource()
+   - Updated preload with new API methods
+
+4. Updated ContextMenu component:
+   - Loads sources from daemon when menu opens
+   - "Add Context Source" button with type toggle (File/URL)
+   - Path and title input fields
+   - Remove button on each context item card
+   - Loading state and empty state handling
+
+5. Updated contextSlice with setContextItems and setContextLoading
+
+**Verification:**
+- Python syntax: OK
+- typecheck: PASSED
+- build: PASSED
+

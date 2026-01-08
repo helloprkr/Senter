@@ -111,6 +111,24 @@ class SenterClient {
   async generateJournal(date?: string): Promise<SenterResponse> {
     return this.sendCommand('generate_journal', { date })
   }
+
+  // P3-001: Context Sources
+  async getContextSources(): Promise<SenterResponse> {
+    return this.sendCommand('get_context_sources')
+  }
+
+  async addContextSource(source: {
+    type: string
+    title: string
+    path: string
+    description?: string
+  }): Promise<SenterResponse> {
+    return this.sendCommand('add_context_source', source)
+  }
+
+  async removeContextSource(id: string): Promise<SenterResponse> {
+    return this.sendCommand('remove_context_source', { id })
+  }
 }
 
 const senterClient = new SenterClient()
@@ -278,6 +296,22 @@ export function registerSenterIPC(): void {
   ipcMain.handle('senter:generateJournal', async (_, date?: string) => {
     console.log('[SenterIPC] Received generateJournal request, date:', date)
     return senterClient.generateJournal(date)
+  })
+
+  // P3-001: Context Sources
+  ipcMain.handle('senter:getContextSources', async () => {
+    console.log('[SenterIPC] Received getContextSources request')
+    return senterClient.getContextSources()
+  })
+
+  ipcMain.handle('senter:addContextSource', async (_, source) => {
+    console.log('[SenterIPC] Received addContextSource request, type:', source?.type)
+    return senterClient.addContextSource(source)
+  })
+
+  ipcMain.handle('senter:removeContextSource', async (_, id: string) => {
+    console.log('[SenterIPC] Received removeContextSource request, id:', id)
+    return senterClient.removeContextSource(id)
   })
 
   console.log('[SenterIPC] IPC handlers registered')

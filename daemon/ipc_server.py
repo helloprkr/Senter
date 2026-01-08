@@ -65,6 +65,11 @@ class IPCServer:
             "get_conversations": self._handle_get_conversations,  # P1-001
             "save_conversation": self._handle_save_conversation,  # P1-001
             "get_tasks": self._handle_get_tasks,  # P2-001
+            "get_journal": self._handle_get_journal,  # P2-004
+            "generate_journal": self._handle_generate_journal,  # P2-004
+            "get_context_sources": self._handle_get_context_sources,  # P3-001
+            "add_context_source": self._handle_add_context_source,  # P3-001
+            "remove_context_source": self._handle_remove_context_source,  # P3-001
         }
 
     def run(self):
@@ -1043,4 +1048,170 @@ class IPCServer:
 
         except Exception as e:
             logger.error(f"get_tasks error: {e}")
+            return {"error": str(e)}
+
+    def _handle_get_journal(self, request: dict = None) -> dict:
+        """Handle get_journal request (P2-004) - retrieve journal entries"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            from learning.journal_db import JournalDB
+
+            journal = JournalDB(Path(self.daemon.senter_root))
+
+            # Get specific date or recent entries
+            entry_date = request.get("date") if request else None
+            limit = request.get("limit", 7) if request else 7
+
+            if entry_date:
+                entry = journal.get_entry(entry_date)
+                if entry:
+                    return {"entry": entry.to_dict()}
+                else:
+                    return {"entry": None, "message": f"No entry for {entry_date}"}
+            else:
+                entries = journal.get_recent_entries(limit)
+                return {
+                    "entries": [e.to_dict() for e in entries],
+                    "count": len(entries)
+                }
+
+        except Exception as e:
+            logger.error(f"get_journal error: {e}")
+            return {"error": str(e)}
+
+    def _handle_generate_journal(self, request: dict = None) -> dict:
+        """Handle generate_journal request (P2-004) - generate journal entry for a date"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            from learning.journal_db import JournalDB
+            from datetime import datetime
+
+            journal = JournalDB(Path(self.daemon.senter_root))
+
+            # Get target date (default: today)
+            target_date = request.get("date") if request else None
+            if not target_date:
+                target_date = datetime.now().strftime("%Y-%m-%d")
+
+            # Generate entry from activity data
+            entry = journal.generate_entry_for_date(target_date)
+
+            # Save to database
+            journal.save_entry(entry)
+
+            return {
+                "entry": entry.to_dict(),
+                "generated": True
+            }
+
+        except Exception as e:
+            logger.error(f"generate_journal error: {e}")
+            return {"error": str(e)}
+
+    # ========== P3-001: Context Sources ==========
+
+    def _handle_get_context_sources(self, request: dict = None) -> dict:
+        """Handle get_context_sources request (P3-001) - get all pinned context sources"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            from learning.context_sources_db import ContextSourcesDB
+
+            db = ContextSourcesDB(Path(self.daemon.senter_root))
+
+            # Get active sources
+            sources = db.get_all_sources(active_only=True)
+
+            return {
+                "sources": [s.to_dict() for s in sources],
+                "count": len(sources)
+            }
+
+        except Exception as e:
+            logger.error(f"get_context_sources error: {e}")
+            return {"error": str(e)}
+
+    def _handle_add_context_source(self, request: dict = None) -> dict:
+        """Handle add_context_source request (P3-001) - add a new context source"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            from learning.context_sources_db import ContextSourcesDB, ContextSource
+            import uuid
+
+            db = ContextSourcesDB(Path(self.daemon.senter_root))
+
+            # Parse request
+            source_type = request.get("type", "file")
+            title = request.get("title", "Untitled")
+            path = request.get("path", "")
+            description = request.get("description", "")
+
+            if not path:
+                return {"error": "Path is required"}
+
+            # Generate preview for files
+            content_preview = ""
+            if source_type == "file":
+                try:
+                    file_path = Path(path).expanduser()
+                    if file_path.exists() and file_path.is_file():
+                        content = file_path.read_text()
+                        content_preview = content[:500] + "..." if len(content) > 500 else content
+                except Exception as e:
+                    logger.warning(f"Could not read file for preview: {e}")
+
+            # Create and save source
+            source = ContextSource(
+                id=str(uuid.uuid4()),
+                type=source_type,
+                title=title,
+                path=path,
+                description=description,
+                content_preview=content_preview
+            )
+
+            success = db.add_source(source)
+
+            if success:
+                return {
+                    "source": source.to_dict(),
+                    "added": True
+                }
+            else:
+                return {"error": "Failed to add source"}
+
+        except Exception as e:
+            logger.error(f"add_context_source error: {e}")
+            return {"error": str(e)}
+
+    def _handle_remove_context_source(self, request: dict = None) -> dict:
+        """Handle remove_context_source request (P3-001) - remove a context source"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            from learning.context_sources_db import ContextSourcesDB
+
+            db = ContextSourcesDB(Path(self.daemon.senter_root))
+
+            source_id = request.get("id") if request else None
+            if not source_id:
+                return {"error": "Source ID is required"}
+
+            success = db.remove_source(source_id)
+
+            return {
+                "removed": success,
+                "id": source_id
+            }
+
+        except Exception as e:
+            logger.error(f"remove_context_source error: {e}")
             return {"error": str(e)}
