@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from coupling.protocols import CouplingMode
     from coupling.human_model import HumanCognitiveState
     from memory.living_memory import MemoryContext
+    from memory.procedural import ProceduralMemory
 
 
 @dataclass
@@ -45,8 +46,13 @@ class ResponseComposer:
     - Available context (memory, knowledge)
     """
 
-    def __init__(self, model: Optional["ModelInterface"] = None):
+    def __init__(
+        self,
+        model: Optional["ModelInterface"] = None,
+        procedural_memory: Optional["ProceduralMemory"] = None,
+    ):
         self.model = model
+        self.procedural_memory = procedural_memory
 
     async def compose(
         self,
@@ -105,6 +111,14 @@ class ResponseComposer:
                 system_parts.append(
                     "The user may be tired. Keep responses shorter and clearer."
                 )
+
+        # Add learned user preferences from procedural memory
+        if self.procedural_memory:
+            preference_instructions = self.procedural_memory.get_preference_instructions(
+                min_confidence=0.5
+            )
+            for instruction in preference_instructions:
+                system_parts.append(instruction)
 
         # Add user profile (ALWAYS include - name, preferences, etc.)
         if context.user_profile:
@@ -188,6 +202,17 @@ class ResponseComposer:
                 parts.append(f"{key}: {str(value)[:50]}")
 
         return " | ".join(parts) if parts else ""
+
+    def get_applied_preferences(self) -> List[str]:
+        """
+        Get the preference instructions that would be applied.
+
+        Returns:
+            List of preference instruction strings
+        """
+        if not self.procedural_memory:
+            return []
+        return self.procedural_memory.get_preference_instructions(min_confidence=0.5)
 
     def _format_user_profile(self, profile: List[Dict]) -> str:
         """Format user profile facts for the prompt."""

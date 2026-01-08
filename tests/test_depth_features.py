@@ -3340,3 +3340,234 @@ class TestProceduralPreferenceLearning:
         assert count == 2
         assert memory.get_preference("length") is None
         assert memory.get_preference("formality") is None
+
+
+# =============================================================================
+# US-013: Apply learned preferences to response generation
+# =============================================================================
+
+
+class TestPreferenceApplication:
+    """Tests for ResponseComposer preference application."""
+
+    def _create_memory(self):
+        """Create an in-memory procedural memory for testing."""
+        import sqlite3
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute("""
+            CREATE TABLE procedural (
+                id TEXT PRIMARY KEY,
+                pattern_type TEXT NOT NULL,
+                pattern_data TEXT NOT NULL,
+                success_count INTEGER DEFAULT 0,
+                failure_count INTEGER DEFAULT 0,
+                last_used TEXT
+            )
+        """)
+        conn.commit()
+        from memory.procedural import ProceduralMemory
+        return ProceduralMemory(conn, {})
+
+    def test_composer_accepts_procedural_memory(self):
+        """Test ResponseComposer can be initialized with procedural_memory."""
+        from core.composer import ResponseComposer
+        memory = self._create_memory()
+
+        composer = ResponseComposer(model=None, procedural_memory=memory)
+
+        assert composer.procedural_memory is memory
+
+    def test_composer_without_procedural_memory(self):
+        """Test ResponseComposer works without procedural_memory."""
+        from core.composer import ResponseComposer
+
+        composer = ResponseComposer(model=None)
+
+        assert composer.procedural_memory is None
+
+    def test_get_applied_preferences_empty(self):
+        """Test get_applied_preferences returns empty when no memory."""
+        from core.composer import ResponseComposer
+
+        composer = ResponseComposer(model=None)
+
+        preferences = composer.get_applied_preferences()
+
+        assert preferences == []
+
+    def test_get_applied_preferences_with_memory(self):
+        """Test get_applied_preferences returns instructions from memory."""
+        from core.composer import ResponseComposer
+        memory = self._create_memory()
+
+        # Build up confident preferences
+        for _ in range(5):
+            memory.update_preference("length", "concise", 0.9)
+
+        composer = ResponseComposer(model=None, procedural_memory=memory)
+        preferences = composer.get_applied_preferences()
+
+        assert len(preferences) >= 1
+        assert any("concise" in p.lower() for p in preferences)
+
+    def test_get_applied_preferences_filters_low_confidence(self):
+        """Test get_applied_preferences filters low confidence preferences."""
+        from core.composer import ResponseComposer
+        memory = self._create_memory()
+
+        # Single signal = 0.5 confidence (exactly at default threshold)
+        memory.update_preference("length", "concise", 0.5)
+
+        # Initial confidence is 0.5 which meets default threshold
+        composer = ResponseComposer(model=None, procedural_memory=memory)
+        preferences = composer.get_applied_preferences()
+
+        # Single signal at 0.5 confidence meets threshold
+        assert len(preferences) == 1
+
+        # But with higher threshold, should be filtered
+        filtered = memory.get_preference_instructions(min_confidence=0.6)
+        assert len(filtered) == 0
+
+    @pytest.mark.asyncio
+    async def test_compose_includes_preference_instructions(self):
+        """Test compose includes preference instructions in prompt."""
+        from core.composer import ResponseComposer, CompositionContext
+        from unittest.mock import AsyncMock, MagicMock
+
+        memory = self._create_memory()
+        # Build up confident preference
+        for _ in range(5):
+            memory.update_preference("length", "concise", 0.9)
+
+        mock_model = MagicMock()
+        mock_model.generate = AsyncMock(return_value="Test response")
+
+        composer = ResponseComposer(model=mock_model, procedural_memory=memory)
+        context = CompositionContext()
+
+        await composer.compose(intent={"raw_input": "Hello"}, context=context)
+
+        # Check that generate was called with prompt containing preference
+        call_args = mock_model.generate.call_args
+        prompt = call_args[0][0]
+        assert "concise" in prompt.lower()
+
+    @pytest.mark.asyncio
+    async def test_compose_without_procedural_memory_works(self):
+        """Test compose works fine without procedural memory."""
+        from core.composer import ResponseComposer, CompositionContext
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_model = MagicMock()
+        mock_model.generate = AsyncMock(return_value="Test response")
+
+        composer = ResponseComposer(model=mock_model, procedural_memory=None)
+        context = CompositionContext()
+
+        response = await composer.compose(intent={"raw_input": "Hello"}, context=context)
+
+        assert response == "Test response"
+
+    @pytest.mark.asyncio
+    async def test_compose_multiple_preferences(self):
+        """Test compose includes multiple preference instructions."""
+        from core.composer import ResponseComposer, CompositionContext
+        from unittest.mock import AsyncMock, MagicMock
+
+        memory = self._create_memory()
+        # Build up multiple confident preferences
+        for _ in range(5):
+            memory.update_preference("length", "detailed", 0.9)
+            memory.update_preference("formality", "formal", 0.9)
+
+        mock_model = MagicMock()
+        mock_model.generate = AsyncMock(return_value="Test response")
+
+        composer = ResponseComposer(model=mock_model, procedural_memory=memory)
+        context = CompositionContext()
+
+        await composer.compose(intent={"raw_input": "Hello"}, context=context)
+
+        call_args = mock_model.generate.call_args
+        prompt = call_args[0][0]
+        # Should contain both preference instructions
+        assert "detailed" in prompt.lower() or "comprehensive" in prompt.lower()
+        assert "formal" in prompt.lower() or "professional" in prompt.lower()
+
+    def test_preference_instructions_content(self):
+        """Test specific preference instruction content."""
+        memory = self._create_memory()
+
+        # Build up various preferences
+        for _ in range(5):
+            memory.update_preference("length", "concise", 0.9)
+            memory.update_preference("formality", "casual", 0.9)
+            memory.update_preference("detail_level", "detailed", 0.9)
+
+        instructions = memory.get_preference_instructions()
+
+        assert len(instructions) == 3
+        # Check specific instructions
+        instruction_text = " ".join(instructions).lower()
+        assert "concise" in instruction_text
+        assert "casual" in instruction_text or "conversational" in instruction_text
+        assert "thorough" in instruction_text or "examples" in instruction_text
+
+    @pytest.mark.asyncio
+    async def test_compose_preference_order_after_cognitive_state(self):
+        """Test preferences are added after cognitive state adaptations."""
+        from core.composer import ResponseComposer, CompositionContext
+        from unittest.mock import AsyncMock, MagicMock
+
+        memory = self._create_memory()
+        for _ in range(5):
+            memory.update_preference("length", "concise", 0.9)
+
+        mock_model = MagicMock()
+        mock_model.generate = AsyncMock(return_value="Test response")
+
+        # Create cognitive state that adds instructions
+        cognitive_state = MagicMock()
+        cognitive_state.frustration = 0.7  # High frustration
+        cognitive_state.time_pressure = "normal"
+        cognitive_state.energy_level = 0.6
+
+        composer = ResponseComposer(model=mock_model, procedural_memory=memory)
+        context = CompositionContext()
+
+        await composer.compose(
+            intent={"raw_input": "Hello"},
+            context=context,
+            cognitive_state=cognitive_state
+        )
+
+        call_args = mock_model.generate.call_args
+        prompt = call_args[0][0]
+        # Both cognitive adaptation and preference should be present
+        assert "frustrated" in prompt.lower() or "patient" in prompt.lower()
+        assert "concise" in prompt.lower()
+
+    @pytest.mark.asyncio
+    async def test_compose_includes_initial_confidence_preferences(self):
+        """Test initial 0.5 confidence preferences ARE included in prompt (meets threshold)."""
+        from core.composer import ResponseComposer, CompositionContext
+        from unittest.mock import AsyncMock, MagicMock
+
+        memory = self._create_memory()
+        # Single signal = 0.5 confidence (exactly at default threshold)
+        memory.update_preference("length", "detailed", 0.5)
+
+        mock_model = MagicMock()
+        mock_model.generate = AsyncMock(return_value="Test response")
+
+        composer = ResponseComposer(model=mock_model, procedural_memory=memory)
+        context = CompositionContext()
+
+        await composer.compose(intent={"raw_input": "Hello"}, context=context)
+
+        call_args = mock_model.generate.call_args
+        prompt = call_args[0][0]
+        # Initial 0.5 confidence meets the default 0.5 threshold, so should be included
+        assert "detailed" in prompt.lower() or "comprehensive" in prompt.lower()

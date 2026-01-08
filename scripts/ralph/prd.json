@@ -260,7 +260,7 @@
         "visual": false
       },
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "Gap #6: Procedural Learning - Part 2"
     },
     {

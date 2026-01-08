@@ -198,3 +198,15 @@ Project: Senter 3.0 Depth Improvements
   - track_response_fitness infers preferences from high-fitness responses
   - get_preference_instructions converts preferences to LLM prompt instructions
 ---
+
+## 2026-01-07 - US-013: Apply learned preferences to response generation
+- Implemented: ResponseComposer integration with ProceduralMemory
+- Files changed:
+  - core/composer.py (added procedural_memory parameter, get_applied_preferences method)
+  - tests/test_depth_features.py (added 11 tests for preference application)
+- Learnings:
+  - ResponseComposer queries ProceduralMemory.get_preference_instructions()
+  - Preferences added to system_parts after cognitive state adaptations
+  - Initial confidence is 0.5 which meets default threshold
+  - get_applied_preferences() returns list of instruction strings
+---
