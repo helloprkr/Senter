@@ -17,9 +17,12 @@ import logging
 import sys
 import subprocess
 import platform
+import urllib.request
+import urllib.parse
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Optional
+from enum import Enum
+from typing import Optional, Dict, Any, List, Callable
 from pathlib import Path
 from multiprocessing import Event
 from queue import Empty
@@ -29,6 +32,19 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from daemon.message_bus import MessageBus, MessageType, Message
 
 logger = logging.getLogger('senter.reporter')
+
+
+# ========== PR-001: Activity Log Retention ==========
+DEFAULT_RETENTION_DAYS = 30
+
+
+# ========== PR-003: Notification Channels ==========
+class NotificationChannel(Enum):
+    """Notification channel types (PR-003)"""
+    DESKTOP = "desktop"
+    EMAIL = "email"
+    WEBHOOK = "webhook"
+    CONSOLE = "console"
 
 
 @dataclass
@@ -54,16 +70,23 @@ class ActivityEntry:
 
 class ActivityLog:
     """
-    Persistent activity log storage.
+    Persistent activity log storage (PR-001).
+
+    Features:
+    - Daily log files in JSON format
+    - Configurable retention period
+    - Auto-cleanup of old logs
     """
 
-    def __init__(self, log_dir: Path):
+    def __init__(self, log_dir: Path, retention_days: int = DEFAULT_RETENTION_DAYS):
         self.log_dir = log_dir
         self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.retention_days = retention_days
 
         # Current day's log file
         self._current_file = None
         self._current_date = None
+        self._last_cleanup = None
 
     def _get_log_file(self) -> Path:
         """Get today's log file"""
@@ -71,7 +94,43 @@ class ActivityLog:
         if self._current_date != today:
             self._current_date = today
             self._current_file = self.log_dir / f"activity_{today}.json"
+            # Run cleanup once per day
+            self._maybe_cleanup()
         return self._current_file
+
+    def _maybe_cleanup(self):
+        """Run cleanup if not done today (PR-001)"""
+        today = datetime.now().date()
+        if self._last_cleanup == today:
+            return
+
+        self._last_cleanup = today
+        self.cleanup_old_logs()
+
+    def cleanup_old_logs(self) -> int:
+        """Remove logs older than retention period (PR-001)"""
+        cutoff_date = datetime.now() - timedelta(days=self.retention_days)
+        cutoff_str = cutoff_date.strftime("%Y-%m-%d")
+
+        removed = 0
+        for log_file in self.log_dir.glob("activity_*.json"):
+            # Extract date from filename
+            try:
+                date_part = log_file.stem.replace("activity_", "")
+                if date_part < cutoff_str:
+                    log_file.unlink()
+                    removed += 1
+                    logger.debug(f"Removed old log: {log_file.name}")
+            except Exception as e:
+                logger.warning(f"Could not process {log_file}: {e}")
+
+        if removed > 0:
+            logger.info(f"Cleaned up {removed} old activity log(s)")
+        return removed
+
+    def get_log_count(self) -> int:
+        """Get count of log files"""
+        return len(list(self.log_dir.glob("activity_*.json")))
 
     def log(self, entry: ActivityEntry):
         """Log an activity entry"""
@@ -156,11 +215,79 @@ class ActivityLog:
 
 class DigestGenerator:
     """
-    Generates activity digests (summaries).
+    Generates activity digests (summaries) (PR-002).
+
+    Supports:
+    - Daily digests
+    - Weekly digests
+    - Session summaries
     """
 
     def __init__(self, activity_log: ActivityLog):
         self.activity_log = activity_log
+
+    def generate_digest(self, period: str = "daily", date: datetime = None) -> str:
+        """Generate digest for specified period (PR-002)"""
+        if period == "weekly":
+            return self.generate_weekly_digest(date)
+        else:
+            return self.generate_daily_digest(date)
+
+    def generate_weekly_digest(self, date: datetime = None) -> str:
+        """Generate a weekly digest (PR-002)"""
+        if date is None:
+            date = datetime.now()
+
+        # Get last 7 days
+        end = datetime.combine(date, datetime.max.time())
+        start = end - timedelta(days=7)
+
+        summary = self.activity_log.get_summary(since=start.timestamp())
+
+        # Build digest
+        lines = [
+            f"📊 Weekly Digest - Week of {start.strftime('%B %d')} to {end.strftime('%B %d, %Y')}",
+            "=" * 50,
+            "",
+        ]
+
+        if summary["total_activities"] == 0:
+            lines.append("No significant activity this week.")
+        else:
+            lines.append(f"Total activities: {summary['total_activities']}")
+            lines.append("")
+
+            # Activity breakdown
+            if summary["by_type"]:
+                lines.append("Activity breakdown:")
+                for activity_type, count in sorted(summary["by_type"].items(),
+                                                   key=lambda x: x[1], reverse=True):
+                    emoji = self._get_emoji(activity_type)
+                    lines.append(f"  {emoji} {activity_type}: {count}")
+                lines.append("")
+
+            # Highlights
+            completed = summary["by_type"].get("task_completed", 0)
+            goals = summary["by_type"].get("goal_completed", 0)
+            failed = summary["by_type"].get("task_failed", 0)
+
+            lines.append("Weekly highlights:")
+            if goals > 0:
+                lines.append(f"  🎯 {goals} goals achieved")
+            if completed > 0:
+                lines.append(f"  ✓ {completed} tasks completed")
+            if failed > 0:
+                lines.append(f"  ✗ {failed} tasks failed")
+
+            # Recent accomplishments
+            if summary["recent_goals"]:
+                lines.append("")
+                lines.append("Notable completions:")
+                for goal in summary["recent_goals"]:
+                    desc = goal.get("description", "Task")[:50]
+                    lines.append(f"  ✓ {desc}")
+
+        return "\n".join(lines)
 
     def generate_daily_digest(self, date: datetime = None) -> str:
         """Generate a daily digest"""
@@ -242,28 +369,82 @@ class DigestGenerator:
         return emojis.get(activity_type, "•")
 
 
+@dataclass
+class NotificationConfig:
+    """Configuration for notification channels (PR-003)"""
+    desktop_enabled: bool = True
+    email_enabled: bool = False
+    email_to: Optional[str] = None
+    email_from: Optional[str] = None
+    email_smtp_host: str = "localhost"
+    email_smtp_port: int = 25
+    webhook_enabled: bool = False
+    webhook_url: Optional[str] = None
+    webhook_headers: Dict[str, str] = field(default_factory=dict)
+
+    # Event type -> channel mapping
+    channel_mapping: Dict[str, List[str]] = field(default_factory=lambda: {
+        "task_completed": ["desktop"],
+        "goal_completed": ["desktop", "webhook"],
+        "digest_ready": ["desktop", "email"],
+        "error": ["desktop", "webhook"]
+    })
+
+
 class Notifier:
     """
-    Desktop notification sender.
-    Cross-platform support.
+    Multi-channel notification sender (PR-003).
+
+    Supports:
+    - Desktop notifications (macOS, Linux, Windows)
+    - Email notifications
+    - Webhook notifications
+    - Console logging
+
+    Channels configurable per event type.
     """
 
-    def __init__(self):
+    def __init__(self, config: Optional[NotificationConfig] = None):
+        self.config = config or NotificationConfig()
         self.system = platform.system()
 
-    def notify(self, title: str, message: str, sound: bool = True):
-        """Send a desktop notification"""
-        try:
-            if self.system == "Darwin":  # macOS
-                self._notify_macos(title, message, sound)
-            elif self.system == "Linux":
-                self._notify_linux(title, message)
-            elif self.system == "Windows":
-                self._notify_windows(title, message)
-            else:
-                logger.warning(f"Notifications not supported on {self.system}")
-        except Exception as e:
-            logger.warning(f"Notification failed: {e}")
+    def notify(
+        self,
+        title: str,
+        message: str,
+        event_type: str = "default",
+        channels: Optional[List[str]] = None,
+        sound: bool = True,
+        extra_data: Optional[Dict] = None
+    ):
+        """Send notification to configured channels (PR-003)"""
+        # Determine channels to use
+        if channels is None:
+            channels = self.config.channel_mapping.get(event_type, ["desktop"])
+
+        for channel in channels:
+            try:
+                if channel == "desktop" and self.config.desktop_enabled:
+                    self._notify_desktop(title, message, sound)
+                elif channel == "email" and self.config.email_enabled:
+                    self._notify_email(title, message)
+                elif channel == "webhook" and self.config.webhook_enabled:
+                    self._notify_webhook(title, message, event_type, extra_data)
+                elif channel == "console":
+                    self._notify_console(title, message)
+            except Exception as e:
+                logger.warning(f"Notification failed ({channel}): {e}")
+
+    def _notify_desktop(self, title: str, message: str, sound: bool):
+        """Send desktop notification"""
+        if self.system == "Darwin":  # macOS
+            self._notify_macos(title, message, sound)
+        elif self.system == "Linux":
+            self._notify_linux(title, message)
+        elif self.system == "Windows":
+            self._notify_windows(title, message)
+        else:
+            logger.warning(f"Desktop notifications not supported on {self.system}")
 
     def _notify_macos(self, title: str, message: str, sound: bool):
         """Send notification on macOS"""
@@ -286,6 +467,91 @@ class Notifier:
             toaster.show_toast(title, message, duration=5)
         except ImportError:
             logger.warning("win10toast not installed for Windows notifications")
+
+    def _notify_email(self, title: str, message: str):
+        """Send email notification (PR-003)"""
+        if not self.config.email_to:
+            logger.warning("Email recipient not configured")
+            return
+
+        try:
+            import smtplib
+            from email.mime.text import MIMEText
+
+            msg = MIMEText(message)
+            msg['Subject'] = f"[Senter] {title}"
+            msg['From'] = self.config.email_from or "senter@localhost"
+            msg['To'] = self.config.email_to
+
+            with smtplib.SMTP(self.config.email_smtp_host, self.config.email_smtp_port) as server:
+                server.send_message(msg)
+
+            logger.debug(f"Email notification sent to {self.config.email_to}")
+
+        except Exception as e:
+            logger.warning(f"Email notification failed: {e}")
+
+    def _notify_webhook(
+        self,
+        title: str,
+        message: str,
+        event_type: str,
+        extra_data: Optional[Dict]
+    ):
+        """Send webhook notification (PR-003)"""
+        if not self.config.webhook_url:
+            logger.warning("Webhook URL not configured")
+            return
+
+        try:
+            payload = {
+                "title": title,
+                "message": message,
+                "event_type": event_type,
+                "timestamp": time.time(),
+                "source": "senter"
+            }
+            if extra_data:
+                payload["data"] = extra_data
+
+            data = json.dumps(payload).encode('utf-8')
+
+            headers = {
+                "Content-Type": "application/json",
+                "User-Agent": "Senter/1.0"
+            }
+            headers.update(self.config.webhook_headers)
+
+            req = urllib.request.Request(
+                self.config.webhook_url,
+                data=data,
+                headers=headers,
+                method='POST'
+            )
+
+            with urllib.request.urlopen(req, timeout=10) as response:
+                if response.status < 300:
+                    logger.debug(f"Webhook notification sent to {self.config.webhook_url}")
+                else:
+                    logger.warning(f"Webhook returned status {response.status}")
+
+        except Exception as e:
+            logger.warning(f"Webhook notification failed: {e}")
+
+    def _notify_console(self, title: str, message: str):
+        """Log notification to console (PR-003)"""
+        logger.info(f"[NOTIFICATION] {title}: {message}")
+
+    def get_enabled_channels(self) -> List[str]:
+        """Get list of enabled channels (PR-003)"""
+        channels = []
+        if self.config.desktop_enabled:
+            channels.append("desktop")
+        if self.config.email_enabled:
+            channels.append("email")
+        if self.config.webhook_enabled:
+            channels.append("webhook")
+        return channels
 
 
 class ProgressReporter:

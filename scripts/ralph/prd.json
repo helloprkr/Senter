@@ -1054,8 +1054,8 @@
         "reporter/progress_reporter.py"
       ],
       "priority": 36,
-      "passes": false,
-      "notes": "Progress Reporter - Daily digest"
+      "passes": true,
+      "notes": "COMPLETED - ActivityLog with retention (30 days), cleanup, persistence"
     },
     {
       "id": "PR-002",
@@ -1082,8 +1082,8 @@
         "scripts/senter_ctl.py"
       ],
       "priority": 37,
-      "passes": false,
-      "notes": "Progress Reporter - Goal progress"
+      "passes": true,
+      "notes": "COMPLETED - Daily and weekly digests, configurable via generate_digest()"
     },
     {
       "id": "PR-003",
@@ -1109,8 +1109,8 @@
         "daemon/senter_daemon.py"
       ],
       "priority": 38,
-      "passes": false,
-      "notes": "Progress Reporter - Session summaries"
+      "passes": true,
+      "notes": "COMPLETED - Multi-channel notifications (desktop, email, webhook)"
     },
     {
       "id": "FA-001",
