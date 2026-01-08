@@ -186,8 +186,8 @@
       ],
       "qualityGate": "Create 3 different research tasks from chat, all appear in Tasks",
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented 2026-01-08: _detect_research_intent with regex patterns, creates task and returns confirmation"
     },
     {
       "id": "P2-003",

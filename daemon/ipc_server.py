@@ -201,6 +201,26 @@ class IPCServer:
             # Log query to events database (US-008)
             self._log_user_query(text, topic)
 
+            # P2-002: Check for research intent and create task instead
+            research_intent = self._detect_research_intent(text)
+            if research_intent:
+                # Create research task instead of responding immediately
+                task_result = self._handle_add_research_task({
+                    "description": research_intent["description"],
+                    "goal_id": "chat_research"
+                })
+
+                if "error" not in task_result:
+                    task_id = task_result.get("task_id", "unknown")
+                    return {
+                        "response": f"I'll research that for you. I've created a task: '{research_intent['description']}'. Check the Tasks tab to see the progress and results.",
+                        "latency": time.time() - start_time,
+                        "worker": "task_creator",
+                        "topic": "research",
+                        "task_created": True,
+                        "task_id": task_id
+                    }
+
             # P1-003: Build context from conversation history
             conversation_id = request.get("conversation_id")
             context_prompt = self._build_conversation_context(conversation_id, text)
@@ -305,6 +325,44 @@ class IPCServer:
             return matched_topics[0]
 
         return "general"
+
+    def _detect_research_intent(self, text: str) -> dict | None:
+        """Detect if user wants to create a research task (P2-002)"""
+        import re
+        text_lower = text.lower().strip()
+
+        # Patterns that indicate research intent
+        research_patterns = [
+            # "research X", "research about X"
+            (r"^research\s+(?:about\s+)?(.+)$", lambda m: m.group(1)),
+            # "look up X", "look into X"
+            (r"^look\s+(?:up|into)\s+(.+)$", lambda m: m.group(1)),
+            # "find out about X", "find information on X"
+            (r"^find\s+(?:out\s+(?:about|more\s+about)?|information\s+(?:on|about))\s+(.+)$", lambda m: m.group(1)),
+            # "search for X"
+            (r"^search\s+for\s+(.+)$", lambda m: m.group(1)),
+            # "what are the best practices for X"
+            (r"^what\s+are\s+(?:the\s+)?best\s+practices\s+for\s+(.+)$", lambda m: m.group(1)),
+            # "can you research X"
+            (r"^can\s+you\s+research\s+(.+)$", lambda m: m.group(1)),
+            # "I need research on X"
+            (r"^i\s+need\s+(?:some\s+)?research\s+(?:on|about)\s+(.+)$", lambda m: m.group(1)),
+        ]
+
+        for pattern, extractor in research_patterns:
+            match = re.match(pattern, text_lower, re.IGNORECASE)
+            if match:
+                topic = extractor(match).strip()
+                # Clean up the topic
+                topic = re.sub(r'[?.!]+$', '', topic).strip()
+                if topic:
+                    return {
+                        "description": f"Research: {topic}",
+                        "original_query": text,
+                        "topic": topic
+                    }
+
+        return None
 
     def _log_user_query(self, query: str, topic: str):
         """Log user query to events database (US-008)"""

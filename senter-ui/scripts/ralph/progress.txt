@@ -183,3 +183,29 @@ Date: 2026-01-08
 - typecheck: PASSED
 - build: PASSED
 
+### P2-002: Create Task from Chat [PASSED]
+Date: 2026-01-08
+
+**Implementation:**
+1. Added `_detect_research_intent` method in daemon/ipc_server.py:
+   - Regex patterns for: "research X", "look up X", "find out about X"
+   - Also: "search for X", "best practices for X", "can you research X"
+   - Returns description and topic for task creation
+
+2. Updated `_handle_query` to check research intent:
+   - Calls _detect_research_intent before sending to model
+   - If research intent detected, creates task via _handle_add_research_task
+   - Returns confirmation message: "I'll research that for you..."
+
+**Supported phrases:**
+- "research event sourcing"
+- "look up best practices for authentication"
+- "find out about GraphQL"
+- "search for machine learning tutorials"
+- "what are the best practices for API design"
+
+**Verification:**
+- Python syntax: OK
+- typecheck: PASSED
+- build: PASSED
+
