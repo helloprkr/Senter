@@ -22,6 +22,29 @@ if TYPE_CHECKING:
 
 
 @dataclass
+class FailureAnalysis:
+    """Analysis of failure patterns in low-fitness episodes."""
+
+    total_episodes: int
+    patterns: Dict[str, int]  # failure_type -> count
+    suggested_fixes: List[Dict[str, Any]]
+    avg_fitness: float
+    worst_episode_id: Optional[str] = None
+    analysis_summary: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "total_episodes": self.total_episodes,
+            "patterns": self.patterns,
+            "suggested_fixes": self.suggested_fixes,
+            "avg_fitness": self.avg_fitness,
+            "worst_episode_id": self.worst_episode_id,
+            "analysis_summary": self.analysis_summary,
+        }
+
+
+@dataclass
 class Mutation:
     """A proposed mutation to the system."""
 
@@ -644,3 +667,205 @@ class MutationEngine:
                 for r in self.history[-5:]
             ],
         }
+
+    def analyze_low_fitness_episodes(
+        self,
+        episodes: List["Episode"],
+        fitness_threshold: float = 0.5
+    ) -> FailureAnalysis:
+        """
+        Analyze low-fitness episodes to identify failure patterns.
+
+        Categorizes failures into types:
+        - too_long: Response was too verbose
+        - too_short: Response was too terse
+        - wrong_mode: Coupling mode didn't match user intent
+        - missed_frustration: Failed to detect user frustration
+        - low_engagement: User seemed disengaged
+        - off_topic: Response didn't address user's question
+
+        Args:
+            episodes: List of Episode objects to analyze
+            fitness_threshold: Episodes below this fitness are considered failures
+
+        Returns:
+            FailureAnalysis with patterns, counts, and suggested fixes
+        """
+        if not episodes:
+            return FailureAnalysis(
+                total_episodes=0,
+                patterns={},
+                suggested_fixes=[],
+                avg_fitness=0.0,
+                analysis_summary="No episodes to analyze"
+            )
+
+        patterns: Dict[str, int] = {
+            "too_long": 0,
+            "too_short": 0,
+            "wrong_mode": 0,
+            "missed_frustration": 0,
+            "low_engagement": 0,
+            "off_topic": 0,
+        }
+
+        fitnesses = []
+        worst_fitness = 1.0
+        worst_episode_id = None
+
+        for ep in episodes:
+            # Get episode fitness from cognitive state or joint state
+            cognitive_state = getattr(ep, "cognitive_state", {})
+            if hasattr(cognitive_state, "to_dict"):
+                cognitive_state = cognitive_state.to_dict()
+            elif not isinstance(cognitive_state, dict):
+                cognitive_state = {}
+
+            joint_state = getattr(ep, "joint_state", {})
+            if hasattr(joint_state, "to_dict"):
+                joint_state = joint_state.to_dict()
+            elif not isinstance(joint_state, dict):
+                joint_state = {}
+
+            fitness = joint_state.get("fitness", cognitive_state.get("fitness", 0.5))
+            fitnesses.append(fitness)
+
+            # Track worst episode
+            if fitness < worst_fitness:
+                worst_fitness = fitness
+                worst_episode_id = getattr(ep, "id", None)
+
+            # Skip if above threshold
+            if fitness >= fitness_threshold:
+                continue
+
+            # Analyze failure patterns
+            response = getattr(ep, "response", "")
+            input_text = getattr(ep, "input", "").lower()
+            mode = getattr(ep, "mode", "DIALOGUE")
+
+            # Too long check
+            if len(response) > 2000:
+                patterns["too_long"] += 1
+
+            # Too short check
+            if len(response) < 50 and len(input_text) > 50:
+                patterns["too_short"] += 1
+
+            # Wrong mode check
+            mode_signals = {
+                "teach": "TEACHING",
+                "explain": "DIALOGUE",
+                "help me": "COLLABORATIVE",
+                "let's work on": "COLLABORATIVE",
+                "can you": "DIALOGUE",
+                "show me": "TEACHING",
+            }
+            for signal, expected_mode in mode_signals.items():
+                if signal in input_text and mode != expected_mode:
+                    patterns["wrong_mode"] += 1
+                    break
+
+            # Missed frustration check
+            frustration_signals = ["frustrated", "annoyed", "stuck", "not working", "doesn't work", "broken"]
+            frustration = cognitive_state.get("frustration", 0)
+            if any(sig in input_text for sig in frustration_signals) and frustration < 0.3:
+                patterns["missed_frustration"] += 1
+
+            # Low engagement check
+            engagement = cognitive_state.get("engagement", joint_state.get("engagement", 0.5))
+            if engagement < 0.3:
+                patterns["low_engagement"] += 1
+
+            # Off topic check (simple heuristic)
+            input_words = set(input_text.split())
+            response_lower = response.lower()
+            response_words = set(response_lower.split())
+            overlap = len(input_words & response_words)
+            if len(input_words) > 5 and overlap < 2:
+                patterns["off_topic"] += 1
+
+        # Generate suggested fixes based on patterns
+        suggested_fixes = self._generate_fixes_from_patterns(patterns)
+
+        # Calculate average fitness
+        avg_fitness = sum(fitnesses) / len(fitnesses) if fitnesses else 0.0
+
+        # Generate summary
+        total_failures = sum(patterns.values())
+        dominant_pattern = max(patterns, key=patterns.get) if any(patterns.values()) else None
+        summary = f"Analyzed {len(episodes)} episodes. Found {total_failures} failure patterns."
+        if dominant_pattern and patterns[dominant_pattern] > 0:
+            summary += f" Most common issue: {dominant_pattern} ({patterns[dominant_pattern]} occurrences)."
+
+        return FailureAnalysis(
+            total_episodes=len(episodes),
+            patterns=patterns,
+            suggested_fixes=suggested_fixes,
+            avg_fitness=avg_fitness,
+            worst_episode_id=worst_episode_id,
+            analysis_summary=summary,
+        )
+
+    def _generate_fixes_from_patterns(self, patterns: Dict[str, int]) -> List[Dict[str, Any]]:
+        """Generate suggested fixes based on failure patterns."""
+        fixes = []
+
+        if patterns.get("too_long", 0) >= 2:
+            fixes.append({
+                "pattern": "too_long",
+                "fix_type": "prompt_refinement",
+                "target": "response.max_length",
+                "suggestion": "Add conciseness instruction to system prompt",
+                "priority": patterns["too_long"],
+            })
+
+        if patterns.get("too_short", 0) >= 2:
+            fixes.append({
+                "pattern": "too_short",
+                "fix_type": "prompt_refinement",
+                "target": "response.min_length",
+                "suggestion": "Add detail instruction to system prompt",
+                "priority": patterns["too_short"],
+            })
+
+        if patterns.get("wrong_mode", 0) >= 2:
+            fixes.append({
+                "pattern": "wrong_mode",
+                "fix_type": "protocol_tuning",
+                "target": "coupling.protocols",
+                "suggestion": "Adjust mode detection triggers",
+                "priority": patterns["wrong_mode"],
+            })
+
+        if patterns.get("missed_frustration", 0) >= 2:
+            fixes.append({
+                "pattern": "missed_frustration",
+                "fix_type": "threshold_modification",
+                "target": "coupling.human_model.frustration_threshold",
+                "suggestion": "Lower frustration detection threshold",
+                "priority": patterns["missed_frustration"],
+            })
+
+        if patterns.get("low_engagement", 0) >= 2:
+            fixes.append({
+                "pattern": "low_engagement",
+                "fix_type": "prompt_refinement",
+                "target": "response.engagement",
+                "suggestion": "Add engagement hooks to responses",
+                "priority": patterns["low_engagement"],
+            })
+
+        if patterns.get("off_topic", 0) >= 2:
+            fixes.append({
+                "pattern": "off_topic",
+                "fix_type": "prompt_refinement",
+                "target": "response.relevance",
+                "suggestion": "Improve context understanding in prompt",
+                "priority": patterns["off_topic"],
+            })
+
+        # Sort by priority
+        fixes.sort(key=lambda x: x["priority"], reverse=True)
+
+        return fixes

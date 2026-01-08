@@ -1262,3 +1262,278 @@ class TestGoalProgressDetection:
 
         assert results == []
         assert detector.goals["g1"].progress == 0.3  # Unchanged
+
+
+# ============================================================================
+# US-006: Failure analysis in MutationEngine
+# ============================================================================
+
+class TestMutationFailureAnalysis:
+    """Tests for failure analysis in MutationEngine."""
+
+    def test_failure_analysis_dataclass(self):
+        """Test FailureAnalysis dataclass structure."""
+        from evolution.mutations import FailureAnalysis
+
+        analysis = FailureAnalysis(
+            total_episodes=10,
+            patterns={"too_long": 3, "too_short": 2},
+            suggested_fixes=[{"pattern": "too_long", "fix_type": "prompt_refinement"}],
+            avg_fitness=0.4,
+            worst_episode_id="ep1",
+            analysis_summary="Test summary"
+        )
+
+        assert analysis.total_episodes == 10
+        assert analysis.patterns["too_long"] == 3
+        assert len(analysis.suggested_fixes) == 1
+        assert analysis.avg_fitness == 0.4
+
+    def test_failure_analysis_to_dict(self):
+        """Test FailureAnalysis.to_dict() method."""
+        from evolution.mutations import FailureAnalysis
+
+        analysis = FailureAnalysis(
+            total_episodes=5,
+            patterns={"wrong_mode": 2},
+            suggested_fixes=[],
+            avg_fitness=0.35
+        )
+
+        data = analysis.to_dict()
+        assert data["total_episodes"] == 5
+        assert "wrong_mode" in data["patterns"]
+        assert data["avg_fitness"] == 0.35
+
+    def test_analyze_low_fitness_episodes_empty(self):
+        """Test analysis with empty episodes list."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+        analysis = engine.analyze_low_fitness_episodes([])
+
+        assert analysis.total_episodes == 0
+        assert analysis.patterns == {}
+        assert "No episodes" in analysis.analysis_summary
+
+    def test_analyze_low_fitness_episodes_too_long(self):
+        """Test detecting too_long failure pattern."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+
+        # Create mock episodes with long responses
+        class MockEpisode:
+            def __init__(self, response_len):
+                self.id = "ep1"
+                self.input = "short question"
+                self.response = "x" * response_len
+                self.mode = "DIALOGUE"
+                self.cognitive_state = {"fitness": 0.3}
+                self.joint_state = {"fitness": 0.3}
+
+        episodes = [MockEpisode(2500), MockEpisode(3000), MockEpisode(100)]
+
+        analysis = engine.analyze_low_fitness_episodes(episodes, fitness_threshold=0.5)
+
+        assert analysis.patterns["too_long"] == 2
+        assert any(fix["pattern"] == "too_long" for fix in analysis.suggested_fixes)
+
+    def test_analyze_low_fitness_episodes_too_short(self):
+        """Test detecting too_short failure pattern."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+
+        class MockEpisode:
+            def __init__(self, input_text, response):
+                self.id = "ep2"
+                self.input = input_text
+                self.response = response
+                self.mode = "DIALOGUE"
+                self.cognitive_state = {"fitness": 0.3}
+                self.joint_state = {"fitness": 0.3}
+
+        episodes = [
+            MockEpisode("This is a very long question that requires a detailed answer", "Ok."),
+            MockEpisode("Another lengthy question that deserves more than just a word", "Yes."),
+            MockEpisode("Short", "This is a reasonable response."),
+        ]
+
+        analysis = engine.analyze_low_fitness_episodes(episodes, fitness_threshold=0.5)
+
+        assert analysis.patterns["too_short"] == 2
+        assert any(fix["pattern"] == "too_short" for fix in analysis.suggested_fixes)
+
+    def test_analyze_low_fitness_episodes_wrong_mode(self):
+        """Test detecting wrong_mode failure pattern."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+
+        class MockEpisode:
+            def __init__(self, input_text, mode):
+                self.id = "ep3"
+                self.input = input_text
+                self.response = "Some response"
+                self.mode = mode
+                self.cognitive_state = {"fitness": 0.3}
+                self.joint_state = {"fitness": 0.3}
+
+        episodes = [
+            MockEpisode("teach me about Python", "DIALOGUE"),  # Should be TEACHING
+            MockEpisode("help me with this code", "DIALOGUE"),  # Should be COLLABORATIVE
+            MockEpisode("what is AI?", "DIALOGUE"),  # Correct
+        ]
+
+        analysis = engine.analyze_low_fitness_episodes(episodes, fitness_threshold=0.5)
+
+        assert analysis.patterns["wrong_mode"] == 2
+
+    def test_analyze_low_fitness_episodes_missed_frustration(self):
+        """Test detecting missed_frustration failure pattern."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+
+        class MockEpisode:
+            def __init__(self, input_text, frustration):
+                self.id = "ep4"
+                self.input = input_text
+                self.response = "Response"
+                self.mode = "DIALOGUE"
+                self.cognitive_state = {"fitness": 0.3, "frustration": frustration}
+                self.joint_state = {"fitness": 0.3}
+
+        episodes = [
+            MockEpisode("I'm so frustrated with this bug!", 0.1),  # Missed frustration
+            MockEpisode("This doesn't work and it's annoying", 0.2),  # Missed frustration
+            MockEpisode("I'm frustrated", 0.8),  # Detected correctly
+        ]
+
+        analysis = engine.analyze_low_fitness_episodes(episodes, fitness_threshold=0.5)
+
+        assert analysis.patterns["missed_frustration"] == 2
+
+    def test_analyze_low_fitness_episodes_skips_high_fitness(self):
+        """Test that high-fitness episodes are not analyzed for failures."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+
+        class MockEpisode:
+            def __init__(self, fitness, response_len):
+                self.id = "ep5"
+                self.input = "question"
+                self.response = "x" * response_len
+                self.mode = "DIALOGUE"
+                self.cognitive_state = {"fitness": fitness}
+                self.joint_state = {"fitness": fitness}
+
+        episodes = [
+            MockEpisode(0.8, 5000),  # High fitness - should not count as too_long
+            MockEpisode(0.3, 5000),  # Low fitness - should count
+        ]
+
+        analysis = engine.analyze_low_fitness_episodes(episodes, fitness_threshold=0.5)
+
+        assert analysis.patterns["too_long"] == 1  # Only the low-fitness one
+
+    def test_analyze_low_fitness_episodes_worst_episode(self):
+        """Test tracking worst episode."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+
+        class MockEpisode:
+            def __init__(self, ep_id, fitness):
+                self.id = ep_id
+                self.input = "question"
+                self.response = "answer"
+                self.mode = "DIALOGUE"
+                self.cognitive_state = {"fitness": fitness}
+                self.joint_state = {"fitness": fitness}
+
+        episodes = [
+            MockEpisode("ep1", 0.4),
+            MockEpisode("ep2", 0.1),  # Worst
+            MockEpisode("ep3", 0.3),
+        ]
+
+        analysis = engine.analyze_low_fitness_episodes(episodes, fitness_threshold=0.5)
+
+        assert analysis.worst_episode_id == "ep2"
+        assert analysis.avg_fitness == pytest.approx(0.267, rel=0.1)
+
+    def test_analyze_low_fitness_episodes_suggested_fixes_priority(self):
+        """Test that suggested fixes are sorted by priority."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+
+        class MockEpisode:
+            def __init__(self, response_len, input_len):
+                self.id = "ep6"
+                self.input = "x" * input_len
+                self.response = "y" * response_len
+                self.mode = "DIALOGUE"
+                self.cognitive_state = {"fitness": 0.3}
+                self.joint_state = {"fitness": 0.3}
+
+        # Create episodes that trigger multiple patterns
+        episodes = [
+            MockEpisode(3000, 10),  # too_long
+            MockEpisode(3000, 10),  # too_long
+            MockEpisode(3000, 10),  # too_long
+            MockEpisode(20, 100),   # too_short
+            MockEpisode(20, 100),   # too_short
+        ]
+
+        analysis = engine.analyze_low_fitness_episodes(episodes, fitness_threshold=0.5)
+
+        # too_long should have higher priority (3 vs 2)
+        if analysis.suggested_fixes:
+            assert analysis.suggested_fixes[0]["pattern"] == "too_long"
+
+    def test_generate_fixes_from_patterns(self):
+        """Test fix generation from patterns."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+
+        patterns = {
+            "too_long": 5,
+            "missed_frustration": 3,
+            "too_short": 0,
+            "wrong_mode": 0,
+            "low_engagement": 0,
+            "off_topic": 0,
+        }
+
+        fixes = engine._generate_fixes_from_patterns(patterns)
+
+        assert len(fixes) == 2  # Only patterns with >= 2 occurrences
+        assert fixes[0]["pattern"] == "too_long"  # Highest priority first
+        assert fixes[0]["priority"] == 5
+
+    def test_analysis_summary_content(self):
+        """Test that analysis summary is informative."""
+        from evolution.mutations import MutationEngine
+
+        engine = MutationEngine()
+
+        class MockEpisode:
+            def __init__(self, response_len):
+                self.id = "ep7"
+                self.input = "short"
+                self.response = "x" * response_len
+                self.mode = "DIALOGUE"
+                self.cognitive_state = {"fitness": 0.3}
+                self.joint_state = {"fitness": 0.3}
+
+        episodes = [MockEpisode(3000) for _ in range(5)]
+
+        analysis = engine.analyze_low_fitness_episodes(episodes, fitness_threshold=0.5)
+
+        assert "5 episodes" in analysis.analysis_summary
+        assert "too_long" in analysis.analysis_summary
