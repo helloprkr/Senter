@@ -62,6 +62,8 @@ class IPCServer:
             "trigger_research": self._handle_trigger_research,  # US-005
             "activity_report": self._handle_activity_report,  # US-006
             "get_events": self._handle_get_events,  # US-008
+            "get_conversations": self._handle_get_conversations,  # P1-001
+            "save_conversation": self._handle_save_conversation,  # P1-001
         }
 
     def run(self):
@@ -728,4 +730,137 @@ class IPCServer:
             }
 
         except Exception as e:
+            return {"error": str(e)}
+
+    def _handle_get_conversations(self, request: dict = None) -> dict:
+        """Handle get_conversations request (P1-001) - retrieve conversation history"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            senter_root = Path(self.daemon.senter_root)
+            conv_dir = senter_root / "data" / "conversations"
+            index_file = conv_dir / "index.json"
+
+            if not index_file.exists():
+                return {"conversations": [], "count": 0}
+
+            # Read index
+            index_data = json.loads(index_file.read_text())
+            conversations = index_data.get("conversations", [])
+
+            # If specific conversation requested, return full messages
+            conv_id = request.get("conversation_id") if request else None
+            if conv_id:
+                conv_file = conv_dir / f"{conv_id}.json"
+                if conv_file.exists():
+                    conv_data = json.loads(conv_file.read_text())
+                    return {"conversation": conv_data}
+                else:
+                    return {"error": f"Conversation {conv_id} not found"}
+
+            # If include_messages flag, load all messages
+            include_messages = request.get("include_messages", False) if request else False
+            if include_messages:
+                full_conversations = []
+                for conv in conversations:
+                    conv_file = conv_dir / f"{conv['id']}.json"
+                    if conv_file.exists():
+                        full_conversations.append(json.loads(conv_file.read_text()))
+                    else:
+                        full_conversations.append(conv)
+                return {"conversations": full_conversations, "count": len(full_conversations)}
+
+            # Return just the index (metadata only)
+            return {"conversations": conversations, "count": len(conversations)}
+
+        except Exception as e:
+            logger.error(f"get_conversations error: {e}")
+            return {"error": str(e)}
+
+    def _handle_save_conversation(self, request: dict) -> dict:
+        """Handle save_conversation request (P1-001) - persist conversation to storage"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        conversation = request.get("conversation")
+        if not conversation:
+            return {"error": "Missing 'conversation' field"}
+
+        try:
+            from datetime import datetime
+
+            senter_root = Path(self.daemon.senter_root)
+            conv_dir = senter_root / "data" / "conversations"
+            conv_dir.mkdir(parents=True, exist_ok=True)
+
+            index_file = conv_dir / "index.json"
+
+            # Load or create index
+            if index_file.exists():
+                index_data = json.loads(index_file.read_text())
+            else:
+                index_data = {"conversations": [], "last_id": 0}
+
+            conv_id = conversation.get("id")
+            messages = conversation.get("messages", [])
+            focus = conversation.get("focus", "general")
+
+            # Generate new ID if not provided
+            if not conv_id:
+                today = datetime.now().strftime("%Y-%m-%d")
+                index_data["last_id"] = index_data.get("last_id", 0) + 1
+                conv_id = f"{today}_{index_data['last_id']:04d}"
+                conversation["id"] = conv_id
+
+            # Generate summary from first user message
+            summary = ""
+            for msg in messages:
+                if msg.get("role") == "user":
+                    summary = msg.get("content", "")[:100]
+                    break
+
+            # Prepare metadata
+            conv_meta = {
+                "id": conv_id,
+                "focus": focus,
+                "created": conversation.get("created", datetime.now().isoformat()),
+                "message_count": len(messages),
+                "summary": summary
+            }
+
+            # Update or add to index
+            existing_idx = next(
+                (i for i, c in enumerate(index_data["conversations"]) if c["id"] == conv_id),
+                None
+            )
+            if existing_idx is not None:
+                index_data["conversations"][existing_idx] = conv_meta
+            else:
+                index_data["conversations"].append(conv_meta)
+
+            # Save index
+            index_file.write_text(json.dumps(index_data, indent=2))
+
+            # Save full conversation
+            conv_file = conv_dir / f"{conv_id}.json"
+            full_conv = {
+                "id": conv_id,
+                "messages": messages,
+                "focus": focus,
+                "created": conv_meta["created"],
+                "summary": summary
+            }
+            conv_file.write_text(json.dumps(full_conv, indent=2))
+
+            logger.info(f"Saved conversation {conv_id} with {len(messages)} messages")
+
+            return {
+                "status": "ok",
+                "conversation_id": conv_id,
+                "message_count": len(messages)
+            }
+
+        except Exception as e:
+            logger.error(f"save_conversation error: {e}")
             return {"error": str(e)}

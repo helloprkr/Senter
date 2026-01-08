@@ -1,0 +1,425 @@
+{
+  "projectName": "Senter UI Integration - Gap Vision v2",
+  "branchName": "ralph/gap-vision-v2",
+  "stack": {
+    "language": "typescript",
+    "framework": "electron-react",
+    "testRunner": "vitest",
+    "backend": "python"
+  },
+  "verification": {
+    "typecheck": "cd /Users/maximvs/Desktop/__2026_/Senter ⎊/senter-ui && npx tsc --noEmit",
+    "build": "cd /Users/maximvs/Desktop/__2026_/Senter ⎊/senter-ui && npm run build",
+    "lint": "cd /Users/maximvs/Desktop/__2026_/Senter ⎊/senter-ui && npm run lint || true"
+  },
+  "userStories": [
+    {
+      "id": "P1-001",
+      "title": "Conversation Persistence - Never Lose a Chat",
+      "phase": 1,
+      "valueStatement": "Every conversation is saved and survives app restart. User opens Senter tomorrow and sees yesterday's conversations.",
+      "demoScript": [
+        "1. Start Senter UI and daemon",
+        "2. Send a message: 'Hello, remember this conversation'",
+        "3. Receive response",
+        "4. Close and reopen the app",
+        "5. See the conversation in History tab with the message intact"
+      ],
+      "acceptanceCriteria": [
+        "Conversations persist to daemon storage via new IPC command",
+        "History tab loads conversations from daemon on app start",
+        "Messages survive 5 consecutive app restarts",
+        "typecheck passes",
+        "build succeeds"
+      ],
+      "technicalRequirements": [
+        "Add 'get_conversations' IPC handler in Python daemon",
+        "Add 'save_conversation' IPC handler in Python daemon",
+        "Add corresponding IPC bridge in Electron main process",
+        "Update useSenter hook to load history on mount",
+        "Update chatSlice to sync with daemon"
+      ],
+      "qualityGate": "Manually restart app 5 times - all conversations persist",
+      "priority": 1,
+      "passes": true,
+      "notes": "Implemented 2026-01-08: get_conversations + save_conversation IPC handlers, auto-save on bot response"
+    },
+    {
+      "id": "P1-002",
+      "title": "History Tab Shows Real Conversations",
+      "phase": 1,
+      "valueStatement": "User clicks History tab and sees all past conversations, clickable to restore.",
+      "demoScript": [
+        "1. Have 3 different conversations over 3 app sessions",
+        "2. Open History tab in RightPanel",
+        "3. See list of 3 conversations with titles/previews",
+        "4. Click a conversation to load it into main chat",
+        "5. Continue that conversation"
+      ],
+      "acceptanceCriteria": [
+        "History tab displays list of past conversations",
+        "Each entry shows title (first message preview) and timestamp",
+        "Clicking conversation loads it into ChatView",
+        "Can continue previous conversation",
+        "typecheck passes"
+      ],
+      "technicalRequirements": [
+        "RightPanel History tab fetches from store",
+        "Store loads from daemon via IPC on mount",
+        "Click handler sets active conversation",
+        "ChatView renders selected conversation's messages"
+      ],
+      "qualityGate": "Can navigate between 5 different conversations seamlessly",
+      "priority": 2,
+      "passes": false,
+      "notes": "Depends on P1-001"
+    },
+    {
+      "id": "P1-003",
+      "title": "Conversation Context in Prompts",
+      "phase": 1,
+      "valueStatement": "Senter remembers what you discussed earlier in the conversation. No more 'I don't have context' responses.",
+      "demoScript": [
+        "1. Say: 'My name is Max'",
+        "2. Get acknowledgment",
+        "3. Say: 'What is my name?'",
+        "4. Senter responds: 'Your name is Max'"
+      ],
+      "acceptanceCriteria": [
+        "Query includes conversation history in prompt",
+        "Daemon builds prompt with last N messages as context",
+        "Senter correctly answers questions about earlier messages",
+        "typecheck passes"
+      ],
+      "technicalRequirements": [
+        "Modify _handle_query in ipc_server.py to include conversation history",
+        "Pass conversation_id with each query",
+        "Build system prompt with conversation context",
+        "Limit context to last 20 messages to fit context window"
+      ],
+      "qualityGate": "Ask 'What did I say earlier?' - Senter accurately recalls",
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "P1-004",
+      "title": "History Search",
+      "phase": 1,
+      "valueStatement": "User types 'Rust' in search - finds all conversations mentioning Rust.",
+      "demoScript": [
+        "1. Have 5 conversations, 2 mention 'Rust'",
+        "2. Type 'Rust' in History search",
+        "3. See only the 2 relevant conversations",
+        "4. Clear search - see all 5 again"
+      ],
+      "acceptanceCriteria": [
+        "Search input in History tab",
+        "Filters conversations by keyword match",
+        "Real-time filtering as you type",
+        "Empty search shows all",
+        "typecheck passes"
+      ],
+      "technicalRequirements": [
+        "Add SearchBar to RightPanel History tab",
+        "Filter store.conversations by search term",
+        "Match against message content and titles",
+        "Debounce search for performance"
+      ],
+      "qualityGate": "Find a specific conversation from 20+ stored conversations in <2 seconds",
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "P2-001",
+      "title": "Tasks Tab Shows Real Tasks",
+      "phase": 2,
+      "valueStatement": "User sees their queued and completed tasks with status and results.",
+      "demoScript": [
+        "1. Queue a research task via CLI: python -m daemon.ipc_client add_research_task 'Learn about GraphQL'",
+        "2. Open Tasks tab in UI",
+        "3. See task with status: 'pending' or 'completed'",
+        "4. If completed, see result summary"
+      ],
+      "acceptanceCriteria": [
+        "Tasks tab shows list of all tasks from daemon",
+        "Each task shows: title, status, timestamp",
+        "Completed tasks show result preview",
+        "Click task to see full result",
+        "typecheck passes"
+      ],
+      "technicalRequirements": [
+        "Add 'get_tasks' IPC handler to daemon",
+        "Add IPC bridge in Electron",
+        "Replace placeholder in RightPanel Tasks tab",
+        "Create TaskItem component with status badges"
+      ],
+      "qualityGate": "See 5 tasks with mixed statuses, click each to see details",
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "P2-002",
+      "title": "Create Task from Chat",
+      "phase": 2,
+      "valueStatement": "Say 'Research event sourcing' - task appears in Tasks tab.",
+      "demoScript": [
+        "1. In chat, say: 'Research best practices for event sourcing'",
+        "2. Senter responds: 'I'll research that for you'",
+        "3. Open Tasks tab",
+        "4. See new task: 'Research: event sourcing' with status 'pending'"
+      ],
+      "acceptanceCriteria": [
+        "Chat input detects research intent ('research', 'find out', 'look up')",
+        "Creates task via IPC instead of just responding",
+        "Task appears in Tasks tab immediately",
+        "User gets confirmation in chat",
+        "typecheck passes"
+      ],
+      "technicalRequirements": [
+        "Intent detection in query handler",
+        "Call add_research_task when research intent detected",
+        "Return confirmation message to chat",
+        "Tasks tab auto-refreshes or polls"
+      ],
+      "qualityGate": "Create 3 different research tasks from chat, all appear in Tasks",
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "P2-003",
+      "title": "Real Task Execution with Web Search",
+      "phase": 2,
+      "valueStatement": "Research tasks actually search the web and synthesize real sources.",
+      "demoScript": [
+        "1. Create task: 'Research GraphQL best practices'",
+        "2. Wait for task to complete (check status)",
+        "3. View result: see 3-5 real sources with URLs",
+        "4. See synthesized summary with citations"
+      ],
+      "acceptanceCriteria": [
+        "TaskExecutor performs real DuckDuckGo search",
+        "Fetches and reads actual web pages",
+        "Synthesizes content with LLM",
+        "Result includes source URLs",
+        "typecheck passes"
+      ],
+      "technicalRequirements": [
+        "Implement web_search in TaskExecutor using existing web_search.py",
+        "Fetch page content with httpx + readability",
+        "Send to LLM for synthesis",
+        "Store result with sources array"
+      ],
+      "qualityGate": "3 research tasks return real sources, not hallucinated",
+      "priority": 7,
+      "passes": false,
+      "notes": "Uses existing Functions/web_search.py"
+    },
+    {
+      "id": "P2-004",
+      "title": "Journal Auto-Generation",
+      "phase": 2,
+      "valueStatement": "Each day, Senter writes a journal entry summarizing what happened.",
+      "demoScript": [
+        "1. Have 5 conversations and 2 research tasks complete today",
+        "2. Open Journal tab",
+        "3. See today's entry: 'Had 5 conversations about X, Y. Completed research on Z.'",
+        "4. See entries from previous days"
+      ],
+      "acceptanceCriteria": [
+        "Journal entry auto-generated at end of day or on demand",
+        "Summarizes: conversations count, topics, tasks completed",
+        "Persists to daemon storage",
+        "Journal tab shows entries by date",
+        "typecheck passes"
+      ],
+      "technicalRequirements": [
+        "Create JournalDB in daemon (SQLite)",
+        "Add generate_journal_entry function",
+        "Add 'get_journal' IPC handler",
+        "Replace Journal tab placeholder with real entries",
+        "Scheduler job to generate daily entry"
+      ],
+      "qualityGate": "See 3 days of journal entries, each accurately summarizes activity",
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "P2-005",
+      "title": "Desktop Notification When Research Complete",
+      "phase": 2,
+      "valueStatement": "When research finishes, user gets macOS notification even if app is minimized.",
+      "demoScript": [
+        "1. Create research task",
+        "2. Minimize Senter window",
+        "3. When research completes, see macOS notification",
+        "4. Click notification - Senter opens to result"
+      ],
+      "acceptanceCriteria": [
+        "Daemon emits event when research completes",
+        "Electron main process listens for event",
+        "Shows native macOS Notification",
+        "Click opens app to Tasks with result",
+        "typecheck passes"
+      ],
+      "technicalRequirements": [
+        "Add research_complete event to IPC",
+        "Use Electron Notification API",
+        "Deep link to specific task result",
+        "Works when app is backgrounded"
+      ],
+      "qualityGate": "Complete 3 research tasks with app minimized - get 3 notifications",
+      "priority": 9,
+      "passes": false,
+      "notes": "Uses existing notifications.ts"
+    },
+    {
+      "id": "P3-001",
+      "title": "Context Sources - Add and Display",
+      "phase": 3,
+      "valueStatement": "Pin a file or URL as context. See it in Context menu. Senter includes it when relevant.",
+      "demoScript": [
+        "1. Click + in Context menu",
+        "2. Add a file: ~/project/README.md",
+        "3. See it listed in Context menu",
+        "4. Ask about the project - response includes README context"
+      ],
+      "acceptanceCriteria": [
+        "Can add file path or URL as context source",
+        "Sources persist across restarts",
+        "Sources displayed in ContextMenu component",
+        "Can remove sources",
+        "typecheck passes"
+      ],
+      "technicalRequirements": [
+        "Create ContextSourcesDB in daemon",
+        "Add IPC: add_context_source, get_context_sources, remove_context_source",
+        "Update ContextMenu to show real sources",
+        "Add source button opens file picker or URL input"
+      ],
+      "qualityGate": "Add 3 sources, restart app, all 3 still there",
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "P3-002",
+      "title": "Context Sources in Query",
+      "phase": 3,
+      "valueStatement": "When you ask about something, Senter includes relevant context sources.",
+      "demoScript": [
+        "1. Add context: project README mentioning 'authentication flow'",
+        "2. Ask: 'How does authentication work in my project?'",
+        "3. Senter's response references the README content"
+      ],
+      "acceptanceCriteria": [
+        "Query handler fetches active context sources",
+        "Reads file contents or fetches URLs",
+        "Includes relevant context in prompt",
+        "Response demonstrates context awareness",
+        "typecheck passes"
+      ],
+      "technicalRequirements": [
+        "Modify _handle_query to include context sources",
+        "Read file contents when source is file path",
+        "Fetch URL content when source is URL",
+        "Truncate to fit context window"
+      ],
+      "qualityGate": "Ask question about content only in context source - get accurate answer",
+      "priority": 11,
+      "passes": false,
+      "notes": "Depends on P3-001"
+    },
+    {
+      "id": "P4-001",
+      "title": "Voice Input Display",
+      "phase": 4,
+      "valueStatement": "When user speaks (via STT), show real-time transcription in input bar.",
+      "demoScript": [
+        "1. Hold mic button",
+        "2. Speak: 'What is the weather today?'",
+        "3. See text appear in input field as you speak",
+        "4. Release button - message sends"
+      ],
+      "acceptanceCriteria": [
+        "Mic button triggers audio recording",
+        "Audio sent to Whisper for transcription",
+        "Transcription streams to input field",
+        "On release, sends as query",
+        "typecheck passes"
+      ],
+      "technicalRequirements": [
+        "Wire audio recording in renderer via IPC",
+        "Daemon starts Whisper transcription",
+        "Stream transcription results back to UI",
+        "InputBar displays interim results"
+      ],
+      "qualityGate": "Speak 5 different phrases - all transcribed accurately",
+      "priority": 12,
+      "passes": false,
+      "notes": "Requires audio pipeline wiring"
+    },
+    {
+      "id": "P4-002",
+      "title": "Real Gaze Detection",
+      "phase": 4,
+      "valueStatement": "Senter knows when you're looking at the screen. No more mock random().",
+      "demoScript": [
+        "1. Enable gaze detection in settings",
+        "2. Look at camera - see indicator light up",
+        "3. Look away - indicator dims",
+        "4. Gaze events logged correctly"
+      ],
+      "acceptanceCriteria": [
+        "Replace mock gaze with real MediaPipe detection",
+        "Daemon instantiates real GazeDetector class",
+        "Attention events based on actual face/eye detection",
+        "UI shows gaze status indicator",
+        "typecheck passes"
+      ],
+      "technicalRequirements": [
+        "Remove mock in senter_daemon.py gaze_detector_process",
+        "Instantiate real GazeDetector from vision/gaze_detector.py",
+        "Forward attention_gained/lost events to message bus",
+        "Add gaze status indicator to UI"
+      ],
+      "qualityGate": "Gaze detector correctly identifies looking vs not looking 9/10 times",
+      "priority": 13,
+      "passes": false,
+      "notes": "Requires camera permissions"
+    },
+    {
+      "id": "P4-003",
+      "title": "Gaze Activates Voice",
+      "phase": 4,
+      "valueStatement": "Look at camera and speak - no button needed. True ambient interaction.",
+      "demoScript": [
+        "1. Look at camera",
+        "2. Audio recording starts automatically",
+        "3. Speak your question",
+        "4. Look away - audio stops and sends",
+        "5. Get response"
+      ],
+      "acceptanceCriteria": [
+        "Gaze detection triggers audio recording start",
+        "Looking away triggers audio stop + transcribe + send",
+        "Full flow: look → speak → look away → response",
+        "typecheck passes"
+      ],
+      "technicalRequirements": [
+        "Wire attention_gained to start audio capture",
+        "Wire attention_lost to stop capture + transcribe",
+        "Route transcription to query handler",
+        "Handle rapid attention changes gracefully"
+      ],
+      "qualityGate": "Complete 5 voice interactions without touching keyboard",
+      "priority": 14,
+      "passes": false,
+      "notes": "Depends on P4-001 and P4-002"
+    }
+  ]
+}

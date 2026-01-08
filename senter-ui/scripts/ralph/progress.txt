@@ -1,0 +1,84 @@
+# Ralph Wiggums Progress Log
+Started: 2026-01-08
+Project: Senter UI Integration - Gap Vision v2
+
+## Philosophy
+Every story must deliver DEMONSTRABLE VALUE, not just pass tests.
+- "Can I demo this?" > "Does the test pass?"
+- End-to-end functionality > Unit test coverage
+- User experience > Code coverage
+
+## Codebase Patterns Discovered
+- Electron IPC: preload/index.ts exposes window.api → main/ipc/*.ts handlers → Unix socket → Python daemon
+- Daemon IPC: ipc_server.py handlers dict maps command names to handler methods
+- State: Zustand store with slices (ui, chat, research, navigation, context)
+- Components: React + Framer Motion + Tailwind in src/renderer/components/
+- Python daemon: Multiprocess architecture with message bus
+
+## Key Files
+### Frontend (senter-ui)
+- src/main/ipc/senterBridge.ts - IPC to Python daemon
+- src/preload/index.ts - Context bridge exposing window.api
+- src/renderer/hooks/useSenter.ts - React hook for daemon communication
+- src/renderer/store/*.ts - Zustand state management
+- src/renderer/components/ChatView/RightPanel.tsx - History/Journal/Tasks tabs
+
+### Backend (daemon)
+- daemon/ipc_server.py - IPC command handlers
+- daemon/senter_daemon.py - Main daemon orchestrator
+- engine/task_engine.py - Task planning (needs execution logic)
+- learning/events_db.py - User interaction logging
+- data/conversations/ - Conversation storage
+
+## Phase 1: Core Loop (Persistence + History)
+Goal: Never lose a conversation. History that works.
+
+## Phase 2: Autonomous Research
+Goal: Tasks that actually execute and produce value.
+
+## Phase 3: Context Sources
+Goal: Pin files/URLs that enhance responses.
+
+## Phase 4: Voice Interaction
+Goal: Look and talk - true ambient AI.
+
+---
+## Story Log
+
+### P1-001: Conversation Persistence - Never Lose a Chat [PASSED]
+Date: 2026-01-08
+
+**Implementation:**
+1. Added `get_conversations` IPC handler in daemon/ipc_server.py (lines 735-779)
+   - Returns conversation metadata from index.json
+   - Optionally returns full messages with include_messages flag
+   - Supports fetching single conversation by ID
+
+2. Added `save_conversation` IPC handler in daemon/ipc_server.py (lines 781-866)
+   - Creates/updates conversations in data/conversations/
+   - Auto-generates conversation ID if not provided
+   - Updates index.json with metadata
+
+3. Added Electron IPC bridge in src/main/ipc/senterBridge.ts
+   - getConversations() and saveConversation() methods
+   - Registered handlers: senter:getConversations, senter:saveConversation
+
+4. Updated src/preload/index.ts with new API methods
+
+5. Updated src/renderer/store/chatSlice.ts
+   - Added setConversations() and startNewConversation() actions
+
+6. Updated src/renderer/hooks/useSenter.ts
+   - Added fetchConversations() - loads on mount
+   - Added saveCurrentConversation() - called after bot response
+   - Auto-save effect triggers when messages increase by 2
+
+**Patterns Discovered:**
+- Daemon conversation format: {id, messages: [{role, content}], focus, created, summary}
+- UI Message format: {id, type: 'user'|'bot', content, timestamp}
+- Role mapping: user ↔ user, bot ↔ assistant
+
+**Verification:**
+- typecheck: PASSED
+- build: PASSED
+
