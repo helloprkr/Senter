@@ -421,3 +421,270 @@ class TestProjectDetection:
         assert 'top_projects' in summary
         assert 'current_project' in summary
         assert summary['current_project'] == "MyProject"
+
+
+# ============================================================================
+# US-003: Integrate ActivityMonitor with goal suggestion
+# ============================================================================
+
+class TestActivityGoalSuggestion:
+    """Tests for activity-based goal suggestions."""
+
+    def test_goal_detector_has_activity_inferred_source(self):
+        """Test Goal dataclass supports activity_inferred source."""
+        from intelligence.goals import Goal
+        from datetime import datetime
+
+        goal = Goal(
+            id="test123",
+            description="Work on project X",
+            category="project",
+            confidence=0.7,
+            evidence=["Observed 15 coding sessions"],
+            created_at=datetime.now(),
+            last_mentioned=datetime.now(),
+            progress=0.0,
+            status="active",
+            source="activity_inferred"
+        )
+
+        assert goal.source == "activity_inferred"
+
+    def test_goal_to_dict_includes_source(self):
+        """Test Goal.to_dict() includes source field."""
+        from intelligence.goals import Goal
+        from datetime import datetime
+
+        goal = Goal(
+            id="test456",
+            description="Test goal",
+            category="project",
+            confidence=0.5,
+            evidence=[],
+            created_at=datetime.now(),
+            last_mentioned=datetime.now(),
+            progress=0.0,
+            status="active",
+            source="activity_inferred"
+        )
+
+        data = goal.to_dict()
+        assert "source" in data
+        assert data["source"] == "activity_inferred"
+
+    def test_goal_from_dict_preserves_source(self):
+        """Test Goal.from_dict() preserves source field."""
+        from intelligence.goals import Goal
+        from datetime import datetime
+
+        data = {
+            "id": "test789",
+            "description": "Restored goal",
+            "category": "learning",
+            "confidence": 0.6,
+            "evidence": [],
+            "created_at": datetime.now().isoformat(),
+            "last_mentioned": datetime.now().isoformat(),
+            "progress": 0.2,
+            "status": "active",
+            "source": "activity_inferred"
+        }
+
+        goal = Goal.from_dict(data)
+        assert goal.source == "activity_inferred"
+
+    def test_goal_from_dict_defaults_to_conversation(self):
+        """Test Goal.from_dict() defaults source to 'conversation'."""
+        from intelligence.goals import Goal
+        from datetime import datetime
+
+        data = {
+            "id": "old_goal",
+            "description": "Old goal without source",
+            "created_at": datetime.now().isoformat(),
+            "last_mentioned": datetime.now().isoformat(),
+        }
+
+        goal = Goal.from_dict(data)
+        assert goal.source == "conversation"
+
+    def test_create_activity_inferred_goal(self):
+        """Test GoalDetector.create_activity_inferred_goal() method."""
+        from intelligence.goals import GoalDetector
+        from unittest.mock import MagicMock
+
+        # Create mock memory
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        goal = detector.create_activity_inferred_goal(
+            description="Complete coding project",
+            evidence="Observed 15 coding sessions",
+            confidence=0.6,
+            project_name="MyProject"
+        )
+
+        assert goal is not None
+        assert goal.source == "activity_inferred"
+        assert "MyProject" in goal.description
+        assert goal.confidence == 0.6
+
+    def test_create_activity_inferred_goal_without_project(self):
+        """Test activity goal creation without project name."""
+        from intelligence.goals import GoalDetector
+        from unittest.mock import MagicMock
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        goal = detector.create_activity_inferred_goal(
+            description="Finish writing task",
+            evidence="Observed 20 writing sessions"
+        )
+
+        assert goal is not None
+        assert goal.source == "activity_inferred"
+        assert "MyProject" not in goal.description
+
+    def test_get_goals_by_source(self):
+        """Test GoalDetector.get_goals_by_source() method."""
+        from intelligence.goals import GoalDetector, Goal
+        from unittest.mock import MagicMock
+        from datetime import datetime
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        # Add goals with different sources
+        detector.goals["g1"] = Goal(
+            id="g1", description="Conversation goal", category="project",
+            confidence=0.5, evidence=[], created_at=datetime.now(),
+            last_mentioned=datetime.now(), progress=0.0, status="active",
+            source="conversation"
+        )
+        detector.goals["g2"] = Goal(
+            id="g2", description="Activity goal", category="project",
+            confidence=0.5, evidence=[], created_at=datetime.now(),
+            last_mentioned=datetime.now(), progress=0.0, status="active",
+            source="activity_inferred"
+        )
+        detector.goals["g3"] = Goal(
+            id="g3", description="Another activity goal", category="learning",
+            confidence=0.5, evidence=[], created_at=datetime.now(),
+            last_mentioned=datetime.now(), progress=0.0, status="active",
+            source="activity_inferred"
+        )
+
+        activity_goals = detector.get_goals_by_source("activity_inferred")
+        conversation_goals = detector.get_goals_by_source("conversation")
+
+        assert len(activity_goals) == 2
+        assert len(conversation_goals) == 1
+
+    @pytest.mark.asyncio
+    async def test_suggest_goal_from_context_requires_minimum_snapshots(self):
+        """Test that goal suggestion requires minimum 10 snapshots."""
+        from intelligence.activity import ActivityMonitor, ActivitySnapshot
+        from unittest.mock import MagicMock, AsyncMock
+
+        # Create mock engine with goal detector
+        mock_goal_detector = MagicMock()
+        mock_goal_detector.get_active_goals.return_value = []
+        mock_goal_detector.create_activity_inferred_goal = MagicMock()
+
+        mock_engine = MagicMock()
+        mock_engine.goal_detector = mock_goal_detector
+
+        monitor = ActivityMonitor(senter_engine=mock_engine)
+
+        # Try with only 5 snapshots - should not suggest goal
+        await monitor._suggest_goal_from_context("coding", 5)
+        mock_goal_detector.create_activity_inferred_goal.assert_not_called()
+
+        # Try with 10+ snapshots - should suggest goal
+        await monitor._suggest_goal_from_context("coding", 15)
+        mock_goal_detector.create_activity_inferred_goal.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_suggest_goal_from_project(self):
+        """Test goal suggestion from detected project."""
+        from intelligence.activity import ActivityMonitor
+        from unittest.mock import MagicMock
+
+        mock_goal_detector = MagicMock()
+        mock_goal_detector.get_active_goals.return_value = []
+        mock_goal_detector.create_activity_inferred_goal = MagicMock()
+
+        mock_engine = MagicMock()
+        mock_engine.goal_detector = mock_goal_detector
+
+        monitor = ActivityMonitor(senter_engine=mock_engine)
+
+        # Suggest goal for project with 15 snapshots
+        await monitor._suggest_goal_from_project("TestProject", 15)
+
+        mock_goal_detector.create_activity_inferred_goal.assert_called_once()
+        call_args = mock_goal_detector.create_activity_inferred_goal.call_args
+        assert "TestProject" in call_args.kwargs.get("description", "")
+
+    @pytest.mark.asyncio
+    async def test_analyze_patterns_triggers_goal_suggestions(self):
+        """Test _analyze_patterns suggests goals for dominant contexts."""
+        from intelligence.activity import ActivityMonitor, ActivitySnapshot
+        from unittest.mock import MagicMock
+        from datetime import datetime
+
+        mock_goal_detector = MagicMock()
+        mock_goal_detector.get_active_goals.return_value = []
+        mock_goal_detector.create_activity_inferred_goal = MagicMock()
+
+        mock_engine = MagicMock()
+        mock_engine.goal_detector = mock_goal_detector
+
+        monitor = ActivityMonitor(senter_engine=mock_engine)
+
+        # Add 15 coding snapshots to trigger goal suggestion
+        for i in range(15):
+            monitor.history.append(ActivitySnapshot(
+                timestamp=datetime.now(),
+                active_app="VSCode",
+                window_title=f"file{i}.py",
+                screen_text=[],
+                inferred_context="coding",
+                detected_project="TestProject"
+            ))
+
+        await monitor._analyze_patterns()
+
+        # Should have attempted to create goals
+        assert mock_goal_detector.create_activity_inferred_goal.called
+
+    def test_activity_monitor_get_top_project_for_context(self):
+        """Test getting top project for a specific context."""
+        from intelligence.activity import ActivityMonitor, ActivitySnapshot
+        from datetime import datetime
+
+        monitor = ActivityMonitor()
+
+        # Add snapshots with different projects in coding context
+        for i in range(10):
+            monitor.history.append(ActivitySnapshot(
+                timestamp=datetime.now(),
+                active_app="VSCode",
+                window_title=f"file{i}.py",
+                screen_text=[],
+                inferred_context="coding",
+                detected_project="ProjectA" if i < 7 else "ProjectB"
+            ))
+
+        top_project = monitor._get_top_project_for_context("coding")
+        assert top_project == "ProjectA"  # 7 vs 3 occurrences

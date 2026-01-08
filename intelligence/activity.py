@@ -380,20 +380,34 @@ class ActivityMonitor:
     async def _analyze_patterns(self):
         """Analyze activity history for patterns."""
         # Count context frequencies
-        context_counts = {}
+        context_counts: Dict[str, int] = {}
+        project_counts: Dict[str, int] = {}
+
         for snap in self.history[-100:]:  # Last 100 snapshots
             ctx = snap.inferred_context
             context_counts[ctx] = context_counts.get(ctx, 0) + 1
 
-        # Identify dominant contexts
+            if snap.detected_project:
+                project_counts[snap.detected_project] = \
+                    project_counts.get(snap.detected_project, 0) + 1
+
+        # Identify dominant contexts and suggest goals
         for ctx, count in context_counts.items():
-            if count >= 20:  # Significant presence
-                # Check if this suggests a goal
+            if count >= 10:  # Minimum 10 snapshots for goal suggestion
                 await self._suggest_goal_from_context(ctx, count)
+
+        # Identify active projects and suggest goals
+        for project, count in project_counts.items():
+            if count >= 10:  # Minimum 10 snapshots for project goal
+                await self._suggest_goal_from_project(project, count)
 
     async def _suggest_goal_from_context(self, context: str, frequency: int):
         """Suggest a goal based on observed context."""
         if not self.engine or not hasattr(self.engine, 'goal_detector'):
+            return
+
+        # Require minimum 10 snapshots before suggesting a goal
+        if frequency < 10:
             return
 
         # Map contexts to goal suggestions
@@ -411,15 +425,56 @@ class ActivityMonitor:
 
             suggestion = suggestions[context]
             if not any(context in g for g in goal_texts):
-                # Create suggested goal
+                # Get most common project for this context
+                project_name = self._get_top_project_for_context(context)
+
+                # Create activity-inferred goal
                 try:
-                    self.engine.goal_detector._create_or_update_goal(
+                    self.engine.goal_detector.create_activity_inferred_goal(
                         description=suggestion,
                         evidence=f"Observed {frequency} activity snapshots in {context} context",
-                        confidence=min(0.7, 0.3 + (frequency * 0.02))
+                        confidence=min(0.7, 0.3 + (frequency * 0.02)),
+                        project_name=project_name
                     )
                 except Exception:
                     pass  # Goal creation is optional
+
+    async def _suggest_goal_from_project(self, project_name: str, frequency: int):
+        """Suggest a goal based on observed project activity."""
+        if not self.engine or not hasattr(self.engine, 'goal_detector'):
+            return
+
+        # Require minimum 10 snapshots before suggesting a goal
+        if frequency < 10:
+            return
+
+        # Check if goal already exists for this project
+        existing_goals = self.engine.goal_detector.get_active_goals()
+        if any(project_name.lower() in g.description.lower() for g in existing_goals):
+            return
+
+        # Create project-based goal
+        try:
+            self.engine.goal_detector.create_activity_inferred_goal(
+                description=f"Complete work on {project_name}",
+                evidence=f"Observed {frequency} activity snapshots for project {project_name}",
+                confidence=min(0.7, 0.3 + (frequency * 0.02)),
+                project_name=project_name
+            )
+        except Exception:
+            pass
+
+    def _get_top_project_for_context(self, context: str) -> Optional[str]:
+        """Get the most common project for a given context type."""
+        project_counts: Dict[str, int] = {}
+        for snap in self.history[-100:]:
+            if snap.inferred_context == context and snap.detected_project:
+                project_counts[snap.detected_project] = \
+                    project_counts.get(snap.detected_project, 0) + 1
+
+        if project_counts:
+            return max(project_counts, key=project_counts.get)
+        return None
 
     async def infer_context_with_llm(
         self,

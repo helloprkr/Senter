@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
 
@@ -29,6 +29,7 @@ class Goal:
     last_mentioned: datetime
     progress: float  # 0-1 estimated progress
     status: str  # active, completed, abandoned
+    source: str = "conversation"  # conversation, activity_inferred, explicit
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for persistence."""
@@ -42,6 +43,7 @@ class Goal:
             "last_mentioned": self.last_mentioned.isoformat(),
             "progress": self.progress,
             "status": self.status,
+            "source": self.source,
         }
 
     @classmethod
@@ -61,6 +63,7 @@ class Goal:
             else datetime.now(),
             progress=data.get("progress", 0.0),
             status=data.get("status", "active"),
+            source=data.get("source", "conversation"),
         )
 
 
@@ -168,6 +171,7 @@ class GoalDetector:
         description: str,
         evidence: str,
         confidence: float,
+        source: str = "conversation",
     ) -> Optional[Goal]:
         """Create new goal or update existing one."""
         # Check for similar existing goal
@@ -191,6 +195,7 @@ class GoalDetector:
             last_mentioned=datetime.now(),
             progress=0.0,
             status="active",
+            source=source,
         )
 
         self.goals[goal.id] = goal
@@ -276,6 +281,40 @@ class GoalDetector:
             self._persist_goal(self.goals[goal_id])
             return True
         return False
+
+    def create_activity_inferred_goal(
+        self,
+        description: str,
+        evidence: str,
+        confidence: float = 0.5,
+        project_name: Optional[str] = None,
+    ) -> Optional[Goal]:
+        """
+        Create a goal inferred from activity monitoring.
+
+        Args:
+            description: Goal description
+            evidence: Evidence string (e.g., "Observed 15 coding sessions")
+            confidence: Confidence level (0-1)
+            project_name: Associated project if any
+
+        Returns:
+            Created or updated Goal, or None if already exists
+        """
+        # If we have a project name, make the goal more specific
+        if project_name:
+            description = f"{description} ({project_name})"
+
+        return self._create_or_update_goal(
+            description=description,
+            evidence=evidence,
+            confidence=confidence,
+            source="activity_inferred",
+        )
+
+    def get_goals_by_source(self, source: str) -> List[Goal]:
+        """Get all goals from a specific source."""
+        return [g for g in self.goals.values() if g.source == source]
 
     def suggest_actions(self) -> List[Dict[str, Any]]:
         """Suggest actions based on goals."""
