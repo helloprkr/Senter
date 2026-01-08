@@ -584,8 +584,8 @@
         "config/daemon_config.json"
       ],
       "priority": 19,
-      "passes": false,
-      "notes": "Model Workers - GGUF loading"
+      "passes": true,
+      "notes": "COMPLETED - GGUF loading with llama-cpp-python, fallback to Ollama, 4 tests"
     },
     {
       "id": "MW-002",
@@ -611,8 +611,8 @@
         "daemon/senter_daemon.py"
       ],
       "priority": 20,
-      "passes": false,
-      "notes": "Model Workers - Streaming responses"
+      "passes": true,
+      "notes": "COMPLETED - Streaming responses with sentence boundary chunking, 3 tests"
     },
     {
       "id": "MW-003",
@@ -639,8 +639,8 @@
         "scripts/senter_ctl.py"
       ],
       "priority": 21,
-      "passes": false,
-      "notes": "Model Workers - Hot-swapping"
+      "passes": true,
+      "notes": "COMPLETED - Hot-swap with in-flight tracking, waits for requests, 6 tests"
     },
     {
       "id": "AP-001",
