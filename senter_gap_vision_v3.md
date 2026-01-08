@@ -289,3 +289,53 @@ After v3:
 - Proactive notifications make Senter feel "alive"
 
 The vision of "an AI that works for you 24/7" becomes real - not by building more, but by connecting what's already there.
+
+---
+
+## Implementation Status (2026-01-08)
+
+**ALL CORE STORIES IMPLEMENTED**
+
+| Story | Title | Status | Implementation |
+|-------|-------|--------|----------------|
+| V3-001 | Auto-Research Trigger | PASSED | TopicExtractor called after each query, auto-queues research |
+| V3-002 | Learned Preferences in System Prompt | PASSED | _load_user_preferences injects preferences into every query |
+| V3-003 | Research Complete Proactive Notification | PASSED | Enhanced notifications with source count, deep linking, unviewed badges |
+| V3-004 | Insights Panel | PASSED | New Insights tab showing peak hours, top topics, preferences, stats |
+| V3-005 | Goals Dashboard | PASSED | New Goals tab with goal cards, status, subtasks, mark complete |
+| V3-006 | Response Streaming | SKIPPED | Complex, lower ROI, marked optional |
+| V3-007 | Morning Digest | PASSED | Digest tab with overnight activity summary, scheduler job at 9 AM |
+| V3-008 | Context Sources in UI | PASSED | Already complete from P3-001/P3-002 |
+| V3-009 | Research Suggestions in Chat | PASSED | CTA below bot messages for researchable topics |
+| V3-010 | Goal-Aware Response Context | PASSED | _load_active_goals injects goals into system prompt |
+
+### What's Now Activated
+
+1. **Automatic Research Detection**: After every conversation, TopicExtractor scans for curiosity signals and auto-queues research tasks
+2. **Personalized Responses**: Learned preferences (response length, formality, technical level) injected into every system prompt
+3. **Goal Awareness**: Active goals influence how Senter responds to questions
+4. **Full UI Visibility**: Users can see:
+   - Their behavioral patterns (Insights tab)
+   - Their goals and progress (Goals tab)
+   - Morning digest with overnight activity (Digest tab)
+   - New research completion badges
+5. **Proactive Suggestions**: Research suggestions appear in chat for appropriate questions
+6. **Smart Notifications**: Research completion notifications with source count, click to navigate directly to task
+
+### Key Files Modified
+
+**Daemon (Python):**
+- `daemon/ipc_server.py`: Added handlers for get_insights, get_goals, update_goal, get_digest; Added _load_user_preferences, _load_active_goals, _auto_detect_research_topics, _detect_research_suggestion
+
+**Electron Main:**
+- `src/main/ipc/senterBridge.ts`: Added all new IPC handlers
+- `src/main/notifications.ts`: Enhanced with deep linking and source counts
+
+**Electron Renderer:**
+- `src/renderer/components/ChatView/RightPanel.tsx`: Added Insights, Goals, Digest tabs; unviewed badges
+- `src/renderer/components/ChatView/MessageBubble.tsx`: Research suggestion CTA
+- `src/renderer/components/ChatView/ChatView.tsx`: Research click handler
+- `src/renderer/hooks/useSenter.ts`: suggested_research extraction
+- `src/renderer/types/index.ts`: Extended Message type, ChatViewTab type
+
+**Total: 9/10 stories passed, 1 optional story skipped**
