@@ -17,9 +17,12 @@ import time
 import logging
 import sys
 import uuid
+import threading
+import importlib
+import inspect
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Any
+from typing import Optional, Any, Callable, Dict, List
 from pathlib import Path
 from multiprocessing import Event
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -28,6 +31,11 @@ from daemon.message_bus import MessageBus, MessageType, Message
 from queue import Empty
 
 logger = logging.getLogger('senter.task_engine')
+
+
+# ========== TE-003: Retry Configuration ==========
+DEFAULT_MAX_RETRIES = 5
+RETRY_DELAYS = [1, 2, 4, 8, 16]  # Exponential backoff delays in seconds
 
 
 class TaskStatus(Enum):
@@ -51,7 +59,7 @@ class TaskType(Enum):
 
 @dataclass
 class Task:
-    """Individual executable task"""
+    """Individual executable task (TE-003, TE-004)"""
     id: str
     goal_id: str
     description: str
@@ -75,6 +83,15 @@ class Task:
     started_at: Optional[float] = None
     completed_at: Optional[float] = None
 
+    # Retry tracking (TE-003)
+    retry_count: int = 0
+    max_retries: int = DEFAULT_MAX_RETRIES
+    next_retry_at: Optional[float] = None
+
+    # Cancellation (TE-004)
+    cancelled: bool = False
+    cancel_requested_at: Optional[float] = None
+
     def to_dict(self) -> dict:
         return {
             "id": self.id,
@@ -91,6 +108,11 @@ class Task:
             "created_at": self.created_at,
             "started_at": self.started_at,
             "completed_at": self.completed_at,
+            "retry_count": self.retry_count,
+            "max_retries": self.max_retries,
+            "next_retry_at": self.next_retry_at,
+            "cancelled": self.cancelled,
+            "cancel_requested_at": self.cancel_requested_at,
         }
 
     @classmethod
@@ -98,7 +120,38 @@ class Task:
         d = d.copy()
         d["task_type"] = TaskType(d["task_type"])
         d["status"] = TaskStatus(d["status"])
+        # Handle optional fields that might not exist in old data
+        d.setdefault("retry_count", 0)
+        d.setdefault("max_retries", DEFAULT_MAX_RETRIES)
+        d.setdefault("next_retry_at", None)
+        d.setdefault("cancelled", False)
+        d.setdefault("cancel_requested_at", None)
         return cls(**d)
+
+    def request_cancel(self) -> bool:
+        """Request cancellation of this task (TE-004)"""
+        if self.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
+            return False
+        self.cancelled = True
+        self.cancel_requested_at = time.time()
+        return True
+
+    def should_retry(self) -> bool:
+        """Check if task should be retried (TE-003)"""
+        if self.cancelled:
+            return False
+        if self.status != TaskStatus.FAILED:
+            return False
+        return self.retry_count < self.max_retries
+
+    def schedule_retry(self) -> float:
+        """Schedule retry with exponential backoff (TE-003)"""
+        delay = RETRY_DELAYS[min(self.retry_count, len(RETRY_DELAYS) - 1)]
+        self.next_retry_at = time.time() + delay
+        self.retry_count += 1
+        self.status = TaskStatus.PENDING
+        self.error = None
+        return delay
 
 
 @dataclass
@@ -110,17 +163,35 @@ class ExecutionPlan:
     created_at: float = field(default_factory=time.time)
 
     def get_ready_tasks(self) -> list[Task]:
-        """Get tasks ready to execute (dependencies met)"""
+        """Get tasks ready to execute (dependencies met) (TE-003, TE-004)"""
         completed_ids = {
             t.id for t in self.tasks
             if t.status == TaskStatus.COMPLETED
         }
 
-        return [
-            t for t in self.tasks
-            if t.status == TaskStatus.PENDING
-            and all(dep in completed_ids for dep in t.depends_on)
-        ]
+        now = time.time()
+        ready = []
+
+        for t in self.tasks:
+            # Skip cancelled tasks (TE-004)
+            if t.cancelled:
+                continue
+
+            # Only pending tasks
+            if t.status != TaskStatus.PENDING:
+                continue
+
+            # Check retry timing (TE-003)
+            if t.next_retry_at and now < t.next_retry_at:
+                continue
+
+            # Check dependencies
+            if not all(dep in completed_ids for dep in t.depends_on):
+                continue
+
+            ready.append(t)
+
+        return ready
 
     def to_dict(self) -> dict:
         return {
@@ -129,6 +200,159 @@ class ExecutionPlan:
             "tasks": [t.to_dict() for t in self.tasks],
             "created_at": self.created_at
         }
+
+
+# ========== TE-002: Tool Registry ==========
+
+@dataclass
+class ToolInfo:
+    """Registered tool metadata (TE-002)"""
+    name: str
+    description: str
+    parameters: Dict[str, Any]
+    return_type: str = "Any"
+    source: str = "builtin"  # builtin, functions, mcp
+    handler: Optional[Callable] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "parameters": self.parameters,
+            "return_type": self.return_type,
+            "source": self.source
+        }
+
+
+class ToolRegistry:
+    """
+    Centralized tool registry with dynamic discovery (TE-002).
+
+    Discovers and registers tools from:
+    - Built-in tools (file_read, file_write, etc.)
+    - Functions/ directory
+    - MCP servers
+    """
+
+    _instance: Optional["ToolRegistry"] = None
+
+    def __init__(self, functions_dir: Optional[Path] = None):
+        self._tools: Dict[str, ToolInfo] = {}
+        self._lock = threading.Lock()
+        self.functions_dir = functions_dir
+
+    @classmethod
+    def get_instance(cls, functions_dir: Optional[Path] = None) -> "ToolRegistry":
+        """Get singleton instance"""
+        if cls._instance is None:
+            cls._instance = cls(functions_dir)
+        return cls._instance
+
+    def register(
+        self,
+        name: str,
+        handler: Callable,
+        description: str = "",
+        parameters: Optional[Dict[str, Any]] = None,
+        return_type: str = "Any",
+        source: str = "builtin"
+    ) -> bool:
+        """Register a tool (TE-002)"""
+        with self._lock:
+            # Extract parameters from function signature if not provided
+            if parameters is None:
+                parameters = self._extract_parameters(handler)
+
+            # Use docstring for description if not provided
+            if not description and handler.__doc__:
+                description = handler.__doc__.strip().split("\n")[0]
+
+            self._tools[name] = ToolInfo(
+                name=name,
+                description=description,
+                parameters=parameters,
+                return_type=return_type,
+                source=source,
+                handler=handler
+            )
+            logger.debug(f"Registered tool: {name} (source: {source})")
+            return True
+
+    def unregister(self, name: str) -> bool:
+        """Unregister a tool"""
+        with self._lock:
+            if name in self._tools:
+                del self._tools[name]
+                return True
+            return False
+
+    def get(self, name: str) -> Optional[ToolInfo]:
+        """Get tool by name"""
+        return self._tools.get(name)
+
+    def list_tools(self) -> List[ToolInfo]:
+        """List all registered tools (TE-002)"""
+        return list(self._tools.values())
+
+    def execute(self, name: str, params: Dict[str, Any]) -> Any:
+        """Execute a tool by name (TE-002)"""
+        tool = self.get(name)
+        if not tool:
+            raise ValueError(f"Tool not found: {name}")
+        if not tool.handler:
+            raise ValueError(f"Tool has no handler: {name}")
+        return tool.handler(**params)
+
+    def discover_functions(self) -> int:
+        """Discover tools from Functions/ directory (TE-002)"""
+        if not self.functions_dir or not self.functions_dir.exists():
+            return 0
+
+        discovered = 0
+        for py_file in self.functions_dir.glob("*.py"):
+            if py_file.name.startswith("_"):
+                continue
+
+            try:
+                module_name = py_file.stem
+                spec = importlib.util.spec_from_file_location(module_name, py_file)
+                if spec and spec.loader:
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+
+                    # Look for callable functions marked as tools
+                    for name, obj in inspect.getmembers(module, inspect.isfunction):
+                        if name.startswith("_"):
+                            continue
+                        # Register public functions as tools
+                        self.register(
+                            name=f"functions.{module_name}.{name}",
+                            handler=obj,
+                            source="functions"
+                        )
+                        discovered += 1
+
+            except Exception as e:
+                logger.warning(f"Could not load {py_file}: {e}")
+
+        logger.info(f"Discovered {discovered} tools from Functions/")
+        return discovered
+
+    def _extract_parameters(self, handler: Callable) -> Dict[str, Any]:
+        """Extract parameter info from function signature"""
+        params = {}
+        try:
+            sig = inspect.signature(handler)
+            for name, param in sig.parameters.items():
+                if name in ("self", "cls"):
+                    continue
+                param_info = {"required": param.default == inspect.Parameter.empty}
+                if param.annotation != inspect.Parameter.empty:
+                    param_info["type"] = str(param.annotation)
+                params[name] = param_info
+        except Exception:
+            pass
+        return params
 
 
 class TaskEngine:
@@ -285,14 +509,28 @@ class TaskEngine:
             self._execute_task(task)
 
     def _execute_task(self, task: Task):
-        """Execute a single task"""
+        """Execute a single task (TE-003, TE-004)"""
+        # Check for cancellation (TE-004)
+        if task.cancelled:
+            task.status = TaskStatus.CANCELLED
+            task.completed_at = time.time()
+            logger.info(f"Task cancelled before execution: {task.description}")
+            self._check_plan_completion(task.goal_id)
+            return
+
         logger.info(f"Executing task: {task.description}")
+        if task.retry_count > 0:
+            logger.info(f"  (retry {task.retry_count}/{task.max_retries})")
 
         task.status = TaskStatus.IN_PROGRESS
         task.started_at = time.time()
         self.running_tasks[task.id] = task
 
         try:
+            # Check cancellation during execution (TE-004)
+            if task.cancelled:
+                raise InterruptedError("Task cancelled")
+
             # Execute via executor
             result = self.executor.execute(task)
 
@@ -308,7 +546,8 @@ class TaskEngine:
                 "task_id": task.id,
                 "goal_id": task.goal_id,
                 "description": task.description,
-                "duration": duration
+                "duration": duration,
+                "retry_count": task.retry_count
             })
 
             # Notify
@@ -323,6 +562,18 @@ class TaskEngine:
                 }
             )
 
+        except InterruptedError:
+            # Task was cancelled during execution (TE-004)
+            task.status = TaskStatus.CANCELLED
+            task.completed_at = time.time()
+            logger.info(f"Task cancelled during execution: {task.description}")
+
+            self._log_activity("task_cancelled", {
+                "task_id": task.id,
+                "goal_id": task.goal_id,
+                "description": task.description
+            })
+
         except Exception as e:
             task.status = TaskStatus.FAILED
             task.error = str(e)
@@ -330,16 +581,77 @@ class TaskEngine:
 
             logger.error(f"Task failed: {task.description} - {e}")
 
-            self._log_activity("task_failed", {
-                "task_id": task.id,
-                "goal_id": task.goal_id,
-                "description": task.description,
-                "error": str(e)
-            })
+            # Check for retry (TE-003)
+            if task.should_retry():
+                delay = task.schedule_retry()
+                logger.info(
+                    f"Task will retry in {delay}s "
+                    f"(attempt {task.retry_count}/{task.max_retries})"
+                )
+                self._log_activity("task_retry_scheduled", {
+                    "task_id": task.id,
+                    "goal_id": task.goal_id,
+                    "description": task.description,
+                    "retry_count": task.retry_count,
+                    "delay": delay,
+                    "error": str(e)
+                })
+            else:
+                self._log_activity("task_failed", {
+                    "task_id": task.id,
+                    "goal_id": task.goal_id,
+                    "description": task.description,
+                    "error": str(e),
+                    "retry_count": task.retry_count
+                })
 
         finally:
-            del self.running_tasks[task.id]
+            if task.id in self.running_tasks:
+                del self.running_tasks[task.id]
             self._check_plan_completion(task.goal_id)
+
+    def cancel_task(self, task_id: str) -> bool:
+        """Cancel a task (TE-004)"""
+        # Check running tasks
+        if task_id in self.running_tasks:
+            task = self.running_tasks[task_id]
+            if task.request_cancel():
+                logger.info(f"Cancel requested for running task: {task_id}")
+                return True
+
+        # Check pending tasks in plans
+        for plan in self.plans.values():
+            for task in plan.tasks:
+                if task.id == task_id:
+                    if task.request_cancel():
+                        task.status = TaskStatus.CANCELLED
+                        task.completed_at = time.time()
+                        logger.info(f"Task cancelled: {task_id}")
+                        self._check_plan_completion(plan.goal_id)
+                        return True
+                    return False
+
+        return False
+
+    def cancel_goal(self, goal_id: str) -> int:
+        """Cancel all tasks for a goal (TE-004)"""
+        plan = self.plans.get(goal_id)
+        if not plan:
+            return 0
+
+        cancelled_count = 0
+        for task in plan.tasks:
+            if task.status in (TaskStatus.PENDING, TaskStatus.IN_PROGRESS, TaskStatus.WAITING):
+                if task.request_cancel():
+                    task.status = TaskStatus.CANCELLED
+                    task.completed_at = time.time()
+                    cancelled_count += 1
+
+        if cancelled_count > 0:
+            logger.info(f"Cancelled {cancelled_count} tasks for goal: {goal_id}")
+            self._check_plan_completion(goal_id)
+
+        return cancelled_count
 
     def _check_plan_completion(self, goal_id: str):
         """Check if a plan is complete (CG-008: sends GOAL_COMPLETE)"""
