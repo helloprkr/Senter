@@ -82,3 +82,25 @@ Date: 2026-01-08
 - typecheck: PASSED
 - build: PASSED
 
+### P1-002: History Tab Shows Real Conversations [PASSED]
+Date: 2026-01-08
+
+**Implementation:**
+1. Updated RightPanel.tsx to use store methods:
+   - Added loadConversation, currentConversationId, startNewConversation from store
+
+2. Added click handler to conversation buttons:
+   - onClick={() => loadConversation(conv.id)}
+   - Active conversation highlighted with brand-primary border
+
+3. Added "New Conversation" button:
+   - Calls startNewConversation() to clear messages
+   - Highlighted when no conversation is active
+
+4. Fixed date display for non-Date objects:
+   - Handles both Date instances and ISO strings from store
+
+**Verification:**
+- typecheck: PASSED
+- build: PASSED
+

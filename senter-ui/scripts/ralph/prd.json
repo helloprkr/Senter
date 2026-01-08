@@ -71,8 +71,8 @@
       ],
       "qualityGate": "Can navigate between 5 different conversations seamlessly",
       "priority": 2,
-      "passes": false,
-      "notes": "Depends on P1-001"
+      "passes": true,
+      "notes": "Implemented 2026-01-08: Click-to-load conversations, active state highlight, New Conversation button"
     },
     {
       "id": "P1-003",
