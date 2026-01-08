@@ -210,3 +210,16 @@ Project: Senter 3.0 Depth Improvements
   - Initial confidence is 0.5 which meets default threshold
   - get_applied_preferences() returns list of instruction strings
 ---
+
+## 2026-01-07 - US-014: Add LLM-based sentiment analysis to AffectiveMemory
+- Implemented: SentimentAnalysis dataclass, analyze_sentiment async method, heuristic fallback
+- Files changed:
+  - memory/affective.py (added SentimentAnalysis, analyze_sentiment, heuristic analysis)
+  - tests/test_depth_features.py (added 15 tests for sentiment analysis)
+- Learnings:
+  - Sentiment on -1 to 1 scale (negative to positive)
+  - LLM returns JSON with sentiment, confidence, emotions, explanation
+  - Heuristic fallback uses positive/negative word matching
+  - JSON parsing needs regex extraction fallback for embedded JSON
+  - Clamp values to valid ranges (-1 to 1 for sentiment, 0 to 1 for confidence)
+---

@@ -3571,3 +3571,211 @@ class TestPreferenceApplication:
         prompt = call_args[0][0]
         # Initial 0.5 confidence meets the default 0.5 threshold, so should be included
         assert "detailed" in prompt.lower() or "comprehensive" in prompt.lower()
+
+
+# =============================================================================
+# US-014: Add LLM-based sentiment analysis to AffectiveMemory
+# =============================================================================
+
+
+class TestLLMSentimentAnalysis:
+    """Tests for LLM-based sentiment analysis."""
+
+    def _create_memory(self, model=None):
+        """Create an in-memory affective memory for testing."""
+        import sqlite3
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute("""
+            CREATE TABLE affective (
+                id TEXT PRIMARY KEY,
+                episode_id TEXT,
+                sentiment REAL,
+                frustration REAL,
+                satisfaction REAL,
+                timestamp TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE episodic (
+                id TEXT PRIMARY KEY,
+                input TEXT,
+                response TEXT,
+                mode TEXT
+            )
+        """)
+        conn.commit()
+        from memory.affective import AffectiveMemory
+        return AffectiveMemory(conn, {}, model=model)
+
+    def test_sentiment_analysis_dataclass(self):
+        """Test SentimentAnalysis dataclass creation."""
+        from memory.affective import SentimentAnalysis
+
+        analysis = SentimentAnalysis(
+            sentiment=0.8,
+            confidence=0.9,
+            emotions=["happy", "excited"],
+            explanation="Very positive text"
+        )
+
+        assert analysis.sentiment == 0.8
+        assert analysis.confidence == 0.9
+        assert analysis.emotions == ["happy", "excited"]
+        assert analysis.explanation == "Very positive text"
+
+    def test_affective_memory_accepts_model(self):
+        """Test AffectiveMemory can be initialized with model."""
+        from unittest.mock import MagicMock
+        mock_model = MagicMock()
+
+        memory = self._create_memory(model=mock_model)
+
+        assert memory.model is mock_model
+
+    def test_affective_memory_without_model(self):
+        """Test AffectiveMemory works without model."""
+        memory = self._create_memory()
+
+        assert memory.model is None
+
+    @pytest.mark.asyncio
+    async def test_analyze_sentiment_with_llm(self):
+        """Test analyze_sentiment uses LLM when available."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_model = MagicMock()
+        mock_model.generate = AsyncMock(return_value='{"sentiment": 0.8, "confidence": 0.9, "emotions": ["happy"], "explanation": "Positive"}')
+
+        memory = self._create_memory(model=mock_model)
+        result = await memory.analyze_sentiment("This is great!")
+
+        assert result.sentiment == 0.8
+        assert result.confidence == 0.9
+        assert "happy" in result.emotions
+        mock_model.generate.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_analyze_sentiment_fallback_without_model(self):
+        """Test analyze_sentiment uses heuristic when no model."""
+        memory = self._create_memory()
+
+        result = await memory.analyze_sentiment("This is great!")
+
+        # Should use heuristic fallback
+        assert result.confidence == 0.4  # Heuristic confidence
+        assert result.explanation == "Heuristic-based analysis"
+
+    @pytest.mark.asyncio
+    async def test_analyze_sentiment_heuristic_positive(self):
+        """Test heuristic detects positive sentiment."""
+        memory = self._create_memory()
+
+        result = await memory.analyze_sentiment("Thanks! This is awesome and great!")
+
+        assert result.sentiment > 0
+        assert "positive" in result.emotions
+
+    @pytest.mark.asyncio
+    async def test_analyze_sentiment_heuristic_negative(self):
+        """Test heuristic detects negative sentiment."""
+        memory = self._create_memory()
+
+        result = await memory.analyze_sentiment("I'm frustrated and angry about this broken thing")
+
+        assert result.sentiment < 0
+        assert "negative" in result.emotions
+
+    @pytest.mark.asyncio
+    async def test_analyze_sentiment_heuristic_neutral(self):
+        """Test heuristic detects neutral sentiment."""
+        memory = self._create_memory()
+
+        result = await memory.analyze_sentiment("The weather is cloudy today")
+
+        assert result.sentiment == 0.0
+        assert "neutral" in result.emotions
+
+    @pytest.mark.asyncio
+    async def test_analyze_sentiment_llm_error_fallback(self):
+        """Test analyze_sentiment falls back on LLM error."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_model = MagicMock()
+        mock_model.generate = AsyncMock(side_effect=Exception("LLM error"))
+
+        memory = self._create_memory(model=mock_model)
+        result = await memory.analyze_sentiment("This is great!")
+
+        # Should fall back to heuristic
+        assert result.confidence == 0.4
+        assert result.explanation == "Heuristic-based analysis"
+
+    def test_parse_sentiment_response_valid_json(self):
+        """Test parsing valid JSON response."""
+        memory = self._create_memory()
+
+        result = memory._parse_sentiment_response(
+            '{"sentiment": 0.5, "confidence": 0.8, "emotions": ["calm"], "explanation": "Neutral"}'
+        )
+
+        assert result.sentiment == 0.5
+        assert result.confidence == 0.8
+        assert result.emotions == ["calm"]
+
+    def test_parse_sentiment_response_extracts_json(self):
+        """Test parsing JSON embedded in text."""
+        memory = self._create_memory()
+
+        result = memory._parse_sentiment_response(
+            'Here is the analysis: {"sentiment": -0.5, "confidence": 0.7, "emotions": ["sad"], "explanation": "Negative"} Done!'
+        )
+
+        assert result.sentiment == -0.5
+        assert result.confidence == 0.7
+
+    def test_parse_sentiment_response_clamps_values(self):
+        """Test that out-of-range values are clamped."""
+        memory = self._create_memory()
+
+        result = memory._parse_sentiment_response(
+            '{"sentiment": 2.0, "confidence": 1.5, "emotions": [], "explanation": ""}'
+        )
+
+        assert result.sentiment == 1.0  # Clamped from 2.0
+        assert result.confidence == 1.0  # Clamped from 1.5
+
+    def test_parse_sentiment_response_invalid_json(self):
+        """Test handling of invalid JSON."""
+        memory = self._create_memory()
+
+        result = memory._parse_sentiment_response("This is not JSON at all")
+
+        # Should return default
+        assert result.sentiment == 0.0
+        assert result.confidence == 0.5
+        assert "neutral" in result.emotions
+
+    def test_default_sentiment(self):
+        """Test default sentiment values."""
+        memory = self._create_memory()
+
+        result = memory._default_sentiment()
+
+        assert result.sentiment == 0.0
+        assert result.confidence == 0.5
+        assert result.emotions == ["neutral"]
+
+    @pytest.mark.asyncio
+    async def test_analyze_sentiment_returns_scale_minus_one_to_one(self):
+        """Test that sentiment is on -1 to 1 scale."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_model = MagicMock()
+        mock_model.generate = AsyncMock(return_value='{"sentiment": -0.7, "confidence": 0.9, "emotions": ["angry"], "explanation": "Negative"}')
+
+        memory = self._create_memory(model=mock_model)
+        result = await memory.analyze_sentiment("I hate this!")
+
+        assert -1 <= result.sentiment <= 1
+        assert result.sentiment == -0.7

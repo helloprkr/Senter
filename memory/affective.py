@@ -5,10 +5,24 @@ Tracks the emotional context of interactions - how things felt.
 """
 
 from __future__ import annotations
+import json
+import re
 import sqlite3
 import uuid
-from datetime import datetime
-from typing import Any, Dict, List
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from models.base import ModelInterface
+
+
+@dataclass
+class SentimentAnalysis:
+    """Result of LLM-based sentiment analysis."""
+    sentiment: float  # -1 to 1 scale
+    confidence: float  # 0 to 1
+    emotions: List[str]  # Detected emotions
+    explanation: str  # Brief explanation
 
 
 class AffectiveMemory:
@@ -21,9 +35,15 @@ class AffectiveMemory:
     - Satisfaction levels
     """
 
-    def __init__(self, conn: sqlite3.Connection, config: Dict):
+    def __init__(
+        self,
+        conn: sqlite3.Connection,
+        config: Dict,
+        model: Optional["ModelInterface"] = None,
+    ):
         self.conn = conn
         self.config = config
+        self.model = model
         self.track_items = config.get("track", ["user_sentiment", "interaction_satisfaction"])
 
     def store(
@@ -57,6 +77,111 @@ class AffectiveMemory:
         self.conn.commit()
 
         return record_id
+
+    async def analyze_sentiment(self, text: str) -> SentimentAnalysis:
+        """
+        Analyze sentiment of text using LLM.
+
+        Args:
+            text: Text to analyze
+
+        Returns:
+            SentimentAnalysis with sentiment score and details
+        """
+        if not self.model:
+            return self._analyze_sentiment_heuristic(text)
+
+        prompt = f"""Analyze the sentiment of the following text. Return a JSON object with:
+- sentiment: float from -1 (very negative) to 1 (very positive)
+- confidence: float from 0 to 1 indicating how confident you are
+- emotions: list of detected emotions (e.g., ["happy", "excited"])
+- explanation: brief explanation of the sentiment
+
+Text to analyze:
+\"\"\"{text}\"\"\"
+
+Return ONLY valid JSON, no other text."""
+
+        try:
+            response = await self.model.generate(prompt)
+            return self._parse_sentiment_response(response)
+        except Exception:
+            return self._analyze_sentiment_heuristic(text)
+
+    def _parse_sentiment_response(self, response: str) -> SentimentAnalysis:
+        """Parse LLM response into SentimentAnalysis."""
+        try:
+            data = json.loads(response)
+        except json.JSONDecodeError:
+            # Try to extract JSON from response
+            json_match = re.search(r'\{[^{}]*\}', response, re.DOTALL)
+            if json_match:
+                try:
+                    data = json.loads(json_match.group())
+                except json.JSONDecodeError:
+                    return self._default_sentiment()
+            else:
+                return self._default_sentiment()
+
+        sentiment = float(data.get("sentiment", 0))
+        sentiment = max(-1, min(1, sentiment))  # Clamp to -1 to 1
+
+        confidence = float(data.get("confidence", 0.5))
+        confidence = max(0, min(1, confidence))  # Clamp to 0 to 1
+
+        emotions = data.get("emotions", [])
+        if not isinstance(emotions, list):
+            emotions = []
+
+        explanation = str(data.get("explanation", ""))
+
+        return SentimentAnalysis(
+            sentiment=sentiment,
+            confidence=confidence,
+            emotions=emotions,
+            explanation=explanation
+        )
+
+    def _analyze_sentiment_heuristic(self, text: str) -> SentimentAnalysis:
+        """Fallback heuristic-based sentiment analysis."""
+        text_lower = text.lower()
+
+        # Positive indicators
+        positive_words = ["thanks", "great", "awesome", "love", "excellent", "perfect",
+                         "wonderful", "amazing", "helpful", "good", "happy", "pleased"]
+        # Negative indicators
+        negative_words = ["frustrated", "annoyed", "angry", "hate", "terrible", "awful",
+                         "bad", "wrong", "broken", "useless", "confused", "stuck"]
+
+        positive_count = sum(1 for word in positive_words if word in text_lower)
+        negative_count = sum(1 for word in negative_words if word in text_lower)
+
+        # Calculate sentiment
+        if positive_count + negative_count == 0:
+            sentiment = 0.0  # Neutral
+            emotions = ["neutral"]
+        elif positive_count > negative_count:
+            sentiment = min(0.5 + (positive_count * 0.1), 1.0)
+            emotions = ["positive"]
+        else:
+            sentiment = max(-0.5 - (negative_count * 0.1), -1.0)
+            emotions = ["negative"]
+
+        return SentimentAnalysis(
+            sentiment=sentiment,
+            confidence=0.4,  # Lower confidence for heuristic
+            emotions=emotions,
+            explanation="Heuristic-based analysis"
+        )
+
+    def _default_sentiment(self) -> SentimentAnalysis:
+        """Return default neutral sentiment."""
+        return SentimentAnalysis(
+            sentiment=0.0,
+            confidence=0.5,
+            emotions=["neutral"],
+            explanation="Default neutral sentiment"
+        )
 
     def get_recent_context(self, days: int = 7) -> Dict[str, float]:
         """
