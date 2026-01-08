@@ -143,8 +143,8 @@
       },
       "filesToModify": ["audio/audio_pipeline.py", "daemon/senter_daemon.py"],
       "priority": 5,
-      "passes": false,
-      "notes": "CRITICAL GAP #5 - Soprano TTS import fails"
+      "passes": true,
+      "notes": "COMPLETED - TTSEngine with sentence chunking, async execution, voice selection"
     },
     {
       "id": "CG-006",

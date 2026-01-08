@@ -210,13 +210,21 @@ class STTEngine:
 
 class TTSEngine:
     """
-    Text-to-Speech engine.
-    Uses system TTS as fallback (macOS 'say', etc.)
+    Text-to-Speech engine (CG-005).
+
+    Features:
+    - Sentence chunking for natural speech
+    - Async execution to not block main thread
+    - Configurable voice selection
+    - macOS 'say' with Linux espeak fallback
     """
 
-    def __init__(self, model_name: str = "system"):
+    def __init__(self, model_name: str = "system", voice: str = None):
         self.model_name = model_name
+        self.voice = voice  # e.g., "Samantha", "Alex" for macOS
         self._piper_model = None
+        self._speaking_thread = None
+        self._stop_speaking = threading.Event()
 
     def synthesize(self, text: str) -> Optional[np.ndarray]:
         """Synthesize text to audio"""
@@ -250,11 +258,12 @@ class TTSEngine:
                 with tempfile.NamedTemporaryFile(suffix=".aiff", delete=False) as f:
                     temp_path = f.name
 
-                subprocess.run(
-                    ["say", "-o", temp_path, text],
-                    capture_output=True,
-                    timeout=30
-                )
+                cmd = ["say", "-o", temp_path]
+                if self.voice:
+                    cmd.extend(["-v", self.voice])
+                cmd.append(text)
+
+                subprocess.run(cmd, capture_output=True, timeout=30)
 
                 # Load and return audio
                 try:
@@ -273,15 +282,172 @@ class TTSEngine:
             logger.warning(f"System TTS not implemented for {system}")
             return None
 
-    def speak(self, text: str):
-        """Speak text directly (blocking)"""
+    def _chunk_into_sentences(self, text: str) -> list:
+        """
+        Split text into sentences for natural speech (CG-005).
+
+        Splits at sentence boundaries (.!?) while preserving
+        abbreviations and decimal numbers.
+        """
+        import re
+
+        if not text or not text.strip():
+            return []
+
+        # Handle common abbreviations that shouldn't split
+        text = text.replace("Mr.", "Mr\x00")
+        text = text.replace("Mrs.", "Mrs\x00")
+        text = text.replace("Dr.", "Dr\x00")
+        text = text.replace("Ms.", "Ms\x00")
+        text = text.replace("e.g.", "e\x00g\x00")
+        text = text.replace("i.e.", "i\x00e\x00")
+        text = text.replace("etc.", "etc\x00")
+
+        # Split at sentence boundaries
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+
+        # Restore abbreviations and clean up
+        result = []
+        for s in sentences:
+            s = s.replace("\x00", ".")
+            s = s.strip()
+            if s:
+                result.append(s)
+
+        return result
+
+    def speak(self, text: str, blocking: bool = False):
+        """
+        Speak text directly (CG-005).
+
+        Args:
+            text: Text to speak
+            blocking: If True, wait for speech to complete.
+                      If False (default), run asynchronously.
+        """
+        if blocking:
+            self._speak_sync(text)
+        else:
+            self.speak_async(text)
+
+    def speak_async(self, text: str):
+        """Speak text asynchronously (non-blocking) (CG-005)"""
+        # Stop any current speech
+        self.stop_speaking()
+
+        self._stop_speaking.clear()
+        self._speaking_thread = threading.Thread(
+            target=self._speak_sync,
+            args=(text,),
+            daemon=True
+        )
+        self._speaking_thread.start()
+
+    def _speak_sync(self, text: str):
+        """Speak text synchronously with sentence chunking (CG-005)"""
         import platform
         system = platform.system()
 
-        if system == "Darwin":
-            subprocess.run(["say", text], capture_output=True)
-        elif system == "Linux":
-            subprocess.run(["espeak", text], capture_output=True)
+        # Chunk into sentences for natural speech
+        sentences = self._chunk_into_sentences(text)
+
+        if not sentences:
+            return
+
+        for sentence in sentences:
+            # Check if we should stop
+            if self._stop_speaking.is_set():
+                logger.debug("TTS stopped by request")
+                break
+
+            try:
+                if system == "Darwin":
+                    cmd = ["say"]
+                    if self.voice:
+                        cmd.extend(["-v", self.voice])
+                    cmd.append(sentence)
+
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        timeout=60
+                    )
+                    if result.returncode != 0:
+                        logger.warning(f"TTS failed for sentence: {result.stderr}")
+
+                elif system == "Linux":
+                    cmd = ["espeak"]
+                    if self.voice:
+                        cmd.extend(["-v", self.voice])
+                    cmd.append(sentence)
+
+                    subprocess.run(cmd, capture_output=True, timeout=60)
+
+                else:
+                    logger.warning(f"TTS not implemented for {system}")
+                    break
+
+            except subprocess.TimeoutExpired:
+                logger.error(f"TTS timeout for sentence: {sentence[:50]}...")
+            except Exception as e:
+                logger.error(f"TTS error: {e}")
+
+    def stop_speaking(self):
+        """Stop any ongoing speech (CG-005)"""
+        self._stop_speaking.set()
+
+        # Kill any running 'say' process
+        import platform
+        if platform.system() == "Darwin":
+            try:
+                subprocess.run(
+                    ["killall", "say"],
+                    capture_output=True,
+                    timeout=2
+                )
+            except:
+                pass
+
+        # Wait for thread to finish
+        if self._speaking_thread and self._speaking_thread.is_alive():
+            self._speaking_thread.join(timeout=1)
+
+    def is_speaking(self) -> bool:
+        """Check if TTS is currently speaking"""
+        return (self._speaking_thread is not None and
+                self._speaking_thread.is_alive())
+
+    def set_voice(self, voice: str):
+        """Set the voice for TTS (CG-005)"""
+        self.voice = voice
+
+    @staticmethod
+    def list_voices() -> list:
+        """List available voices (macOS only) (CG-005)"""
+        import platform
+        if platform.system() != "Darwin":
+            return []
+
+        try:
+            result = subprocess.run(
+                ["say", "-v", "?"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode == 0:
+                voices = []
+                for line in result.stdout.split("\n"):
+                    if line.strip():
+                        # Format: "VoiceName    lang    # description"
+                        parts = line.split()
+                        if parts:
+                            voices.append(parts[0])
+                return voices
+        except Exception as e:
+            logger.warning(f"Could not list voices: {e}")
+
+        return []
 
 
 class AudioPipeline:
