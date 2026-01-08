@@ -1517,8 +1517,8 @@
         "engine/task_engine.py"
       ],
       "priority": 53,
-      "passes": false,
-      "notes": "Research Worker - Result summarization"
+      "passes": true,
+      "notes": "COMPLETED - ResearchResultSummarizer with extractive summarization, key findings"
     },
     {
       "id": "RW-002",
@@ -1544,8 +1544,8 @@
         "daemon/senter_daemon.py"
       ],
       "priority": 54,
-      "passes": false,
-      "notes": "Research Worker - Autonomous topics"
+      "passes": true,
+      "notes": "COMPLETED - AutonomousResearchSelector with priority/excluded topics, disable option"
     },
     {
       "id": "RW-003",
@@ -1571,8 +1571,8 @@
         "reporter/progress_reporter.py"
       ],
       "priority": 55,
-      "passes": false,
-      "notes": "Research Worker - Result presentation"
+      "passes": true,
+      "notes": "COMPLETED - ResearchResultPresenter with offer queue, accept/defer/dismiss handling"
     },
     {
       "id": "SP-001",
