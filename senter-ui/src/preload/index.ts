@@ -42,6 +42,13 @@ contextBridge.exposeInMainWorld('api', {
   // P4-002: Gaze Detection
   getGazeStatus: () => ipcRenderer.invoke('senter:getGazeStatus'),
 
+  // V3-004: Insights (patterns, preferences, stats)
+  getInsights: (days?: number) => ipcRenderer.invoke('senter:getInsights', days),
+
+  // V3-005: Goals
+  getGoals: (status?: string, limit?: number) => ipcRenderer.invoke('senter:getGoals', status, limit),
+  updateGoal: (goalId: string, status: string) => ipcRenderer.invoke('senter:updateGoal', goalId, status),
+
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
@@ -86,6 +93,9 @@ declare global {
       stopVoiceInput: () => Promise<unknown>
       getAudioStatus: () => Promise<unknown>
       getGazeStatus: () => Promise<unknown>
+      getInsights: (days?: number) => Promise<unknown>
+      getGoals: (status?: string, limit?: number) => Promise<unknown>
+      updateGoal: (goalId: string, status: string) => Promise<unknown>
       minimizeWindow: () => void
       maximizeWindow: () => void
       closeWindow: () => void

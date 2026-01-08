@@ -74,6 +74,9 @@ class IPCServer:
             "stop_voice_input": self._handle_stop_voice_input,  # P4-001
             "get_audio_status": self._handle_get_audio_status,  # P4-001
             "get_gaze_status": self._handle_get_gaze_status,  # P4-002
+            "get_insights": self._handle_get_insights,  # V3-004
+            "get_goals": self._handle_get_goals,  # V3-005
+            "update_goal": self._handle_update_goal,  # V3-005
         }
 
     def run(self):
@@ -237,8 +240,24 @@ class IPCServer:
             # P3-002: Build context from pinned sources
             sources_context = self._build_context_sources_prompt()
 
-            # Build system prompt with context sources
+            # V3-002: Load learned user preferences
+            preferences_context = self._load_user_preferences()
+
+            # V3-010: Load active goals for context
+            goals_context = self._load_active_goals()
+
+            # Build system prompt with all context
             system_prompt = "You are Senter, a helpful AI assistant. You remember the context of our conversation."
+
+            # Add personalization from learned preferences
+            if preferences_context:
+                system_prompt += f"\n\n{preferences_context}"
+
+            # Add goal awareness
+            if goals_context:
+                system_prompt += f"\n\n{goals_context}"
+
+            # Add context sources
             if sources_context:
                 system_prompt += f"\n\n{sources_context}"
 
@@ -270,12 +289,21 @@ class IPCServer:
                     # Log response to events database (US-008)
                     self._log_user_response(text, response_text, latency_ms, worker, topic)
 
-                    return {
+                    # V3-001: Auto-detect research topics from conversation
+                    auto_research_topics = self._auto_detect_research_topics(text, response_text, conversation_id)
+
+                    result = {
                         "response": response_text,
                         "latency": latency,
                         "worker": worker,
                         "topic": topic
                     }
+
+                    # Include auto-research info in response
+                    if auto_research_topics:
+                        result["auto_research_queued"] = [t["topic"] for t in auto_research_topics]
+
+                    return result
                 except Empty:
                     return {"error": "Request timed out waiting for model"}
             else:
@@ -380,6 +408,202 @@ class IPCServer:
                     }
 
         return None
+
+    def _auto_detect_research_topics(self, user_text: str, assistant_text: str,
+                                      conversation_id: str = None) -> list:
+        """
+        V3-001: Auto-detect research-worthy topics from conversation.
+        Uses TopicExtractor to find genuine curiosity signals and auto-queue research.
+
+        Returns list of topics that were queued for research.
+        """
+        try:
+            from research.topic_extractor import TopicExtractor
+            from pathlib import Path
+
+            # Build conversation messages for extraction
+            messages = [
+                {"role": "user", "content": user_text},
+                {"role": "assistant", "content": assistant_text}
+            ]
+
+            # If we have conversation_id, try to get more context
+            if conversation_id and self.daemon:
+                conv_dir = Path(self.daemon.senter_root) / "data" / "conversations"
+                conv_file = conv_dir / f"{conversation_id}.json"
+                if conv_file.exists():
+                    try:
+                        import json
+                        conv_data = json.loads(conv_file.read_text())
+                        prior_messages = conv_data.get("messages", [])
+                        # Add last 5 messages for context, then current
+                        messages = prior_messages[-5:] + messages
+                    except Exception:
+                        pass
+
+            # Create topic extractor
+            recently_researched_file = Path(self.daemon.senter_root) / "data" / "research" / "recently_researched.json"
+            extractor = TopicExtractor(
+                recently_researched_file=recently_researched_file,
+                dedup_days=7
+            )
+
+            # Extract topics with curiosity signals
+            topics = extractor.extract_topics(messages, min_priority=0.5)
+
+            queued_topics = []
+            for topic in topics[:2]:  # Max 2 auto-research per conversation
+                # Queue research task
+                task_result = self._handle_add_research_task({
+                    "description": f"Auto-research: {topic.topic}",
+                    "goal_id": "auto_research",
+                    "auto_triggered": True,
+                    "trigger_reason": topic.reason
+                })
+
+                if "error" not in task_result:
+                    # Mark as researched to avoid duplicates
+                    extractor.mark_as_researched(topic.topic)
+                    queued_topics.append({
+                        "topic": topic.topic,
+                        "priority": topic.priority,
+                        "reason": topic.reason,
+                        "task_id": task_result.get("task_id")
+                    })
+                    logger.info(f"V3-001: Auto-queued research for '{topic.topic}' (priority={topic.priority})")
+
+            return queued_topics
+
+        except Exception as e:
+            logger.warning(f"V3-001: Auto-research detection failed: {e}")
+            return []
+
+    def _load_user_preferences(self) -> str:
+        """
+        V3-002: Load learned user preferences and format for system prompt.
+        Uses PatternDetector to get preferences from behavior analysis.
+
+        Returns prompt section with personalization instructions.
+        """
+        try:
+            from learning.pattern_detector import PatternDetector
+            from learning.learning_db import LearningDB
+            from pathlib import Path
+
+            if not self.daemon:
+                return ""
+
+            senter_root = Path(self.daemon.senter_root)
+
+            # Try to load preferences from learning database
+            try:
+                learning_db = LearningDB(senter_root)
+                preferences = learning_db.get_all_preferences()
+            except Exception:
+                preferences = {}
+
+            # Analyze patterns for additional insights
+            try:
+                detector = PatternDetector(senter_root)
+                patterns = detector.analyze_patterns(days=7)
+            except Exception:
+                patterns = {}
+
+            # Build preference context
+            pref_lines = []
+
+            # Response length preference
+            length_pref = preferences.get("response_length", {})
+            if length_pref.get("value") and float(length_pref.get("confidence", 0)) > 0.5:
+                pref_value = length_pref["value"]
+                if pref_value == "brief":
+                    pref_lines.append("The user prefers BRIEF, CONCISE responses. Keep answers short and to the point.")
+                elif pref_value == "detailed":
+                    pref_lines.append("The user prefers DETAILED, COMPREHENSIVE responses with thorough explanations.")
+
+            # Formality preference
+            formality_pref = preferences.get("formality", {})
+            if formality_pref.get("value") and float(formality_pref.get("confidence", 0)) > 0.5:
+                form_value = formality_pref["value"]
+                if form_value == "casual":
+                    pref_lines.append("The user prefers a casual, friendly tone.")
+                elif form_value == "formal":
+                    pref_lines.append("The user prefers a formal, professional tone.")
+
+            # Technical level
+            tech_pref = preferences.get("technical_level", {})
+            if tech_pref.get("value") and float(tech_pref.get("confidence", 0)) > 0.5:
+                tech_value = tech_pref["value"]
+                if tech_value == "expert":
+                    pref_lines.append("The user is technically proficient. Use technical terminology without over-explaining basics.")
+                elif tech_value == "beginner":
+                    pref_lines.append("Explain technical concepts clearly with examples for a non-expert audience.")
+
+            # Code language preference
+            code_pref = preferences.get("preferred_language", {})
+            if code_pref.get("value"):
+                pref_lines.append(f"When showing code examples, prefer {code_pref['value']} unless another language is more appropriate.")
+
+            # Peak hours context from patterns
+            peak_hours = patterns.get("peak_hours", [])
+            if peak_hours:
+                hours_str = ", ".join(f"{h['hour']}:00" for h in peak_hours[:2])
+                pref_lines.append(f"(The user is most active around {hours_str}.)")
+
+            # Top topics context
+            topic_freq = patterns.get("topic_frequency", {})
+            if topic_freq:
+                top_topics = list(topic_freq.keys())[:3]
+                if top_topics:
+                    pref_lines.append(f"(The user frequently discusses: {', '.join(top_topics)}.)")
+
+            if pref_lines:
+                return "USER PREFERENCES (learned from previous interactions):\n" + "\n".join(pref_lines)
+
+            return ""
+
+        except Exception as e:
+            logger.warning(f"V3-002: Failed to load user preferences: {e}")
+            return ""
+
+    def _load_active_goals(self) -> str:
+        """
+        V3-010: Load active user goals and format for system prompt.
+        Uses GoalTracker to get current goals.
+
+        Returns prompt section with goal context.
+        """
+        try:
+            from Functions.goal_tracker import GoalTracker
+            from pathlib import Path
+
+            if not self.daemon:
+                return ""
+
+            senter_root = Path(self.daemon.senter_root)
+            tracker = GoalTracker(senter_root=senter_root)
+
+            # Get active goals (limit to top 5)
+            goals = tracker.get_active_goals()[:5]
+
+            if not goals:
+                return ""
+
+            goal_lines = ["USER'S CURRENT GOALS (consider these when relevant):"]
+            for goal in goals:
+                desc = goal.get("description", goal.get("goal", ""))
+                status = goal.get("status", "active")
+                if desc:
+                    goal_lines.append(f"- {desc} ({status})")
+
+            if len(goal_lines) > 1:
+                return "\n".join(goal_lines)
+
+            return ""
+
+        except Exception as e:
+            logger.warning(f"V3-010: Failed to load active goals: {e}")
+            return ""
 
     def _log_user_query(self, query: str, topic: str):
         """Log user query to events database (US-008)"""
@@ -1416,3 +1640,158 @@ class IPCServer:
             return True
         except ImportError:
             return False
+
+    def _handle_get_insights(self, request: dict = None) -> dict:
+        """
+        Handle get_insights request (V3-004) - get learned patterns and preferences.
+        Returns comprehensive insights about user behavior and preferences.
+        """
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            from learning.pattern_detector import PatternDetector
+            from learning.learning_db import LearningDB
+            from learning.events_db import UserEventsDB
+            from pathlib import Path
+
+            senter_root = Path(self.daemon.senter_root)
+
+            # Get patterns from PatternDetector
+            try:
+                detector = PatternDetector(senter_root)
+                patterns = detector.analyze_patterns(days=request.get("days", 7))
+            except Exception as e:
+                logger.warning(f"Pattern analysis failed: {e}")
+                patterns = {}
+
+            # Get preferences from LearningDB
+            try:
+                learning_db = LearningDB(senter_root)
+                preferences = learning_db.get_all_preferences()
+            except Exception as e:
+                logger.warning(f"Preference loading failed: {e}")
+                preferences = {}
+
+            # Get session stats from EventsDB
+            try:
+                events_db = UserEventsDB(senter_root=senter_root)
+                session_count = len(events_db.get_events_by_time_range(hours=request.get("days", 7) * 24))
+            except Exception:
+                session_count = 0
+
+            return {
+                "patterns": {
+                    "peak_hours": patterns.get("peak_hours", []),
+                    "daily_activity": patterns.get("daily_activity", {}),
+                    "topic_frequency": patterns.get("topic_frequency", {}),
+                    "hourly_distribution": patterns.get("hourly_distribution", {}),
+                    "average_response_time": patterns.get("average_response_time", 0)
+                },
+                "preferences": {
+                    "response_length": preferences.get("response_length", {}).get("value"),
+                    "formality": preferences.get("formality", {}).get("value"),
+                    "technical_level": preferences.get("technical_level", {}).get("value"),
+                    "preferred_language": preferences.get("preferred_language", {}).get("value")
+                },
+                "stats": {
+                    "event_count": patterns.get("event_count", 0),
+                    "days_analyzed": patterns.get("days_analyzed", 0),
+                    "session_count": session_count,
+                    "analyzed_at": patterns.get("analyzed_at")
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"get_insights error: {e}")
+            return {"error": str(e)}
+
+    def _handle_get_goals(self, request: dict = None) -> dict:
+        """
+        Handle get_goals request (V3-005) - get user's goals.
+        Returns list of goals with status and progress.
+        """
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            from Functions.goal_tracker import GoalTracker
+            from pathlib import Path
+
+            senter_root = Path(self.daemon.senter_root)
+            tracker = GoalTracker(senter_root=senter_root)
+
+            # Get goals based on filter
+            filter_status = request.get("status") if request else None
+
+            if filter_status == "active":
+                goals = tracker.get_active_goals()
+            elif filter_status == "completed":
+                goals = [g for g in tracker.goals if g.status == "completed"]
+            else:
+                goals = tracker.goals
+
+            # Convert to serializable format
+            goal_list = []
+            for goal in goals[:request.get("limit", 50) if request else 50]:
+                goal_dict = {
+                    "id": goal.id,
+                    "description": goal.description,
+                    "status": goal.status,
+                    "priority": getattr(goal, 'priority', 'medium'),
+                    "created_at": goal.created_at,
+                    "updated_at": getattr(goal, 'updated_at', goal.created_at),
+                    "subtasks": [
+                        {"description": st.description, "completed": st.completed}
+                        for st in getattr(goal, 'subtasks', [])
+                    ]
+                }
+                goal_list.append(goal_dict)
+
+            return {
+                "goals": goal_list,
+                "total_count": len(tracker.goals),
+                "active_count": len(tracker.get_active_goals())
+            }
+
+        except Exception as e:
+            logger.error(f"get_goals error: {e}")
+            return {"error": str(e)}
+
+    def _handle_update_goal(self, request: dict) -> dict:
+        """
+        Handle update_goal request (V3-005) - update goal status.
+        """
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        goal_id = request.get("goal_id")
+        new_status = request.get("status")
+
+        if not goal_id or not new_status:
+            return {"error": "Missing goal_id or status"}
+
+        try:
+            from Functions.goal_tracker import GoalTracker
+            from pathlib import Path
+
+            senter_root = Path(self.daemon.senter_root)
+            tracker = GoalTracker(senter_root=senter_root)
+
+            # Find and update goal
+            goal = tracker.get_goal_by_id(goal_id)
+            if not goal:
+                return {"error": f"Goal not found: {goal_id}"}
+
+            goal.status = new_status
+            tracker._save_goals()
+
+            return {
+                "success": True,
+                "goal_id": goal_id,
+                "new_status": new_status
+            }
+
+        except Exception as e:
+            logger.error(f"update_goal error: {e}")
+            return {"error": str(e)}

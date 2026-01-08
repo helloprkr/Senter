@@ -1,0 +1,105 @@
+# Senter Autonomous Research - Progress Log
+Started: 2026-01-08
+Philosophy: Every story delivers demo-able value with quality gates, not just passing tests.
+
+## Story Philosophy
+
+Each story has:
+1. VALUE STATEMENT - Why this matters to a user
+2. DEMO SCRIPT - Step-by-step to show it working
+3. ACCEPTANCE CRITERIA - Experience-based, not implementation-based
+4. QUALITY GATE - Manual or automated verification that it's actually good
+5. TECHNICAL TESTS - Traditional unit/integration tests
+
+## Quality Gate Types
+
+- manual_review: Human rates output quality
+- content_verification: Verify real content, not just structure
+- human_rating: Rate on scale (clarity, usefulness, accuracy)
+- ux_review: Can a human complete tasks without guidance?
+- design_review: Is it visually appealing and professional?
+- feedback_loop: Does the system learn from feedback?
+- fresh_install: Does it work from scratch?
+
+## Patterns Learned
+
+(To be filled as we implement)
+
+## Key Files
+
+research/
+├── topic_extractor.py   # RE-001: LLM-based topic detection
+├── deep_researcher.py   # RE-002: Web search + content fetch
+├── synthesizer.py       # RE-003: Multi-source synthesis
+├── pipeline.py          # RE-004: End-to-end orchestration
+├── research_store.py    # RE-004: Persistent storage
+└── feedback.py          # UI-003: Feedback learning
+
+ui/
+├── menubar_app.py       # UI-001: macOS menubar integration
+├── research_panel.py    # UI-002: Summary display panel
+└── styles.py            # UI-002: Glassmorphism styling
+
+scripts/
+├── start_senter.py      # INT-001: Single startup command
+└── quality_gate.py      # Quality verification scripts
+
+---
+
+## Story Status
+
+| ID | Title | Status | Tests |
+|----|-------|--------|-------|
+| RE-001 | Senter Notices What You're Curious About | ✅ COMPLETE | 13 |
+| RE-002 | Senter Actually Researches the Web | ✅ COMPLETE | 12 |
+| RE-003 | Senter Synthesizes Into Useful Summary | ✅ COMPLETE | 10 |
+| RE-004 | Full Research Pipeline End-to-End | ✅ COMPLETE | 12 |
+| UI-001 | Menubar Shows Senter is Alive | ✅ COMPLETE | 5 |
+| UI-002 | Research Panel That's Nice to Read | ✅ COMPLETE | 6 |
+| UI-003 | Feedback That Improves Future | ✅ COMPLETE | 9 |
+| INT-001 | The Full Experience Works | ✅ COMPLETE | 9 |
+
+**TOTAL: 76 tests, 0 failures**
+
+---
+
+## Implementation Notes
+
+### Patterns Learned
+
+1. **Conditional imports for optional dependencies** - Wrap imports in try/except
+2. **Headless classes for testability** - Create mock versions for CI
+3. **Path handling for scripts** - Use `sys.path.insert` for relative imports
+4. **LLM fallbacks** - Pattern-based extraction when LLM unavailable
+5. **Concurrent fetching** - ThreadPoolExecutor for web requests
+
+### Key Decisions
+
+- **ddgs** over duckduckgo-search (package renamed)
+- **SQLite** for persistence (simple, no setup)
+- **rumps** for menubar (native macOS)
+- **PyQt6** for panel (glassmorphism styling)
+- **Ollama** for LLM (local, free)
+
+### Demo Commands
+
+```bash
+# Check dependencies
+python scripts/start_senter.py --check
+
+# Run demo
+python scripts/start_senter.py --demo
+
+# Show status
+python scripts/start_senter.py --status
+
+# Research a topic
+python scripts/start_senter.py --research "event sourcing"
+
+# Run all tests
+python scripts/start_senter.py --test
+
+# Start menubar app
+python scripts/start_senter.py
+```
+

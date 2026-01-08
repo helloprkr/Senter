@@ -1,0 +1,268 @@
+{
+  "projectName": "Senter UI Upgrade - Glassmorphism",
+  "branchName": "ralph/ui-upgrade",
+  "description": "Upgrade Senter UI from PyQt6 to web-based glassmorphism design matching the original SENTER-ai aesthetic",
+  "stack": {
+    "language": "python",
+    "framework": "pywebview",
+    "frontend": "html/css/js",
+    "testRunner": "pytest"
+  },
+  "verification": {
+    "typecheck": "ruff check .",
+    "unitTest": "python -m pytest tests/test_ui_*.py -v",
+    "lint": "ruff check ."
+  },
+  "designReference": {
+    "colors": {
+      "glassBg": "rgba(18, 53, 36, 0.75)",
+      "glassBgLight": "rgba(18, 53, 36, 0.6)",
+      "border": "rgba(250, 250, 250, 0.12)",
+      "text": "#fafafa",
+      "textMuted": "rgba(250, 250, 250, 0.6)",
+      "accent": "#ef4444",
+      "accentGreen": "#123524"
+    },
+    "effects": {
+      "blur": "blur(24px) saturate(180%)",
+      "blurLight": "blur(20px) saturate(150%)",
+      "borderRadius": "24px"
+    }
+  },
+  "userStories": [
+    {
+      "id": "UI-W01",
+      "title": "PyWebView Integration",
+      "description": "Replace PyQt6 panel with pywebview for web-based rendering",
+      "valueStatement": "Web technologies enable pixel-perfect glassmorphism that matches the original SENTER design",
+      "acceptanceCriteria": [
+        "pywebview window opens successfully",
+        "Window has transparent/frameless option",
+        "Python backend can communicate with JS frontend",
+        "Window closes cleanly"
+      ],
+      "demoScript": [
+        "Run: python ui/webview_app.py",
+        "Window opens with web content",
+        "Content renders correctly"
+      ],
+      "testRequirements": {
+        "unit": ["test_webview_creation", "test_webview_api"]
+      },
+      "priority": 1,
+      "passes": false
+    },
+    {
+      "id": "UI-W02",
+      "title": "Glassmorphism Base Styles",
+      "description": "Implement CSS glassmorphism matching original SENTER design",
+      "valueStatement": "The signature glass panel aesthetic creates a premium, modern feel",
+      "acceptanceCriteria": [
+        "Glass panel with blur effect renders",
+        "Dark green tinted background (rgba(18, 53, 36, 0.75))",
+        "Subtle white borders",
+        "24px border radius",
+        "Text is readable on glass background"
+      ],
+      "demoScript": [
+        "Open the app",
+        "See frosted glass panel effect",
+        "Background blur is visible"
+      ],
+      "testRequirements": {
+        "unit": ["test_styles_exist"]
+      },
+      "priority": 2,
+      "passes": false
+    },
+    {
+      "id": "UI-W03",
+      "title": "Header Component",
+      "description": "SENTER logo and branding header",
+      "valueStatement": "Clear branding establishes app identity",
+      "acceptanceCriteria": [
+        "SENTER text with chat bubble icon",
+        "Green accent background for icon",
+        "Proper font styling",
+        "Responsive sizing"
+      ],
+      "demoScript": [
+        "Open app",
+        "See SENTER header at top",
+        "Icon has green background"
+      ],
+      "testRequirements": {
+        "unit": ["test_header_renders"]
+      },
+      "priority": 3,
+      "passes": false
+    },
+    {
+      "id": "UI-W04",
+      "title": "Input Bar Component",
+      "description": "Chat input with action buttons",
+      "valueStatement": "Familiar chat input pattern makes interaction intuitive",
+      "acceptanceCriteria": [
+        "Text input with placeholder 'Ask me anything...'",
+        "Menu button (hamburger icon)",
+        "Microphone button",
+        "Camera button",
+        "Send button (red/accent)",
+        "History button",
+        "Glass panel styling"
+      ],
+      "demoScript": [
+        "See input bar below header",
+        "Type text in input",
+        "Buttons are clickable"
+      ],
+      "testRequirements": {
+        "unit": ["test_input_bar_renders"]
+      },
+      "priority": 4,
+      "passes": false
+    },
+    {
+      "id": "UI-W05",
+      "title": "Research Cards Display",
+      "description": "Show research summaries as chat-style cards",
+      "valueStatement": "Research results feel like a natural conversation",
+      "acceptanceCriteria": [
+        "Research displays as message cards",
+        "Shows topic as title",
+        "Shows summary text",
+        "Shows confidence badge",
+        "Shows timestamp",
+        "Shows source count",
+        "Cards have glass styling"
+      ],
+      "demoScript": [
+        "Open app with existing research",
+        "See research as cards",
+        "Cards show all metadata"
+      ],
+      "testRequirements": {
+        "unit": ["test_research_card_renders"]
+      },
+      "priority": 5,
+      "passes": false
+    },
+    {
+      "id": "UI-W06",
+      "title": "Sidebar Navigation",
+      "description": "Icon sidebar for switching views",
+      "valueStatement": "Quick access to different features without cluttering main view",
+      "acceptanceCriteria": [
+        "Vertical sidebar on right",
+        "Chat icon (current view)",
+        "Journal/notes icon",
+        "Tasks icon",
+        "Icons have hover states",
+        "Active icon highlighted"
+      ],
+      "demoScript": [
+        "See sidebar icons on right",
+        "Hover shows effect",
+        "Click switches view"
+      ],
+      "testRequirements": {
+        "unit": ["test_sidebar_renders"]
+      },
+      "priority": 6,
+      "passes": false
+    },
+    {
+      "id": "UI-W07",
+      "title": "Research Trigger from Input",
+      "description": "Typing in input triggers research",
+      "valueStatement": "Natural conversation flow - ask question, get research",
+      "acceptanceCriteria": [
+        "Type question and press Enter/Send",
+        "Loading state shows",
+        "Research runs in background",
+        "Result appears as new card",
+        "Error states handled"
+      ],
+      "demoScript": [
+        "Type 'What is event sourcing?'",
+        "Press Enter",
+        "See loading indicator",
+        "Research card appears"
+      ],
+      "testRequirements": {
+        "unit": ["test_research_trigger"]
+      },
+      "priority": 7,
+      "passes": false
+    },
+    {
+      "id": "UI-W08",
+      "title": "Star Rating on Cards",
+      "description": "Rate research quality inline",
+      "valueStatement": "Quick feedback without leaving the flow",
+      "acceptanceCriteria": [
+        "Star icons on each card",
+        "Click to rate 1-5",
+        "Rating saves to backend",
+        "Visual feedback on selection"
+      ],
+      "demoScript": [
+        "See stars on research card",
+        "Click 4th star",
+        "Stars fill up to 4",
+        "Rating persists on refresh"
+      ],
+      "testRequirements": {
+        "unit": ["test_rating_saves"]
+      },
+      "priority": 8,
+      "passes": false
+    },
+    {
+      "id": "UI-W09",
+      "title": "Menubar Integration",
+      "description": "Menubar icon opens webview panel",
+      "valueStatement": "One-click access from menubar to full research panel",
+      "acceptanceCriteria": [
+        "Menubar click opens webview window",
+        "Window positions near menubar",
+        "Window can be closed",
+        "State persists between opens"
+      ],
+      "demoScript": [
+        "Click menubar icon",
+        "Panel opens",
+        "Close panel",
+        "Click again - panel reopens"
+      ],
+      "testRequirements": {
+        "unit": ["test_menubar_webview"]
+      },
+      "priority": 9,
+      "passes": false
+    },
+    {
+      "id": "UI-W10",
+      "title": "Full Integration Polish",
+      "description": "Final polish and animations",
+      "valueStatement": "Smooth, professional feel that matches premium design",
+      "acceptanceCriteria": [
+        "Smooth open/close animations",
+        "Cards animate in",
+        "Loading states are smooth",
+        "No visual glitches",
+        "Responsive to window resize"
+      ],
+      "demoScript": [
+        "Open app - smooth animation",
+        "Trigger research - smooth loading",
+        "Close app - smooth exit"
+      ],
+      "testRequirements": {
+        "unit": ["test_animations"]
+      },
+      "priority": 10,
+      "passes": false
+    }
+  ]
+}

@@ -1,0 +1,349 @@
+{
+  "projectName": "Senter Gap Vision v3 - Activate What Exists",
+  "branchName": "ralph/gap-vision-v3",
+  "philosophy": "Wire existing capabilities, don't build new ones. Every story must show VISIBLE BEHAVIOR CHANGE.",
+
+  "criticalReview": {
+    "date": "2026-01-08",
+    "findings": [
+      "TopicExtractor is COMPLETE - just needs to be called after _handle_query line 271",
+      "PatternDetector is COMPLETE - just needs IPC handler and system prompt injection at line 241",
+      "GoalTracker is COMPLETE - just needs IPC handler and system prompt injection",
+      "P3-001/P3-002 already implemented context sources - V3-008 may be verification only",
+      "TaskPoller and notifications exist - V3-003 may need minor enhancement only",
+      "Streaming (V3-006) is complex and should be deprioritized to avoid scope creep"
+    ],
+    "refinements": [
+      "Reordered stories by impact: V3-001 → V3-002 → V3-003 → V3-004 → V3-005",
+      "Marked V3-006 (streaming) as optional - complex, lower ROI",
+      "V3-008 changed to verification - may already work from P3-001/P3-002",
+      "V3-009 deprioritized - nice to have, not core value",
+      "Added specific file:line references for implementation"
+    ],
+    "codeLocations": {
+      "queryHandler": "daemon/ipc_server.py:193-273 (_handle_query)",
+      "systemPromptBuilding": "daemon/ipc_server.py:241-243",
+      "topicExtractor": "research/topic_extractor.py (complete)",
+      "patternDetector": "learning/pattern_detector.py (complete)",
+      "goalTracker": "Functions/goal_tracker.py (complete)"
+    }
+  },
+  "stack": {
+    "language": "typescript",
+    "framework": "electron-react",
+    "testRunner": "vitest",
+    "backend": "python"
+  },
+  "verification": {
+    "typecheck": "cd /Users/maximvs/Desktop/__2026_/Senter ⎊/senter-ui && npx tsc --noEmit",
+    "build": "cd /Users/maximvs/Desktop/__2026_/Senter ⎊/senter-ui && npm run build",
+    "lint": "cd /Users/maximvs/Desktop/__2026_/Senter ⎊/senter-ui && npm run lint || true"
+  },
+  "userStories": [
+    {
+      "id": "V3-001",
+      "title": "Auto-Research Trigger from Conversation",
+      "phase": 1,
+      "valueStatement": "When you express curiosity in chat ('I wonder...', 'What is...', 'How does...'), Senter automatically queues research WITHOUT you saying 'research X'.",
+      "demoScript": [
+        "1. Start conversation with Senter",
+        "2. Say: 'I've been thinking about event sourcing lately, I wonder how it handles conflicts'",
+        "3. Senter responds normally to your message",
+        "4. Check Tasks tab - see NEW research task queued automatically",
+        "5. You never said 'research' - Senter detected curiosity"
+      ],
+      "acceptanceCriteria": [
+        "After EVERY bot response, conversation is scanned for curiosity signals",
+        "Curiosity signals include: 'I wonder', 'what is', 'how does', 'curious about', question marks",
+        "Detected topics are auto-queued to research pipeline",
+        "User sees task appear in Tasks tab without explicit request",
+        "Duplicate topics (researched recently) are not re-queued",
+        "typecheck passes",
+        "build succeeds"
+      ],
+      "technicalRequirements": [
+        "Call TopicExtractor after each _handle_query in ipc_server.py",
+        "If topics detected, call _handle_add_research_task internally",
+        "Add 'auto_triggered': true flag to distinguish from explicit requests",
+        "Deduplicate against data/research/results/ to avoid re-researching"
+      ],
+      "qualityGate": "3 different curiosity expressions trigger 3 research tasks - none explicitly requested",
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "V3-002",
+      "title": "Learned Preferences in System Prompt",
+      "phase": 2,
+      "valueStatement": "After enough conversations, Senter's responses VISIBLY reflect your preferences - shorter if you prefer brief, more technical if you're a developer.",
+      "demoScript": [
+        "1. Have 10+ conversations preferring short answers ('tldr', 'briefly', 'keep it short')",
+        "2. Start new conversation, ask a complex question",
+        "3. Senter responds with CONCISE answer (not long-winded)",
+        "4. Compare to fresh Senter - default is verbose, yours is brief"
+      ],
+      "acceptanceCriteria": [
+        "PatternDetector preferences are loaded before each query",
+        "System prompt includes personalization section",
+        "Response style adapts based on: length preference, formality, technical level",
+        "Visible difference between personalized and default responses",
+        "typecheck passes",
+        "build succeeds"
+      ],
+      "technicalRequirements": [
+        "Add _load_user_preferences() method to ipc_server.py",
+        "Query learning_db for patterns: response_length, formality, technical_level",
+        "Inject into system prompt: 'User prefers X. Adjust your responses accordingly.'",
+        "Apply to EVERY query, not just specific ones"
+      ],
+      "qualityGate": "Same question to fresh vs personalized Senter gives noticeably different response style",
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "V3-003",
+      "title": "Research Complete Proactive Notification",
+      "phase": 1,
+      "valueStatement": "When research completes, you get a PROACTIVE notification saying 'I researched X and found useful information' - not buried in Tasks tab.",
+      "demoScript": [
+        "1. Trigger or queue a research task",
+        "2. Minimize or background the Senter window",
+        "3. Wait for research to complete (1-2 minutes)",
+        "4. See macOS notification: 'Research Complete: Event Sourcing - Found 4 sources'",
+        "5. Click notification - app opens to research result"
+      ],
+      "acceptanceCriteria": [
+        "Research completion triggers immediate desktop notification",
+        "Notification shows: topic, source count, 'Click to view'",
+        "Clicking notification opens app AND navigates to result",
+        "Works when app is minimized/backgrounded",
+        "typecheck passes",
+        "build succeeds"
+      ],
+      "technicalRequirements": [
+        "TaskPoller already detects completions - enhance notification content",
+        "Add deep link to specific task result in notification click",
+        "Store 'unviewed' flag on research results",
+        "UI shows badge count for unviewed research"
+      ],
+      "qualityGate": "Complete 3 research tasks with app minimized - get 3 informative notifications",
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "V3-004",
+      "title": "Insights Panel - Show What Senter Knows",
+      "phase": 3,
+      "valueStatement": "Users can see a panel showing: 'Your patterns: Most active 9-11am, Prefer brief responses, Common topics: Rust, Architecture'",
+      "demoScript": [
+        "1. Open Senter UI",
+        "2. Navigate to new 'Insights' tab in RightPanel",
+        "3. See: Peak hours chart, top topics list, preference summary",
+        "4. Verify data matches actual usage patterns"
+      ],
+      "acceptanceCriteria": [
+        "New 'Insights' tab added to RightPanel",
+        "Shows: peak hours, top 5 topics, response preferences, session count",
+        "Data fetched from PatternDetector via new IPC handler",
+        "Refreshes when tab becomes active",
+        "typecheck passes",
+        "build succeeds"
+      ],
+      "technicalRequirements": [
+        "Add get_insights IPC handler in daemon",
+        "Call PatternDetector.get_all_patterns() or similar",
+        "Add Electron bridge and preload method",
+        "Create InsightsTab component in RightPanel"
+      ],
+      "qualityGate": "After 20+ queries, insights panel shows accurate patterns",
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "V3-005",
+      "title": "Goals Dashboard in UI",
+      "phase": 3,
+      "valueStatement": "Users can see their detected goals and track progress - 'Goal: Learn Rust (3 research tasks completed)'",
+      "demoScript": [
+        "1. Have conversations expressing goals ('I want to learn Rust', 'Working on auth system')",
+        "2. Open Goals tab in RightPanel",
+        "3. See list of detected goals with status",
+        "4. See related research and tasks linked to each goal"
+      ],
+      "acceptanceCriteria": [
+        "New 'Goals' tab added to RightPanel",
+        "Shows goals from goal_tracker with status and progress",
+        "Links to related research/tasks",
+        "Can mark goals as completed or paused",
+        "typecheck passes",
+        "build succeeds"
+      ],
+      "technicalRequirements": [
+        "Add get_goals IPC handler in daemon",
+        "Return goals from Functions/goal_tracker.py",
+        "Add update_goal_status IPC handler",
+        "Create GoalsTab component"
+      ],
+      "qualityGate": "Express 3 different goals in chat - all appear in Goals tab",
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "V3-006",
+      "title": "Response Streaming (Sentence-by-Sentence)",
+      "phase": 4,
+      "valueStatement": "Responses appear word-by-word/sentence-by-sentence like ChatGPT, not as a block after waiting.",
+      "demoScript": [
+        "1. Ask a complex question that requires long response",
+        "2. See response stream in character-by-character or sentence-by-sentence",
+        "3. First words appear within 500ms",
+        "4. No waiting for entire response before display"
+      ],
+      "acceptanceCriteria": [
+        "Responses stream progressively to UI",
+        "Time to first token < 1 second",
+        "MessageBubble updates as tokens arrive",
+        "Final message is identical to non-streaming",
+        "typecheck passes",
+        "build succeeds"
+      ],
+      "technicalRequirements": [
+        "Add streaming mode to Ollama requests",
+        "Emit partial responses via IPC events",
+        "ChatSlice accumulates streaming tokens",
+        "MessageBubble renders partial content"
+      ],
+      "qualityGate": "Long response (500+ words) streams visibly, first word in <1s",
+      "priority": 6,
+      "passes": false,
+      "notes": "Complex - may need SSE or WebSocket pattern"
+    },
+    {
+      "id": "V3-007",
+      "title": "Morning Digest Notification",
+      "phase": 5,
+      "valueStatement": "Each morning, Senter sends notification: 'Good morning! While you were away, I researched 2 topics and detected 1 new goal.'",
+      "demoScript": [
+        "1. Use Senter during the day, queue research",
+        "2. Close laptop overnight",
+        "3. Next morning at configured time (e.g., 8am), get notification",
+        "4. Notification summarizes: research completed, insights detected, suggestions"
+      ],
+      "acceptanceCriteria": [
+        "Scheduled job runs at configurable morning hour",
+        "Notification sent via macOS notification system",
+        "Includes: research count, goals detected, key insights",
+        "Clicking notification opens daily digest view",
+        "typecheck passes",
+        "build succeeds"
+      ],
+      "technicalRequirements": [
+        "Scheduler job 'morning_digest' at configured hour",
+        "Aggregates: overnight research, new goals, activity summary",
+        "Sends notification via Reporter's _notify_macos",
+        "Add digest view in UI"
+      ],
+      "qualityGate": "Simulate morning trigger - receive accurate digest notification",
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "V3-008",
+      "title": "Context Sources Visible in UI",
+      "phase": 3,
+      "valueStatement": "Users can see and manage their pinned context sources - files and URLs that enhance every response.",
+      "demoScript": [
+        "1. Open ContextMenu in UI",
+        "2. See list of currently pinned sources (files, URLs)",
+        "3. Add a new source: project README.md",
+        "4. Ask question about project - response references README content",
+        "5. Remove source - response no longer has that context"
+      ],
+      "acceptanceCriteria": [
+        "ContextMenu shows all pinned sources from daemon",
+        "Can add file or URL source with title",
+        "Can remove sources",
+        "Sources visibly affect query responses",
+        "typecheck passes",
+        "build succeeds"
+      ],
+      "technicalRequirements": [
+        "ContextMenu already has IPC - verify it works",
+        "Show source list in ContextMenu dropdown",
+        "Add confirmation when source is added",
+        "Verify _build_context_sources_prompt is called in queries"
+      ],
+      "qualityGate": "Add 2 sources, ask about their content - responses include source info",
+      "priority": 8,
+      "passes": false,
+      "notes": "May already be partially working from P3-001/P3-002"
+    },
+    {
+      "id": "V3-009",
+      "title": "Research Suggestions in Chat",
+      "phase": 5,
+      "valueStatement": "When Senter detects a topic it could research, it suggests: 'Would you like me to research X in depth?'",
+      "demoScript": [
+        "1. Ask: 'What's the difference between event sourcing and CQRS?'",
+        "2. Senter answers the question",
+        "3. Below answer, see: 'I could research this topic in depth. Queue research?'",
+        "4. Click 'Yes' - research task created",
+        "5. Click 'No' - dismissed"
+      ],
+      "acceptanceCriteria": [
+        "Responses include research suggestions when appropriate",
+        "Suggestion appears as interactive element below response",
+        "Clicking 'Yes' queues research task",
+        "Not every response has suggestion - only appropriate ones",
+        "typecheck passes",
+        "build succeeds"
+      ],
+      "technicalRequirements": [
+        "TopicExtractor returns 'researchable' flag",
+        "Response includes 'suggested_research' field if appropriate",
+        "UI renders suggestion as clickable CTA",
+        "Clicking triggers add_research_task"
+      ],
+      "qualityGate": "Ask 5 different questions - 2-3 get appropriate research suggestions",
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "V3-010",
+      "title": "Goal-Aware Response Context",
+      "phase": 2,
+      "valueStatement": "Senter knows your active goals and incorporates them: 'Since you're learning Rust, here's how this applies to Rust specifically...'",
+      "demoScript": [
+        "1. Express goal: 'I'm trying to learn Rust'",
+        "2. Goal detected and stored",
+        "3. Later ask: 'How do I handle errors in async code?'",
+        "4. Response includes: 'In Rust specifically, you'd use Result with the ? operator...'"
+      ],
+      "acceptanceCriteria": [
+        "Active goals are loaded before each query",
+        "Relevant goals included in system prompt",
+        "Responses reference goals when contextually appropriate",
+        "Doesn't force goals into unrelated topics",
+        "typecheck passes",
+        "build succeeds"
+      ],
+      "technicalRequirements": [
+        "Add _load_active_goals() in ipc_server.py",
+        "Query goal_tracker for active goals",
+        "Add to system prompt: 'User's current goals: X, Y, Z'",
+        "Goal context only added if goals exist"
+      ],
+      "qualityGate": "Express goal, ask related question - response contextualizes to goal",
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

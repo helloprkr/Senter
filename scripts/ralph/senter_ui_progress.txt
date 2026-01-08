@@ -1,0 +1,247 @@
+# Ralph Progress Log - Senter Liquid Glass UI
+Started: 2026-01-08
+Project: Senter Liquid Glass UI Implementation
+
+## Design Reference
+- Specification: /Users/maximvs/Desktop/__2026_/Senter ⎊/senter-ai-mac-os-ui/SENTERUI_SPECIFICATION.md
+- Reference Implementation: /Users/maximvs/Desktop/__2026_/Senter ⎊/senter-ai-mac-os-ui/liquid-glass-app.tsx
+- macOS Skills: /Users/maximvs/Desktop/__2026_/Senter ⎊/Skills_mac_ios-main/
+
+## Design System Constants
+
+### Colors (from SENTERUI_SPECIFICATION.md)
+- brand-dark: #081710 (deep black-green, background)
+- brand-primary: #123524 (dark forest green)
+- brand-light: #FAFAFA (off-white, text and borders)
+- brand-accent: #D64933 (coral red, CTAs and highlights)
+
+### Glass Effect CSS
+```css
+.glass-panel {
+  background: rgba(250, 250, 250, 0.08);
+  backdrop-filter: blur(64px);
+  -webkit-backdrop-filter: blur(64px);
+  border: 1px solid rgba(250, 250, 250, 0.1);
+  border-radius: 24px;
+  box-shadow:
+    inset 0 1px 0 0 rgba(250, 250, 250, 0.1),
+    0 0 40px rgba(18, 53, 36, 0.2);
+}
+```
+
+### Typography
+- Font: Manrope Variable (200-800 weight)
+- Loading: font-display: swap
+- Fallback: system sans-serif
+
+### Layout Constants
+- Sidebar width: 368px
+- Sidebar z-index: 20
+- Input bar z-index: 50
+- Context menu: expands UPWARD (bottom positioning)
+- Chat view: expands DOWNWARD (top positioning)
+
+### Animation Easing
+- Standard ease: [0.16, 1, 0.3, 1] (expo out)
+- Duration: 300ms
+- Rainbow animation: 2s linear infinite background-position shift
+
+## Codebase Patterns
+
+### From liquid-glass-app.tsx
+- State management: React useState hooks for local UI state
+- Animations: framer-motion AnimatePresence + motion components
+- Icons: lucide-react (MessageCircle, Mic, Camera, History, Menu, Send)
+- Styling: Tailwind CSS with custom brand-* color classes
+- Layout: Flexbox with relative/absolute positioning
+
+### Electron Configuration Patterns
+- Window: frameless, transparent background
+- Vibrancy: under-window (macOS)
+- Traffic lights: custom positioning
+- IPC: contextBridge for renderer/main communication
+
+## Key Files (Target Structure)
+
+### Main Process (Electron)
+- senter-ui/src/main/index.ts - Main process entry
+- senter-ui/src/main/ipc/senterBridge.ts - Python backend bridge
+- senter-ui/src/main/tray.ts - System tray integration
+- senter-ui/src/main/notifications.ts - Native notifications
+
+### Renderer (React)
+- senter-ui/src/renderer/App.tsx - Root component
+- senter-ui/src/renderer/components/InputBar/ - Main input area
+- senter-ui/src/renderer/components/ChatView/ - Message display
+- senter-ui/src/renderer/components/ContextMenu/ - Popup menu
+- senter-ui/src/renderer/components/Sidebar/ - Research panel
+- senter-ui/src/renderer/components/ui/ - Reusable components
+- senter-ui/src/renderer/store/ - Zustand state management
+- senter-ui/src/renderer/hooks/ - Custom React hooks
+- senter-ui/src/renderer/types/ - TypeScript interfaces
+
+## Backend Integration
+
+### Existing Python Backend
+- Unix socket: /tmp/senter.sock
+- IPC protocol: JSON messages
+- Endpoints: query, status, health, research
+
+### IPC Methods Needed
+1. sendQuery(text, conversationId) -> response
+2. getResearch(limit?) -> ResearchResult[]
+3. getStatus() -> { status, unreadCount }
+4. getHealth() -> { healthy, components }
+
+## Implementation Plan
+
+### Phase 1: Project Setup (Stories PS-001 to PS-004)
+- Scaffold Electron + React + Vite project
+- Configure macOS window settings
+- Install Framer Motion
+- Set up Manrope font
+
+### Phase 2: Design System (Stories DS-001 to DS-004)
+- Configure Tailwind brand colors
+- Create GlassPanel component
+- Create IconButton component
+- Create BackgroundEffects component
+
+### Phase 3: Core Components (Stories CC-001 to CC-002)
+- Create App layout
+- Define TypeScript types
+
+### Phase 4: Input Bar (Stories IB-001 to IB-008)
+- InputBar container
+- Header section
+- Textarea input
+- Menu button
+- Microphone button
+- Camera button
+- Send button
+- History button
+
+### Phase 5: Context Menu (Stories CM-001 to CM-003)
+- Menu container with upward animation
+- Menu items
+- Focus selector submenu
+
+### Phase 6: Chat View (Stories CV-001 to CV-004)
+- Chat container with downward animation
+- Message bubbles
+- Header with close
+- Auto-scroll behavior
+
+### Phase 7: Sidebar (Stories SB-001 to SB-004)
+- Sidebar container
+- Header with status
+- Research list
+- Research detail view
+
+### Phase 8: Animations (Stories AN-001 to AN-004)
+- Rainbow border for recording
+- Typing indicator
+- Message entrance
+- Panel slide animations
+
+### Phase 9: State Management (Stories SM-001 to SM-004)
+- Zustand setup
+- UI slice
+- Chat slice
+- Research slice
+
+### Phase 10: Backend Integration (Stories BI-001 to BI-004)
+- IPC bridge
+- Query sending
+- Research fetching
+- Health monitoring
+
+### Phase 11: macOS Native (Stories MN-001 to MN-004)
+- Menubar tray icon
+- Global keyboard shortcut
+- Window position persistence
+- Native notifications
+
+### Phase 12: Audio/Visual (Stories AV-001 to AV-003)
+- Audio level visualization
+- Speech-to-text display
+- TTS playback controls
+
+### Phase 13: Polish (Stories PL-001 to PL-005)
+- Loading states
+- Error handling
+- Keyboard navigation
+- Settings panel
+- Final visual review
+
+---
+
+## Current State
+Stories defined: 66
+Stories complete: 0
+Ready to begin implementation
+
+## Plan Summary
+
+### Total: 66 User Stories across 13 Categories
+
+| Category | Stories | IDs |
+|----------|---------|-----|
+| PROJECT_SETUP | 4 | PS-001 to PS-004 |
+| DESIGN_SYSTEM | 4 | DS-001 to DS-004 |
+| CORE_COMPONENTS | 2 | CC-001 to CC-002 |
+| INPUT_BAR | 8 | IB-001 to IB-008 |
+| CONTEXT_MENU | 6 | CM-001 to CM-006 |
+| CHAT_VIEW | 8 | CV-001 to CV-008 |
+| SIDEBAR | 7 | SB-001 to SB-007 |
+| ANIMATIONS | 4 | AN-001 to AN-004 |
+| STATE_MANAGEMENT | 7 | SM-001 to SM-007 |
+| BACKEND_INTEGRATION | 4 | BI-001 to BI-004 |
+| MACOS_NATIVE | 4 | MN-001 to MN-004 |
+| AUDIO_VISUAL | 3 | AV-001 to AV-003 |
+| POLISH | 5 | PL-001 to PL-005 |
+
+### Key Implementation Phases
+
+**Phase 1: Foundation (PS-001 to DS-004)** - 8 stories
+- Electron + React + Vite project scaffold
+- macOS window configuration (frameless, vibrancy)
+- Tailwind + Framer Motion setup
+- Glass panel and icon button components
+
+**Phase 2: Core Layout (CC-001 to IB-008)** - 10 stories
+- App layout with sidebar
+- Input bar with all buttons
+- Rainbow border animation for mic
+
+**Phase 3: Panels (CM-001 to CV-008)** - 14 stories
+- Context menu with filter sidebar and item cards
+- Chat view with message bubbles
+- Right panel with History/Journal/Tasks tabs
+
+**Phase 4: Sidebar (SB-001 to SB-007)** - 7 stories
+- Fixed sidebar with glass styling
+- Navigation menu
+- Search bar with ⌘K
+- User profile section
+
+**Phase 5: State & Backend (SM-001 to BI-004)** - 11 stories
+- Zustand store setup
+- UI, chat, research, navigation, context slices
+- IPC bridge to Python backend
+- Panel mutual exclusivity
+
+**Phase 6: Native & Polish (MN-001 to PL-005)** - 12 stories
+- Menubar tray icon
+- Global keyboard shortcuts
+- Native notifications
+- Loading states, error handling
+- Final visual polish
+
+**Phase 7: Audio/Visual (AV-001 to AV-003)** - 3 stories
+- Audio level visualization
+- Speech-to-text integration
+- TTS playback controls
+
+---
+

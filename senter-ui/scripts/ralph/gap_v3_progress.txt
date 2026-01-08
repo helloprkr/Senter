@@ -1,0 +1,138 @@
+# Ralph Wiggums Progress Log - Gap Vision v3
+Started: 2026-01-08
+Project: Senter Gap Vision v3 - Activate What Exists
+
+## Philosophy (v3 Specific)
+- "Wire, don't write" - Most features exist, need connection
+- Every story must show VISIBLE BEHAVIOR CHANGE
+- If you can't demo it, it doesn't count
+- Existing code is trusted - just needs activation
+
+## Codebase Discovery (from Deep Exploration)
+
+### What's Fully Working (No Changes Needed)
+- IPC Server: 53 handlers fully implemented
+- Message Bus: Complete pub/sub, DLQ, correlation tracking
+- Task Engine: Full execution, dependencies, retries
+- Research Pipeline: 4-stage (topic → search → synthesis → storage)
+- Learning DBs: Events, behavior, journal, context sources
+- Pattern Detection: Peak hours, topics, preferences
+- Audio Pipeline: VAD, STT, TTS (optional, config-driven)
+- Gaze Detection: MediaPipe, attention (optional, config-driven)
+- UI Components: Chat, Sidebar, Settings, InputBar
+
+### What Needs Wiring (v3 Focus)
+- TopicExtractor exists but not called after conversations
+- PatternDetector runs but preferences not injected into prompts
+- Research completes but notifications are minimal
+- Goals detected but not shown in UI
+- Insights calculated but not displayed
+
+### Key Files for v3
+
+**Auto-Research Trigger:**
+- daemon/ipc_server.py _handle_query → add TopicExtractor call
+- research/topic_extractor.py → already complete
+- research/pipeline.py → already complete
+
+**Preference Injection:**
+- daemon/ipc_server.py → add _load_user_preferences()
+- learning/pattern_detector.py → has get_patterns()
+- learning/learning_db.py → has preferences table
+
+**UI Intelligence:**
+- src/renderer/components/ChatView/RightPanel.tsx → add Insights/Goals tabs
+- src/preload/index.ts → add getInsights, getGoals
+- daemon/ipc_server.py → add handlers for insights, goals
+
+**Streaming:**
+- daemon/senter_daemon.py model workers → enable streaming
+- src/renderer/store/chatSlice.ts → handle partial messages
+- src/main/ipc/senterBridge.ts → stream events to renderer
+
+---
+## Story Log
+
+### V3-001: Auto-Research Trigger from Conversation [PASSED]
+Date: 2026-01-08
+
+**Implementation:**
+1. Added `_auto_detect_research_topics` method in daemon/ipc_server.py (lines 393-460)
+   - Calls TopicExtractor after each query response
+   - Detects curiosity signals ("I wonder", "what is", etc.)
+   - Auto-queues up to 2 research tasks per conversation
+   - Deduplicates against recently researched topics (7-day window)
+
+2. Modified `_handle_query` to call auto-detection after response (line 273-286)
+   - Returns `auto_research_queued` array in response when topics detected
+   - Logs auto-queued topics with priority and reason
+
+**Key Files:**
+- daemon/ipc_server.py lines 273-286, 393-460
+- research/topic_extractor.py (already complete, just wired)
+
+**Verification:**
+- Python syntax: OK
+- typecheck: PASSED
+
+### V3-002: Learned Preferences in System Prompt [PASSED]
+### V3-010: Goal-Aware Response Context [PASSED]
+Date: 2026-01-08
+
+**Implementation (Combined):**
+1. Added `_load_user_preferences` method in daemon/ipc_server.py (lines 478-564)
+   - Loads preferences from LearningDB (response_length, formality, technical_level, preferred_language)
+   - Loads patterns from PatternDetector (peak_hours, topic_frequency)
+   - Formats as personalization instructions for system prompt
+
+2. Added `_load_active_goals` method in daemon/ipc_server.py (lines 566-603)
+   - Loads active goals from GoalTracker
+   - Formats as context: "USER'S CURRENT GOALS: ..."
+
+3. Modified `_handle_query` to inject both contexts (lines 240-259)
+   - Preferences and goals now included in every system prompt
+   - Only included if data exists (graceful degradation)
+
+**Result:**
+- System prompt now includes learned preferences
+- System prompt now includes active goals
+- Responses adapt to user's style and context
+
+**Verification:**
+- Python syntax: OK
+- typecheck: PASSED
+
+### V3-004: Insights Panel - Show What Senter Knows [PASSED]
+### V3-005: Goals Dashboard in UI [PASSED]
+Date: 2026-01-08
+
+**Implementation (Combined):**
+1. Added IPC handlers in daemon/ipc_server.py:
+   - `get_insights`: Returns patterns, preferences, and stats from PatternDetector/LearningDB
+   - `get_goals`: Returns goals from GoalTracker with status and subtasks
+   - `update_goal`: Updates goal status (complete/pause)
+
+2. Added Electron IPC bridge methods in senterBridge.ts:
+   - getInsights(), getGoals(), updateGoal()
+
+3. Updated preload/index.ts with new API methods
+
+4. Updated RightPanel.tsx:
+   - Added Insights and Goals tabs
+   - Insights tab shows: peak hours, top topics, learned preferences, interaction stats
+   - Goals tab shows: goal cards with status badges, priority, subtasks, mark complete button
+
+5. Updated types/index.ts:
+   - Added 'insights' and 'goals' to ChatViewTab type
+
+**Result:**
+- Users can see their behavioral patterns and preferences
+- Users can track goals and mark them complete
+- Full visibility into what Senter "knows"
+
+**Verification:**
+- Python syntax: OK
+- typecheck: PASSED
+- build: PASSED
+
+---

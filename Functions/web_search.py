@@ -13,11 +13,15 @@ from typing import Optional
 logger = logging.getLogger("senter.web_search")
 
 try:
-    from duckduckgo_search import DDGS
+    from ddgs import DDGS
     DDGS_AVAILABLE = True
 except ImportError:
-    DDGS_AVAILABLE = False
-    logger.warning("duckduckgo-search not installed - run: pip install duckduckgo-search")
+    try:
+        from duckduckgo_search import DDGS
+        DDGS_AVAILABLE = True
+    except ImportError:
+        DDGS_AVAILABLE = False
+        logger.warning("ddgs not installed - run: pip install ddgs")
 
 
 def search_web(query: str, max_results: int = 5) -> list[dict]:

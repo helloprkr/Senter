@@ -1,0 +1,1727 @@
+{
+  "projectName": "Senter Liquid Glass UI Implementation",
+  "branchName": "ralph/senter-liquid-glass-ui",
+  "stack": {
+    "language": "typescript",
+    "framework": "electron-react",
+    "testRunner": "vitest",
+    "buildTool": "vite"
+  },
+  "verification": {
+    "typecheck": "cd '/Users/maximvs/Desktop/__2026_/Senter ⎊/senter-ui' && npm run typecheck 2>&1 | head -30",
+    "unitTest": "cd '/Users/maximvs/Desktop/__2026_/Senter ⎊/senter-ui' && npm test -- --run 2>&1 | head -50",
+    "lint": "cd '/Users/maximvs/Desktop/__2026_/Senter ⎊/senter-ui' && npm run lint 2>&1 | head -30",
+    "build": "cd '/Users/maximvs/Desktop/__2026_/Senter ⎊/senter-ui' && npm run build 2>&1 | head -30",
+    "visualVerification": true
+  },
+  "designSystem": {
+    "colors": {
+      "primary": "#123524",
+      "background": "#081710",
+      "light": "#FAFAFA",
+      "accent": "#D64933"
+    },
+    "typography": {
+      "fontFamily": "Manrope",
+      "weights": "200-800"
+    },
+    "glassEffect": {
+      "backdropBlur": "64px",
+      "background": "rgba(250, 250, 250, 0.08)",
+      "border": "1px solid rgba(250, 250, 250, 0.1)",
+      "boxShadow": "inset 0 1px 0 0 rgba(250, 250, 250, 0.1), 0 0 40px rgba(18, 53, 36, 0.2)"
+    },
+    "layout": {
+      "sidebarWidth": "368px",
+      "inputBarZIndex": 50,
+      "sidebarZIndex": 20,
+      "contextMenuDirection": "upward",
+      "chatViewDirection": "downward"
+    }
+  },
+  "categories": [
+    "PROJECT_SETUP",
+    "DESIGN_SYSTEM",
+    "CORE_COMPONENTS",
+    "INPUT_BAR",
+    "CONTEXT_MENU",
+    "CHAT_VIEW",
+    "SIDEBAR",
+    "ANIMATIONS",
+    "STATE_MANAGEMENT",
+    "BACKEND_INTEGRATION",
+    "MACOS_NATIVE",
+    "AUDIO_VISUAL",
+    "POLISH"
+  ],
+  "userStories": [
+    {
+      "id": "PS-001",
+      "category": "PROJECT_SETUP",
+      "title": "Initialize Electron + React + Vite project",
+      "description": "Create new Electron app with React, Vite, TypeScript, and TailwindCSS",
+      "acceptanceCriteria": [
+        "Given new project, when scaffolded, then Electron app launches with React renderer",
+        "Vite configured for fast HMR in development",
+        "TypeScript strict mode enabled",
+        "TailwindCSS configured with custom brand colors",
+        "Project structure: src/main (Electron main), src/renderer (React)",
+        "package.json has build scripts for dev and production",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/package.json",
+        "senter-ui/vite.config.ts",
+        "senter-ui/tsconfig.json",
+        "senter-ui/tailwind.config.js",
+        "senter-ui/electron.vite.config.ts",
+        "senter-ui/src/main/index.ts",
+        "senter-ui/src/renderer/main.tsx",
+        "senter-ui/src/renderer/App.tsx"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "PS-002",
+      "category": "PROJECT_SETUP",
+      "title": "Configure Electron window for macOS",
+      "description": "Set up frameless, transparent Electron window with vibrancy",
+      "acceptanceCriteria": [
+        "Given Electron app, when window created, then it is frameless (titleBarStyle: hidden)",
+        "Window has transparent background for glass effect",
+        "macOS vibrancy effect enabled (under-window)",
+        "Window is resizable with min size 400x300",
+        "Traffic light buttons positioned correctly",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/main/index.ts"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "PS-003",
+      "category": "PROJECT_SETUP",
+      "title": "Install and configure Framer Motion",
+      "description": "Add Framer Motion for animations with proper configuration",
+      "acceptanceCriteria": [
+        "Given project, when framer-motion installed, then animations work",
+        "AnimatePresence configured for exit animations",
+        "Motion config optimized for performance",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": false
+      },
+      "filesToModify": [
+        "senter-ui/package.json"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "PS-004",
+      "category": "PROJECT_SETUP",
+      "title": "Set up Manrope font",
+      "description": "Install and configure Manrope variable font",
+      "acceptanceCriteria": [
+        "Given app loads, when fonts configured, then Manrope variable font renders",
+        "Font weights 200-800 available",
+        "Font loaded with font-display: swap for performance",
+        "Fallback to system sans-serif",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/styles/fonts.css"
+      ],
+      "filesToModify": [
+        "senter-ui/tailwind.config.js"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "DS-001",
+      "category": "DESIGN_SYSTEM",
+      "title": "Create brand color palette in Tailwind",
+      "description": "Define Senter brand colors as Tailwind theme extensions",
+      "acceptanceCriteria": [
+        "Given tailwind.config.js, when configured, then brand colors available",
+        "brand-dark: #081710 (background)",
+        "brand-primary: #123524 (dark green)",
+        "brand-light: #FAFAFA (off-white)",
+        "brand-accent: #D64933 (coral red)",
+        "Colors available as bg-brand-*, text-brand-*, border-brand-*",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": false
+      },
+      "filesToModify": [
+        "senter-ui/tailwind.config.js"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "DS-002",
+      "category": "DESIGN_SYSTEM",
+      "title": "Create glass panel component",
+      "description": "Reusable glass morphism panel component with proper styling",
+      "acceptanceCriteria": [
+        "Given GlassPanel component, when rendered, then shows glass effect",
+        "backdrop-blur-3xl (64px blur)",
+        "bg-brand-light/[0.08] (8% opacity white)",
+        "border border-brand-light/15 (15% opacity white border)",
+        "Inner glow: inset 0 1px 0 0 rgba(250, 250, 250, 0.1)",
+        "Outer glow: 0 0 40px rgba(18, 53, 36, 0.2)",
+        "rounded-3xl border radius",
+        "Props: children, className, withGlow (boolean)",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_glass_panel_renders", "test_glass_panel_props"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ui/GlassPanel.tsx"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "DS-003",
+      "category": "DESIGN_SYSTEM",
+      "title": "Create icon button component",
+      "description": "Reusable icon button with hover/active states",
+      "acceptanceCriteria": [
+        "Given IconButton component, when rendered, then shows icon with proper styling",
+        "Base: w-8 h-8 rounded-lg bg-brand-light/[0.08] border-brand-light/10",
+        "Hover: scale(1.05), bg-brand-primary/10",
+        "Active/Pressed: scale(0.95)",
+        "Active state variant: bg-brand-primary/20 border-brand-primary/30",
+        "Props: icon (Lucide icon), onClick, isActive, disabled, className",
+        "Uses Framer Motion for animations",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_icon_button_states"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ui/IconButton.tsx"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "DS-004",
+      "category": "DESIGN_SYSTEM",
+      "title": "Create background effects component",
+      "description": "Animated background gradients and effects",
+      "acceptanceCriteria": [
+        "Given BackgroundEffects component, when rendered, then shows ambient effects",
+        "Radial gradient at 25% 25% with brand-primary",
+        "Radial gradient at 75% 75% with brand-accent",
+        "Subtle animated glow orbs (w-96 h-96, blur-3xl)",
+        "Fixed positioning, pointer-events-none",
+        "Low opacity (5-10%) for subtlety",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ui/BackgroundEffects.tsx"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CC-001",
+      "category": "CORE_COMPONENTS",
+      "title": "Create main App layout",
+      "description": "Root layout with sidebar and main content area",
+      "acceptanceCriteria": [
+        "Given App component, when rendered, then shows sidebar + main area",
+        "Sidebar fixed on left (368px width, z-20)",
+        "Main content area fills remaining space",
+        "BackgroundEffects rendered behind content",
+        "min-h-screen with overflow-hidden",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/App.tsx"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CC-002",
+      "category": "CORE_COMPONENTS",
+      "title": "Create Message type and interface",
+      "description": "TypeScript interfaces for chat messages",
+      "acceptanceCriteria": [
+        "Given types file, when imported, then Message interface available",
+        "Message: id (string), type ('user' | 'bot'), content (string), timestamp (Date)",
+        "ConversationThread: messages (Message[]), id (string), title (string)",
+        "Research result type matches Python backend",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": false
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/types/index.ts"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "IB-001",
+      "category": "INPUT_BAR",
+      "title": "Create InputBar container component",
+      "description": "Main input bar with glass styling",
+      "acceptanceCriteria": [
+        "Given InputBar component, when rendered, then shows glass-styled container",
+        "Fixed position at bottom center (z-50)",
+        "max-w-lg w-full centered",
+        "Outer glow effect around container",
+        "Contains header section and input section",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_input_bar_renders"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/InputBar/InputBar.tsx",
+        "senter-ui/src/renderer/components/InputBar/index.ts"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "IB-002",
+      "category": "INPUT_BAR",
+      "title": "Create InputBar header section",
+      "description": "Header with logo and title",
+      "acceptanceCriteria": [
+        "Given InputBar, when rendered, then header shows logo + SENTER title",
+        "Logo: MessageCircle icon in glass container (w-10 h-10)",
+        "Title: 'SENTER' text-xl font-medium tracking-wide",
+        "Divider: border-b border-brand-light/[0.08]",
+        "Padding: p-6",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/components/InputBar/InputBar.tsx"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "IB-003",
+      "category": "INPUT_BAR",
+      "title": "Create textarea input field",
+      "description": "Auto-resizing textarea for message input",
+      "acceptanceCriteria": [
+        "Given InputBar, when user types, then textarea auto-resizes",
+        "Placeholder: 'Ask me anything...'",
+        "bg-transparent, text-brand-light",
+        "Min height 20px, max height 96px (6 lines)",
+        "Enter sends message, Shift+Enter for newline",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_textarea_auto_resize", "test_enter_sends"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/components/InputBar/InputBar.tsx"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "IB-004",
+      "category": "INPUT_BAR",
+      "title": "Create menu toggle button",
+      "description": "Button to toggle context menu",
+      "acceptanceCriteria": [
+        "Given InputBar, when menu button clicked, then toggles context menu",
+        "Uses IconButton with Menu icon",
+        "Active state when context menu open",
+        "Positioned left of textarea",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_menu_toggle"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/components/InputBar/InputBar.tsx"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "IB-005",
+      "category": "INPUT_BAR",
+      "title": "Create microphone button with hold-to-record",
+      "description": "Push-to-talk button with visual feedback",
+      "acceptanceCriteria": [
+        "Given InputBar, when mic button held, then isListening becomes true",
+        "On mouseup or mouseleave, isListening becomes false",
+        "Active state (listening): bg-brand-accent/20 border-brand-accent/30",
+        "Uses Mic icon from lucide-react",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_mic_hold_to_record"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/components/InputBar/InputBar.tsx"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "IB-006",
+      "category": "INPUT_BAR",
+      "title": "Create camera button",
+      "description": "Button for camera/screenshot functionality",
+      "acceptanceCriteria": [
+        "Given InputBar, when camera button clicked, then triggers capture",
+        "Uses Camera icon from lucide-react",
+        "Click animation: scale(0.95), bg-brand-accent/20",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/components/InputBar/InputBar.tsx"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "IB-007",
+      "category": "INPUT_BAR",
+      "title": "Create send button",
+      "description": "Send message button with disabled state",
+      "acceptanceCriteria": [
+        "Given InputBar, when send clicked, then message sent if valid",
+        "Disabled when input is empty or whitespace",
+        "Uses Send icon from lucide-react",
+        "bg-brand-accent/90 hover:bg-brand-accent",
+        "disabled:opacity-50 disabled:cursor-not-allowed",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_send_disabled_empty"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/components/InputBar/InputBar.tsx"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "IB-008",
+      "category": "INPUT_BAR",
+      "title": "Create history toggle button",
+      "description": "Button to toggle chat view",
+      "acceptanceCriteria": [
+        "Given InputBar, when history button clicked, then toggles chat view",
+        "Uses History icon from lucide-react",
+        "Active state when chat view open",
+        "Positioned rightmost in button row",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_history_toggle"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/components/InputBar/InputBar.tsx"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CM-001",
+      "category": "CONTEXT_MENU",
+      "title": "Create ContextMenu container",
+      "description": "Animated context menu that expands upward",
+      "acceptanceCriteria": [
+        "Given ContextMenu component, when isOpen=true, then menu animates in",
+        "Expands UPWARD from input bar (bottom positioning)",
+        "Uses AnimatePresence for enter/exit animations",
+        "Animation: 300ms, ease [0.16, 1, 0.3, 1]",
+        "Position: absolute, bottom-full, left-0, mb-3",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_context_menu_animation"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ContextMenu/ContextMenu.tsx",
+        "senter-ui/src/renderer/components/ContextMenu/index.ts"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CM-002",
+      "category": "CONTEXT_MENU",
+      "title": "Create context menu items",
+      "description": "Menu items for research, goals, focus selection",
+      "acceptanceCriteria": [
+        "Given ContextMenu, when open, then shows menu items",
+        "Items: New Research, View Goals, Select Focus, Settings",
+        "Each item has icon + label + optional keyboard shortcut",
+        "Hover state: bg-brand-light/10",
+        "Click triggers action and closes menu",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_menu_item_click"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/components/ContextMenu/ContextMenu.tsx"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CM-003",
+      "category": "CONTEXT_MENU",
+      "title": "Create focus selector submenu",
+      "description": "Submenu showing available focuses",
+      "acceptanceCriteria": [
+        "Given ContextMenu with Select Focus hovered, then submenu appears",
+        "Lists available focuses from backend",
+        "Current focus has checkmark indicator",
+        "Clicking focus changes active focus",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/components/ContextMenu/ContextMenu.tsx"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CV-001",
+      "category": "CHAT_VIEW",
+      "title": "Create ChatView container",
+      "description": "Animated chat view that expands downward",
+      "acceptanceCriteria": [
+        "Given ChatView component, when isOpen=true, then chat animates in",
+        "Expands DOWNWARD from input bar (top positioning)",
+        "Uses AnimatePresence for enter/exit animations",
+        "Animation: 300ms, ease [0.16, 1, 0.3, 1]",
+        "Position: absolute, top-full, left-0, mt-3",
+        "Max height with overflow-y-auto for scrolling",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_chat_view_animation"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ChatView/ChatView.tsx",
+        "senter-ui/src/renderer/components/ChatView/index.ts"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CV-002",
+      "category": "CHAT_VIEW",
+      "title": "Create message bubble component",
+      "description": "Individual message bubble with user/bot styling",
+      "acceptanceCriteria": [
+        "Given MessageBubble component, when rendered, then shows message content",
+        "User messages: aligned right, bg-brand-primary/20",
+        "Bot messages: aligned left, bg-brand-light/10",
+        "Timestamp shown below message",
+        "Smooth fade-in animation on new messages",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_message_bubble_types"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ChatView/MessageBubble.tsx"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CV-003",
+      "category": "CHAT_VIEW",
+      "title": "Create chat header with close button",
+      "description": "Chat view header with title and close",
+      "acceptanceCriteria": [
+        "Given ChatView, when rendered, then shows header",
+        "Title: 'Conversation' or current topic",
+        "Close button (X icon) on right",
+        "Click close button sets isOpen=false",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/components/ChatView/ChatView.tsx"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CV-004",
+      "category": "CHAT_VIEW",
+      "title": "Implement auto-scroll to bottom",
+      "description": "Auto-scroll chat view when new messages arrive",
+      "acceptanceCriteria": [
+        "Given new message added, when ChatView open, then scrolls to bottom",
+        "Smooth scroll animation",
+        "Does not auto-scroll if user has scrolled up (reading history)",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_auto_scroll"],
+        "integration": [],
+        "visual": false
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/components/ChatView/ChatView.tsx"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "SB-001",
+      "category": "SIDEBAR",
+      "title": "Create Sidebar container",
+      "description": "Fixed sidebar with glass styling",
+      "acceptanceCriteria": [
+        "Given Sidebar component, when rendered, then shows fixed sidebar",
+        "Fixed position: left-0, top-0, bottom-0",
+        "Width: 368px (w-[368px])",
+        "z-index: 20",
+        "Glass panel styling",
+        "Contains: header, research list, footer",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/Sidebar/Sidebar.tsx",
+        "senter-ui/src/renderer/components/Sidebar/index.ts"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "SB-002",
+      "category": "SIDEBAR",
+      "title": "Create sidebar header",
+      "description": "Header with user avatar and status",
+      "acceptanceCriteria": [
+        "Given Sidebar, when rendered, then header shows user info",
+        "User avatar (placeholder or initials)",
+        "Status indicator (online/away/researching)",
+        "Settings button on right",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/components/Sidebar/Sidebar.tsx"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "SB-003",
+      "category": "SIDEBAR",
+      "title": "Create research list component",
+      "description": "Scrollable list of research items",
+      "acceptanceCriteria": [
+        "Given Sidebar, when research results exist, then list shows them",
+        "Each item: topic title, summary preview, timestamp",
+        "Unread indicator (dot) for new research",
+        "Click to expand/view full research",
+        "Empty state when no research",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_research_list_items"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/Sidebar/ResearchList.tsx"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "SB-004",
+      "category": "SIDEBAR",
+      "title": "Create research item detail view",
+      "description": "Expanded view of a research item",
+      "acceptanceCriteria": [
+        "Given research item clicked, when expanded, then shows full detail",
+        "Full summary text",
+        "Sources list with links",
+        "Confidence score visualization",
+        "Copy to clipboard button",
+        "Back button to return to list",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/Sidebar/ResearchDetail.tsx"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "AN-001",
+      "category": "ANIMATIONS",
+      "title": "Create rainbow border animation for mic recording",
+      "description": "Animated rainbow border when listening/recording",
+      "acceptanceCriteria": [
+        "Given isListening=true, when rendered, then rainbow border animates",
+        "Gradient: red, orange, yellow, green, blue, indigo, purple",
+        "Animation: background-position shift over 2s linear infinite",
+        "Animates around InputBar container",
+        "Fades in/out with AnimatePresence",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ui/RainbowBorder.tsx"
+      ],
+      "filesToModify": [
+        "senter-ui/src/renderer/components/InputBar/InputBar.tsx"
+      ],
+      "priority": 30,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "AN-002",
+      "category": "ANIMATIONS",
+      "title": "Create typing indicator animation",
+      "description": "Animated dots when bot is 'typing'",
+      "acceptanceCriteria": [
+        "Given isTyping=true in ChatView, when rendered, then typing dots animate",
+        "Three dots with staggered bounce animation",
+        "Appears below last message",
+        "Disappears when response arrives",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ChatView/TypingIndicator.tsx"
+      ],
+      "priority": 31,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "AN-003",
+      "category": "ANIMATIONS",
+      "title": "Create message entrance animation",
+      "description": "Smooth animation for new messages",
+      "acceptanceCriteria": [
+        "Given new message added, when rendered, then animates in",
+        "Animation: opacity 0->1, translateY 10px->0",
+        "Duration: 300ms",
+        "Ease: [0.16, 1, 0.3, 1]",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/components/ChatView/MessageBubble.tsx"
+      ],
+      "priority": 32,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "AN-004",
+      "category": "ANIMATIONS",
+      "title": "Create panel slide animations",
+      "description": "Smooth slide for context menu and chat view",
+      "acceptanceCriteria": [
+        "Given panel opens, when animated, then slides smoothly",
+        "Context menu: slides up from bottom",
+        "Chat view: slides down from top",
+        "Duration: 300ms",
+        "Includes opacity and transform animation",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/components/ContextMenu/ContextMenu.tsx",
+        "senter-ui/src/renderer/components/ChatView/ChatView.tsx"
+      ],
+      "priority": 33,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "SM-001",
+      "category": "STATE_MANAGEMENT",
+      "title": "Set up Zustand store",
+      "description": "Global state management with Zustand",
+      "acceptanceCriteria": [
+        "Given Zustand installed, when store created, then state is accessible",
+        "Store slices: ui, chat, research, settings",
+        "DevTools integration for debugging",
+        "Persistence for settings",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_store_actions"],
+        "integration": [],
+        "visual": false
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/store/index.ts",
+        "senter-ui/src/renderer/store/uiSlice.ts",
+        "senter-ui/src/renderer/store/chatSlice.ts",
+        "senter-ui/src/renderer/store/researchSlice.ts"
+      ],
+      "priority": 34,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "SM-002",
+      "category": "STATE_MANAGEMENT",
+      "title": "Create UI state slice",
+      "description": "State for UI panel visibility",
+      "acceptanceCriteria": [
+        "Given uiSlice, when accessed, then UI state available",
+        "State: isContextMenuOpen, isChatViewOpen, isListening, isSidebarOpen",
+        "Actions: toggleContextMenu, toggleChatView, setListening, toggleSidebar",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_ui_slice_actions"],
+        "integration": [],
+        "visual": false
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/store/uiSlice.ts"
+      ],
+      "priority": 35,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "SM-003",
+      "category": "STATE_MANAGEMENT",
+      "title": "Create chat state slice",
+      "description": "State for messages and conversations",
+      "acceptanceCriteria": [
+        "Given chatSlice, when accessed, then chat state available",
+        "State: messages, inputValue, isTyping, currentConversationId",
+        "Actions: addMessage, setInputValue, setTyping, clearMessages",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_chat_slice_actions"],
+        "integration": [],
+        "visual": false
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/store/chatSlice.ts"
+      ],
+      "priority": 36,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "SM-004",
+      "category": "STATE_MANAGEMENT",
+      "title": "Create research state slice",
+      "description": "State for research results",
+      "acceptanceCriteria": [
+        "Given researchSlice, when accessed, then research state available",
+        "State: researchResults, selectedResearch, unreadCount, isResearching",
+        "Actions: addResearch, selectResearch, markAsRead, clearResearch",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_research_slice_actions"],
+        "integration": [],
+        "visual": false
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/store/researchSlice.ts"
+      ],
+      "priority": 37,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "BI-001",
+      "category": "BACKEND_INTEGRATION",
+      "title": "Create IPC bridge to Python backend",
+      "description": "Electron IPC to communicate with Python daemon",
+      "acceptanceCriteria": [
+        "Given Electron app, when IPC handler created, then can call Python backend",
+        "Uses Unix socket at /tmp/senter.sock",
+        "Exposes: sendQuery, getResearch, getStatus",
+        "Handles connection errors gracefully",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_ipc_connection"],
+        "integration": [],
+        "visual": false
+      },
+      "filesToCreate": [
+        "senter-ui/src/main/ipc/senterBridge.ts",
+        "senter-ui/src/renderer/hooks/useSenter.ts"
+      ],
+      "priority": 38,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "BI-002",
+      "category": "BACKEND_INTEGRATION",
+      "title": "Implement query sending",
+      "description": "Send user queries to Python backend",
+      "acceptanceCriteria": [
+        "Given user sends message, when submitted, then query sent to backend",
+        "Query includes: text, timestamp, conversation_id",
+        "Response received and added to messages",
+        "Error handling with user notification",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_send_query"],
+        "integration": [],
+        "visual": false
+      },
+      "filesToModify": [
+        "senter-ui/src/main/ipc/senterBridge.ts",
+        "senter-ui/src/renderer/hooks/useSenter.ts"
+      ],
+      "priority": 39,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "BI-003",
+      "category": "BACKEND_INTEGRATION",
+      "title": "Implement research fetching",
+      "description": "Fetch research results from Python backend",
+      "acceptanceCriteria": [
+        "Given app loads, when research fetched, then results populated",
+        "Fetches from research store via IPC",
+        "Updates research slice in store",
+        "Polling every 30s for new results",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_fetch_research"],
+        "integration": [],
+        "visual": false
+      },
+      "filesToModify": [
+        "senter-ui/src/main/ipc/senterBridge.ts",
+        "senter-ui/src/renderer/hooks/useSenter.ts"
+      ],
+      "priority": 40,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "BI-004",
+      "category": "BACKEND_INTEGRATION",
+      "title": "Implement health status monitoring",
+      "description": "Monitor backend health and show status",
+      "acceptanceCriteria": [
+        "Given app running, when health checked, then status indicator updates",
+        "Green: backend healthy",
+        "Yellow: backend degraded",
+        "Red: backend unreachable",
+        "Status shown in sidebar header",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/main/ipc/senterBridge.ts",
+        "senter-ui/src/renderer/components/Sidebar/Sidebar.tsx"
+      ],
+      "priority": 41,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "MN-001",
+      "category": "MACOS_NATIVE",
+      "title": "Add menubar tray icon",
+      "description": "System tray icon for quick access",
+      "acceptanceCriteria": [
+        "Given Electron app, when started, then tray icon appears in menubar",
+        "Click shows/hides main window",
+        "Right-click shows context menu (Status, Settings, Quit)",
+        "Icon changes based on unread count",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/main/tray.ts"
+      ],
+      "filesToModify": [
+        "senter-ui/src/main/index.ts"
+      ],
+      "priority": 42,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "MN-002",
+      "category": "MACOS_NATIVE",
+      "title": "Add global keyboard shortcut",
+      "description": "Global shortcut to show/hide app",
+      "acceptanceCriteria": [
+        "Given app running, when Cmd+Shift+S pressed, then app shows/hides",
+        "Works even when app is not focused",
+        "Shortcut configurable in settings",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": false
+      },
+      "filesToModify": [
+        "senter-ui/src/main/index.ts"
+      ],
+      "priority": 43,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "MN-003",
+      "category": "MACOS_NATIVE",
+      "title": "Implement window position persistence",
+      "description": "Remember window position between launches",
+      "acceptanceCriteria": [
+        "Given window moved, when app restarts, then window appears at same position",
+        "Position stored in electron-store",
+        "Handles screen resolution changes gracefully",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": false
+      },
+      "filesToModify": [
+        "senter-ui/src/main/index.ts"
+      ],
+      "priority": 44,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "MN-004",
+      "category": "MACOS_NATIVE",
+      "title": "Add native notifications",
+      "description": "macOS native notifications for research complete",
+      "acceptanceCriteria": [
+        "Given research completes, when user not focused, then notification shown",
+        "Notification shows: title, summary preview",
+        "Click notification brings app to focus",
+        "Respects system notification settings",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/main/notifications.ts"
+      ],
+      "priority": 45,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "AV-001",
+      "category": "AUDIO_VISUAL",
+      "title": "Implement audio level visualization",
+      "description": "Visualize microphone input level when recording",
+      "acceptanceCriteria": [
+        "Given isListening=true, when audio input detected, then level visualized",
+        "Audio level bar or waveform animation",
+        "Updates in real-time (60fps target)",
+        "Uses Web Audio API via Electron",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ui/AudioLevelMeter.tsx",
+        "senter-ui/src/renderer/hooks/useAudioLevel.ts"
+      ],
+      "priority": 46,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "AV-002",
+      "category": "AUDIO_VISUAL",
+      "title": "Create speech-to-text integration",
+      "description": "Display transcription as user speaks",
+      "acceptanceCriteria": [
+        "Given user speaking, when isListening=true, then transcription appears",
+        "Interim results shown in textarea with different styling",
+        "Final result replaces interim on speech end",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/components/InputBar/InputBar.tsx",
+        "senter-ui/src/main/ipc/senterBridge.ts"
+      ],
+      "priority": 47,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "AV-003",
+      "category": "AUDIO_VISUAL",
+      "title": "Add TTS playback controls",
+      "description": "Controls for text-to-speech playback",
+      "acceptanceCriteria": [
+        "Given bot response with TTS, when playing, then shows controls",
+        "Pause/Resume button",
+        "Stop button",
+        "Progress indicator",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ChatView/TTSControls.tsx"
+      ],
+      "priority": 48,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "PL-001",
+      "category": "POLISH",
+      "title": "Add loading states",
+      "description": "Loading indicators throughout the app",
+      "acceptanceCriteria": [
+        "Given operation pending, when waiting, then loading indicator shown",
+        "Research loading: skeleton cards",
+        "Chat loading: typing indicator",
+        "Backend connection: status spinner",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ui/Skeleton.tsx",
+        "senter-ui/src/renderer/components/ui/Spinner.tsx"
+      ],
+      "priority": 49,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "PL-002",
+      "category": "POLISH",
+      "title": "Add error states and handling",
+      "description": "Graceful error handling with user feedback",
+      "acceptanceCriteria": [
+        "Given error occurs, when caught, then user sees friendly message",
+        "Connection errors: 'Unable to connect to Senter backend'",
+        "Query errors: 'Something went wrong. Please try again.'",
+        "Retry button where applicable",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ui/ErrorBoundary.tsx",
+        "senter-ui/src/renderer/components/ui/Toast.tsx"
+      ],
+      "priority": 50,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "PL-003",
+      "category": "POLISH",
+      "title": "Add keyboard navigation",
+      "description": "Full keyboard navigation support",
+      "acceptanceCriteria": [
+        "Given user presses Tab, when navigating, then focus moves correctly",
+        "Escape closes open panels",
+        "Arrow keys navigate menu items",
+        "Cmd+Enter sends message",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": false
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/App.tsx"
+      ],
+      "priority": 51,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "PL-004",
+      "category": "POLISH",
+      "title": "Add settings panel",
+      "description": "Settings for customization",
+      "acceptanceCriteria": [
+        "Given settings opened, when panel shown, then options available",
+        "Options: keyboard shortcuts, notification preferences, audio settings",
+        "Changes saved to electron-store",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/Settings/Settings.tsx",
+        "senter-ui/src/renderer/components/Settings/index.ts"
+      ],
+      "priority": 52,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "PL-005",
+      "category": "POLISH",
+      "title": "Final visual polish and testing",
+      "description": "Visual review and final adjustments",
+      "acceptanceCriteria": [
+        "Given app complete, when reviewed, then matches design spec",
+        "All animations smooth (60fps)",
+        "Glass effects consistent across components",
+        "Typography hierarchy correct",
+        "Responsive to window resize",
+        "typecheck passes",
+        "build succeeds"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [],
+      "priority": 53,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "SB-005",
+      "category": "SIDEBAR",
+      "title": "Create sidebar search bar with ⌘K shortcut",
+      "description": "Global search with keyboard shortcut",
+      "acceptanceCriteria": [
+        "Given Sidebar, when rendered, then search bar shows with placeholder 'Search (⌘K)'",
+        "⌘K (Mac) or Ctrl+K focuses search input",
+        "Search icon on left with transition color on focus",
+        "Focus state: bg-white/10, ring-2 ring-brand-accent/50",
+        "Searches across: navigation items, chat history, context",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_cmd_k_shortcut", "test_search_focus"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/Sidebar/SearchBar.tsx"
+      ],
+      "filesToModify": [
+        "senter-ui/src/renderer/components/Sidebar/Sidebar.tsx"
+      ],
+      "priority": 54,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "SB-006",
+      "category": "SIDEBAR",
+      "title": "Create sidebar navigation items",
+      "description": "Navigation menu with icons and hover states",
+      "acceptanceCriteria": [
+        "Given Sidebar, when rendered, then navigation items show",
+        "Items: Conversation (MessageCircle), Vision (Camera), Research (Search), Settings (Settings)",
+        "Default: bg-transparent, text-brand-light",
+        "Hover: bg-brand-primary/30, translateX(4px)",
+        "Active: bg-brand-accent/20, border-left 2px brand-accent",
+        "Settings has expandable dropdown submenu",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_nav_item_active"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/Sidebar/Navigation.tsx"
+      ],
+      "filesToModify": [
+        "senter-ui/src/renderer/components/Sidebar/Sidebar.tsx"
+      ],
+      "priority": 55,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "SB-007",
+      "category": "SIDEBAR",
+      "title": "Create user profile section",
+      "description": "User profile at bottom of sidebar",
+      "acceptanceCriteria": [
+        "Given Sidebar, when rendered, then user profile shows at bottom",
+        "User avatar (initials or placeholder image)",
+        "Username text",
+        "Status indicator dot (green/yellow/red)",
+        "border-t border-white/10 separator",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/Sidebar/UserProfile.tsx"
+      ],
+      "filesToModify": [
+        "senter-ui/src/renderer/components/Sidebar/Sidebar.tsx"
+      ],
+      "priority": 56,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CM-004",
+      "category": "CONTEXT_MENU",
+      "title": "Create context menu filter sidebar",
+      "description": "Filter sidebar for context sources",
+      "acceptanceCriteria": [
+        "Given ContextMenu open, when rendered, then filter sidebar on left",
+        "Width: w-48 (192px)",
+        "Filters: All, Web, Files, Clipboard",
+        "Filter button active state: bg-brand-primary/40, border-left 2px brand-accent",
+        "Clicking filter updates displayed context items",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_filter_click"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ContextMenu/FilterSidebar.tsx"
+      ],
+      "filesToModify": [
+        "senter-ui/src/renderer/components/ContextMenu/ContextMenu.tsx"
+      ],
+      "priority": 57,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CM-005",
+      "category": "CONTEXT_MENU",
+      "title": "Create context item cards",
+      "description": "Cards displaying context items with icons",
+      "acceptanceCriteria": [
+        "Given ContextMenu with items, when rendered, then shows item cards",
+        "Each card: icon, title, description preview, remove button",
+        "Icons by type: Globe (web), FileText (file), Copy (clipboard), Image (image), Code (code)",
+        "Hover: bg-white/10",
+        "Click adds to active context",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_context_item_types"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ContextMenu/ContextItemCard.tsx"
+      ],
+      "filesToModify": [
+        "senter-ui/src/renderer/components/ContextMenu/ContextMenu.tsx"
+      ],
+      "priority": 58,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CM-006",
+      "category": "CONTEXT_MENU",
+      "title": "Create context menu search",
+      "description": "Search bar within context menu",
+      "acceptanceCriteria": [
+        "Given ContextMenu open, when rendered, then search bar at top of items area",
+        "Placeholder: 'Search context items...'",
+        "Filters displayed items as user types",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/components/ContextMenu/ContextMenu.tsx"
+      ],
+      "priority": 59,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CV-005",
+      "category": "CHAT_VIEW",
+      "title": "Create chat view right panel with tabs",
+      "description": "Right panel with History/Journal/Tasks tabs",
+      "acceptanceCriteria": [
+        "Given ChatView open, when rendered, then right panel shows",
+        "Width: w-80 (320px)",
+        "Tab navigation: Chat History, Journal, Tasks",
+        "Tab active: bg-brand-primary/20, border-bottom 2px brand-accent",
+        "Tab content scrollable",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_tab_switching"],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ChatView/RightPanel.tsx",
+        "senter-ui/src/renderer/components/ChatView/TabNavigation.tsx"
+      ],
+      "filesToModify": [
+        "senter-ui/src/renderer/components/ChatView/ChatView.tsx"
+      ],
+      "priority": 60,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CV-006",
+      "category": "CHAT_VIEW",
+      "title": "Create chat history list in right panel",
+      "description": "List of previous conversations",
+      "acceptanceCriteria": [
+        "Given ChatView History tab active, when rendered, then conversation list shows",
+        "Each item: title, preview text, timestamp",
+        "Click loads conversation into main chat area",
+        "Active conversation highlighted",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ChatView/ChatHistoryList.tsx"
+      ],
+      "priority": 61,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CV-007",
+      "category": "CHAT_VIEW",
+      "title": "Create journal tab content",
+      "description": "Journal entries display",
+      "acceptanceCriteria": [
+        "Given ChatView Journal tab active, when rendered, then journal entries show",
+        "Each entry: date header, summary, mood indicator if available",
+        "Click to expand entry details",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ChatView/JournalList.tsx"
+      ],
+      "priority": 62,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CV-008",
+      "category": "CHAT_VIEW",
+      "title": "Create tasks tab content",
+      "description": "Tasks/goals display",
+      "acceptanceCriteria": [
+        "Given ChatView Tasks tab active, when rendered, then tasks show",
+        "Each task: title, status (pending/in_progress/completed), due date if set",
+        "Checkbox to mark complete",
+        "Progress indicator for goals with subtasks",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": [],
+        "integration": [],
+        "visual": true
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/components/ChatView/TasksList.tsx"
+      ],
+      "priority": 63,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "SM-005",
+      "category": "STATE_MANAGEMENT",
+      "title": "Implement panel mutual exclusivity",
+      "description": "Opening one panel closes the other",
+      "acceptanceCriteria": [
+        "Given context menu open, when chat view toggled, then context menu closes first",
+        "Given chat view open, when context menu toggled, then chat view closes first",
+        "Smooth transition between panels",
+        "Optional backdrop overlay when panels open",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_mutual_exclusivity"],
+        "integration": [],
+        "visual": false
+      },
+      "filesToModify": [
+        "senter-ui/src/renderer/store/uiSlice.ts",
+        "senter-ui/src/renderer/App.tsx"
+      ],
+      "priority": 64,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "SM-006",
+      "category": "STATE_MANAGEMENT",
+      "title": "Create navigation state slice",
+      "description": "State for sidebar navigation",
+      "acceptanceCriteria": [
+        "Given navigationSlice, when accessed, then nav state available",
+        "State: activeNavItem, isSettingsExpanded, searchQuery",
+        "Actions: setActiveNavItem, toggleSettings, setSearchQuery",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_nav_slice_actions"],
+        "integration": [],
+        "visual": false
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/store/navigationSlice.ts"
+      ],
+      "filesToModify": [
+        "senter-ui/src/renderer/store/index.ts"
+      ],
+      "priority": 65,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "SM-007",
+      "category": "STATE_MANAGEMENT",
+      "title": "Create context state slice",
+      "description": "State for context menu items",
+      "acceptanceCriteria": [
+        "Given contextSlice, when accessed, then context state available",
+        "State: contextItems, activeFilter, activeContext, contextSearchQuery",
+        "Actions: addContextItem, removeContextItem, setFilter, setActiveContext",
+        "typecheck passes"
+      ],
+      "testRequirements": {
+        "unit": ["test_context_slice_actions"],
+        "integration": [],
+        "visual": false
+      },
+      "filesToCreate": [
+        "senter-ui/src/renderer/store/contextSlice.ts"
+      ],
+      "filesToModify": [
+        "senter-ui/src/renderer/store/index.ts"
+      ],
+      "priority": 66,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

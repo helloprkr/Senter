@@ -1,6 +1,6 @@
 ---
 name: ralph-wiggums
-description: Autonomous iterative development loop that runs entirely within Claude Code. Decomposes requirements into atomic user stories, implements them one-by-one with rigorous verification, and loops internally until complete. Use when given requirements/specs to implement autonomously, or when asked to "use Ralph Wiggums". Runs on your Claude Code subscription—no API credits needed.
+description: Autonomous iterative development loop that runs entirely within Claude Code. Decomposes requirements into atomic user stories, implements them one-by-one with rigorous verification, and loops internally until complete. Use when given requirements/specs to implement autonomously, or when asked to "use Ralph Wiggums", or mentions "Ralph" at all. Runs on your Claude Code subscription—no API credits needed.
 ---
 
 # Ralph Wiggums (Subscription Mode)
@@ -30,7 +30,7 @@ Phase 4: EXECUTION     → Autonomous internal loop until <promise>COMPLETE</pro
 
 **CRITICAL: This is the core of Ralph Wiggums. Once started, continue looping without user input.**
 
-When the user says "Use Ralph Wiggums" or "Continue Ralph Wiggums", enter this loop:
+When the user says "Use Ralph Wiggums" or "Continue Ralph Wiggums", or mentions "Ralph" at all, enter this loop:
 
 ### The Loop (repeat until done)
 

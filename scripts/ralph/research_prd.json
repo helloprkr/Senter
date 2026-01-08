@@ -1,0 +1,346 @@
+{
+  "projectName": "Senter Autonomous Research",
+  "branchName": "ralph/autonomous-research",
+  "philosophy": "Every story must be demo-able, deliver perceivable value, and include quality gates—not just passing tests.",
+  "stack": {
+    "language": "python",
+    "framework": "daemon + menubar",
+    "testRunner": "pytest",
+    "llm": "ollama"
+  },
+  "verification": {
+    "typecheck": "python3 -m py_compile research/*.py ui/*.py",
+    "unitTest": "python3 -m pytest tests/test_research*.py -v",
+    "qualityGate": "python3 scripts/quality_gate.py",
+    "demo": "Manual demo following DEMO SCRIPT in each story"
+  },
+  "userStories": [
+    {
+      "id": "RE-001",
+      "title": "Senter Notices What You're Curious About",
+      "category": "RESEARCH_ENGINE",
+      "valueStatement": "After any conversation, Senter identifies what you're genuinely curious about—not just keywords, but real interest signals like questions, 'I wonder', and repeated engagement.",
+      "demoScript": [
+        "1. Start Senter daemon",
+        "2. Have a conversation: 'I'm working on a data pipeline. I wonder if event sourcing would help with the audit requirements.'",
+        "3. End the conversation",
+        "4. Check extracted topics",
+        "5. SEE: 'event sourcing' extracted with high priority and reason 'expressed curiosity about audit requirements'"
+      ],
+      "acceptanceCriteria": [
+        "Given conversation with curiosity signal ('I wonder', 'what is', 'how does'), extracts topic with priority > 0.7",
+        "Given casual mention without curiosity, extracts with priority < 0.4 or not at all",
+        "Given multiple topics discussed, ranks by genuine interest not mention count",
+        "Provides human-readable 'reason' for why topic was extracted",
+        "Deduplicates against topics already researched in past 7 days"
+      ],
+      "qualityGate": {
+        "type": "manual_review",
+        "description": "Run on 10 test conversations with known 'correct' topics. Rate each: Good/Okay/Bad",
+        "passThreshold": ">= 8 Good, <= 1 Bad"
+      },
+      "technicalTests": [
+        "test_extracts_curiosity_signals",
+        "test_ignores_casual_mentions",
+        "test_ranks_by_interest",
+        "test_provides_reason",
+        "test_deduplicates"
+      ],
+      "filesToCreate": [
+        "research/topic_extractor.py"
+      ],
+      "priority": 1,
+      "passes": false
+    },
+    {
+      "id": "RE-002",
+      "title": "Senter Actually Researches the Web",
+      "category": "RESEARCH_ENGINE",
+      "valueStatement": "Senter doesn't just ask the LLM—it searches the real web, reads actual articles, and gathers information from multiple sources.",
+      "demoScript": [
+        "1. Trigger research on topic 'event sourcing patterns'",
+        "2. Watch Senter:",
+        "   - Generate 3-5 search queries (different angles)",
+        "   - Search DuckDuckGo for each",
+        "   - Fetch 5-8 actual web pages",
+        "   - Extract key content from each",
+        "3. SEE: List of sources with titles, URLs, and extracted key points",
+        "4. VERIFY: URLs are real and content matches what's on the page"
+      ],
+      "acceptanceCriteria": [
+        "Generates diverse search queries (intro, examples, comparisons, pitfalls)",
+        "Fetches actual page content, not just search snippets",
+        "Extracts readable text from HTML (handles different page structures)",
+        "Handles failures gracefully (skip failed URLs, continue with others)",
+        "Returns 4-8 usable sources with real content",
+        "Total research time < 3 minutes"
+      ],
+      "qualityGate": {
+        "type": "content_verification",
+        "description": "Run research on 5 different topics. For each, verify: (1) URLs are real, (2) extracted content is accurate, (3) sources are diverse",
+        "passThreshold": ">= 4/5 topics have quality sources"
+      },
+      "technicalTests": [
+        "test_generates_diverse_queries",
+        "test_fetches_real_content",
+        "test_handles_fetch_failures",
+        "test_extracts_readable_text",
+        "test_respects_timeout"
+      ],
+      "filesToCreate": [
+        "research/deep_researcher.py"
+      ],
+      "dependencies": ["RE-001"],
+      "priority": 2,
+      "passes": false
+    },
+    {
+      "id": "RE-003",
+      "title": "Senter Synthesizes Into Useful Summary",
+      "category": "RESEARCH_ENGINE",
+      "valueStatement": "Multiple sources become one coherent, actionable summary with cited key points—not a wall of text, but a 2-minute read that actually helps.",
+      "demoScript": [
+        "1. Provide 5 source documents about 'event sourcing'",
+        "2. Run synthesis",
+        "3. SEE output with:",
+        "   - 2-3 paragraph summary (not copy-paste, actual synthesis)",
+        "   - 4-6 key points with source citations [1], [2]",
+        "   - 2-3 practical takeaways (do this, avoid that)",
+        "   - Numbered source list with URLs",
+        "4. READ the summary—does it make sense? Is it useful?"
+      ],
+      "acceptanceCriteria": [
+        "Summary synthesizes (combines ideas), doesn't just concatenate",
+        "Key points cite specific sources using [1], [2] notation",
+        "Identifies where sources agree vs. disagree",
+        "Practical takeaways are actionable ('good for X', 'avoid if Y')",
+        "Total length: 300-600 words (2-3 min read)",
+        "A human reading it says 'this is helpful'"
+      ],
+      "qualityGate": {
+        "type": "human_rating",
+        "description": "Generate summaries for 5 topics. Rate each 1-5 on: clarity, usefulness, accuracy. Must average >= 3.5",
+        "passThreshold": "Average rating >= 3.5/5"
+      },
+      "technicalTests": [
+        "test_produces_summary",
+        "test_includes_citations",
+        "test_includes_takeaways",
+        "test_reasonable_length",
+        "test_sources_listed"
+      ],
+      "filesToCreate": [
+        "research/synthesizer.py"
+      ],
+      "dependencies": ["RE-002"],
+      "priority": 3,
+      "passes": false
+    },
+    {
+      "id": "RE-004",
+      "title": "Full Research Pipeline End-to-End",
+      "category": "RESEARCH_ENGINE",
+      "valueStatement": "From detected topic to finished research summary, the entire pipeline works without manual intervention.",
+      "demoScript": [
+        "1. Have a conversation mentioning 'kubernetes networking'",
+        "2. End conversation",
+        "3. Wait (up to 5 minutes)",
+        "4. SEE: Research complete notification",
+        "5. View research: proper summary with sources about kubernetes networking",
+        "6. FEEL: 'Wow, I just mentioned that and now I have a research summary'"
+      ],
+      "acceptanceCriteria": [
+        "Conversation → topic detection → research → synthesis happens automatically",
+        "No manual triggers needed after conversation ends",
+        "Research stored persistently (survives daemon restart)",
+        "Research marked as 'ready' when complete",
+        "Errors don't crash the pipeline—graceful degradation"
+      ],
+      "qualityGate": {
+        "type": "end_to_end",
+        "description": "Run 3 complete cycles: conversation → research. All 3 must complete successfully with quality summaries.",
+        "passThreshold": "3/3 successful completions"
+      },
+      "technicalTests": [
+        "test_pipeline_integration",
+        "test_automatic_trigger",
+        "test_persistence",
+        "test_error_recovery"
+      ],
+      "filesToCreate": [
+        "research/pipeline.py",
+        "research/research_store.py"
+      ],
+      "dependencies": ["RE-001", "RE-002", "RE-003"],
+      "priority": 4,
+      "passes": false
+    },
+    {
+      "id": "UI-001",
+      "title": "Menubar Shows Senter is Alive",
+      "category": "MENUBAR_UI",
+      "valueStatement": "A menubar icon shows Senter is running. When research is ready, the icon changes to grab attention.",
+      "demoScript": [
+        "1. Start Senter",
+        "2. SEE: Menubar icon appears (subtle, not intrusive)",
+        "3. Click icon → dropdown menu with 'No new research' and 'Quit'",
+        "4. Trigger a research completion",
+        "5. SEE: Icon changes color/pulses to indicate new research",
+        "6. Click → 'New Research: [topic]' appears in menu"
+      ],
+      "acceptanceCriteria": [
+        "Menubar icon visible when daemon running",
+        "Icon is subtle by default (not distracting)",
+        "Icon changes visually when new research ready (color or badge)",
+        "Dropdown shows current state (researching, new ready, idle)",
+        "Quit option stops daemon cleanly",
+        "App doesn't hog resources when idle"
+      ],
+      "qualityGate": {
+        "type": "ux_review",
+        "description": "Show to someone unfamiliar. Can they: (1) find the icon, (2) understand what it means, (3) access research?",
+        "passThreshold": "All 3 tasks completed without guidance"
+      },
+      "technicalTests": [
+        "test_menubar_starts",
+        "test_icon_updates_on_research",
+        "test_menu_shows_state",
+        "test_quit_works"
+      ],
+      "filesToCreate": [
+        "ui/__init__.py",
+        "ui/menubar_app.py"
+      ],
+      "dependencies": ["RE-004"],
+      "priority": 5,
+      "passes": false
+    },
+    {
+      "id": "UI-002",
+      "title": "Research Panel That's Actually Nice to Read",
+      "category": "MENUBAR_UI",
+      "valueStatement": "Clicking a research item opens a clean, beautiful panel with the summary. It's a pleasure to read, not a chore.",
+      "demoScript": [
+        "1. Click on a completed research item in menubar",
+        "2. SEE: Panel opens with:",
+        "   - Topic title at top",
+        "   - Metadata line (when researched, # sources, read time)",
+        "   - Summary text (well-formatted)",
+        "   - Key points with citations",
+        "   - Clickable source links",
+        "   - Feedback buttons at bottom",
+        "3. FEEL: 'This looks professional, I want to read this'"
+      ],
+      "acceptanceCriteria": [
+        "Panel appears near menubar (not random screen position)",
+        "Typography is clean and readable",
+        "Source links are clickable and open in browser",
+        "Panel can be dismissed (click outside, Escape, X button)",
+        "Glassmorphism styling: translucent background, subtle blur",
+        "Dark mode compatible"
+      ],
+      "qualityGate": {
+        "type": "design_review",
+        "description": "Screenshot the panel. Would you be proud to show this in a demo? Rate 1-5 on: visual appeal, readability, professionalism",
+        "passThreshold": "All ratings >= 4/5"
+      },
+      "technicalTests": [
+        "test_panel_opens",
+        "test_displays_research_content",
+        "test_links_clickable",
+        "test_dismissable",
+        "test_dark_mode"
+      ],
+      "filesToCreate": [
+        "ui/research_panel.py",
+        "ui/styles.py"
+      ],
+      "dependencies": ["UI-001"],
+      "priority": 6,
+      "passes": false
+    },
+    {
+      "id": "UI-003",
+      "title": "Feedback That Actually Improves Future Research",
+      "category": "MENUBAR_UI",
+      "valueStatement": "When you rate research as useful or not, Senter learns. Good ratings boost similar topics; bad ratings adjust future behavior.",
+      "demoScript": [
+        "1. View a research summary",
+        "2. Click '👍 Useful'",
+        "3. SEE: Confirmation, research marked as useful",
+        "4. Later: Similar topics get higher priority",
+        "5. View another research, click '👎 Not Helpful'",
+        "6. SEE: Optional prompt 'What was missing?'",
+        "7. Later: Similar low-quality research is filtered"
+      ],
+      "acceptanceCriteria": [
+        "Three feedback options: Useful, Not Helpful, Research More",
+        "Feedback stored with research record",
+        "'Useful' feedback boosts topic category priority",
+        "'Not Helpful' feedback triggers quality reflection",
+        "'Research More' adds topic back to queue for deeper dive",
+        "Feedback aggregates inform future topic extraction"
+      ],
+      "qualityGate": {
+        "type": "feedback_loop",
+        "description": "Give 5 'useful' ratings to architecture topics, 5 'not helpful' to random topics. Verify next extraction prioritizes architecture.",
+        "passThreshold": "Architecture topics rank higher after feedback"
+      },
+      "technicalTests": [
+        "test_feedback_recorded",
+        "test_useful_boosts_priority",
+        "test_not_helpful_recorded",
+        "test_research_more_requeues"
+      ],
+      "filesToCreate": [
+        "research/feedback.py"
+      ],
+      "dependencies": ["UI-002"],
+      "priority": 7,
+      "passes": false
+    },
+    {
+      "id": "INT-001",
+      "title": "The Full Experience Works",
+      "category": "INTEGRATION",
+      "valueStatement": "From installation to first research notification, everything works smoothly. This is what we ship.",
+      "demoScript": [
+        "1. Fresh start: run 'python scripts/start_senter.py'",
+        "2. SEE: Menubar icon appears",
+        "3. Have a conversation via CLI or IPC",
+        "4. Mention something interesting ('I wonder about rust async')",
+        "5. End conversation, go do something else",
+        "6. Come back in 5 minutes",
+        "7. SEE: Menubar icon indicates new research",
+        "8. Click → Beautiful panel with rust async research",
+        "9. Click 'Useful'",
+        "10. FEEL: 'This is magic. I just mentioned something and got research.'"
+      ],
+      "acceptanceCriteria": [
+        "Single command starts everything (daemon + UI)",
+        "No configuration required for basic usage",
+        "Works with default Ollama setup",
+        "Graceful handling if Ollama not running",
+        "Clean shutdown with Quit",
+        "State persists across restarts"
+      ],
+      "qualityGate": {
+        "type": "fresh_install",
+        "description": "On a clean environment, follow setup instructions, run demo script. Does it work? Rate experience 1-5.",
+        "passThreshold": "Experience rating >= 4/5"
+      },
+      "technicalTests": [
+        "test_full_startup",
+        "test_full_conversation_to_research",
+        "test_shutdown_clean",
+        "test_restart_preserves_state"
+      ],
+      "filesToCreate": [
+        "scripts/start_senter.py"
+      ],
+      "dependencies": ["RE-004", "UI-003"],
+      "priority": 8,
+      "passes": false
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Manrope';
+  src: url('../../resources/fonts/Manrope-VariableFont_wght.ttf') format('truetype');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+body {
+  font-family: 'Manrope', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: #081710;
+  color: #FAFAFA;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar for glass panels */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(250, 250, 250, 0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(250, 250, 250, 0.3);
+}
+
+/* Drag region for frameless window */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Glass panel base styles */
+@layer components {
+  .glass-panel {
+    @apply bg-brand-light/[0.08] backdrop-blur-3xl border border-brand-light/10 rounded-3xl;
+    box-shadow:
+      inset 0 1px 0 0 rgba(250, 250, 250, 0.1),
+      0 0 40px rgba(18, 53, 36, 0.2);
+  }
+
+  .glass-panel-secondary {
+    @apply bg-brand-light/[0.05] backdrop-blur-2xl border border-brand-light/[0.08] rounded-2xl;
+  }
+
+  .glass-button {
+    @apply w-8 h-8 rounded-lg flex items-center justify-center
+           bg-brand-light/[0.08] border border-brand-light/10
+           hover:bg-brand-primary/10 hover:scale-105
+           active:scale-95 transition-all duration-200;
+  }
+
+  .glass-button-active {
+    @apply bg-brand-primary/20 border-brand-primary/30;
+  }
+}
+
+/* Rainbow animation for mic recording */
+@keyframes rainbow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.rainbow-border {
+  background: linear-gradient(
+    45deg,
+    #ff0000,
+    #ff7f00,
+    #ffff00,
+    #00ff00,
+    #0000ff,
+    #4b0082,
+    #9400d3,
+    #ff0000
+  );
+  background-size: 400% 400%;
+  animation: rainbow 2s linear infinite;
+}

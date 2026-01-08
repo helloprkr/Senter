@@ -147,6 +147,21 @@ class SenterClient {
   async getGazeStatus(): Promise<SenterResponse> {
     return this.sendCommand('get_gaze_status')
   }
+
+  // V3-004: Get insights (patterns, preferences, stats)
+  async getInsights(days = 7): Promise<SenterResponse> {
+    return this.sendCommand('get_insights', { days })
+  }
+
+  // V3-005: Get goals
+  async getGoals(status?: string, limit = 50): Promise<SenterResponse> {
+    return this.sendCommand('get_goals', { status, limit })
+  }
+
+  // V3-005: Update goal status
+  async updateGoal(goalId: string, status: string): Promise<SenterResponse> {
+    return this.sendCommand('update_goal', { goal_id: goalId, status })
+  }
 }
 
 const senterClient = new SenterClient()
@@ -352,6 +367,23 @@ export function registerSenterIPC(): void {
   ipcMain.handle('senter:getGazeStatus', async () => {
     console.log('[SenterIPC] Received getGazeStatus request')
     return senterClient.getGazeStatus()
+  })
+
+  // V3-004: Insights (patterns, preferences, stats)
+  ipcMain.handle('senter:getInsights', async (_, days?: number) => {
+    console.log('[SenterIPC] Received getInsights request')
+    return senterClient.getInsights(days)
+  })
+
+  // V3-005: Goals
+  ipcMain.handle('senter:getGoals', async (_, status?: string, limit?: number) => {
+    console.log('[SenterIPC] Received getGoals request')
+    return senterClient.getGoals(status, limit)
+  })
+
+  ipcMain.handle('senter:updateGoal', async (_, goalId: string, status: string) => {
+    console.log('[SenterIPC] Received updateGoal request')
+    return senterClient.updateGoal(goalId, status)
   })
 
   console.log('[SenterIPC] IPC handlers registered')
