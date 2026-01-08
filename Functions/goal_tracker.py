@@ -356,6 +356,7 @@ class SubTask:
     """A sub-task within a goal"""
     task: str
     status: str = "pending"  # pending, in_progress, completed, waiting
+    completed_at: Optional[str] = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -364,21 +365,46 @@ class SubTask:
     def from_dict(cls, data: dict) -> "SubTask":
         return cls(**data)
 
+    def mark_complete(self):
+        """Mark subtask as completed"""
+        self.status = "completed"
+        self.completed_at = datetime.now().isoformat()
+
 
 @dataclass
 class Goal:
-    """A user goal extracted from conversations"""
+    """
+    A user goal extracted from conversations
+
+    Enhanced for:
+    - GS-001: Progress tracking
+    - GS-002: Priority and scheduling
+    - GS-003: Parent/child relationships
+    """
     id: str
     description: str
     created: str
     status: str = "active"  # active, completed, abandoned, paused
-    related_conversations: list[str] = field(default_factory=list)
-    sub_tasks: list[SubTask] = field(default_factory=list)
+    related_conversations: List[str] = field(default_factory=list)
+    sub_tasks: List[SubTask] = field(default_factory=list)
     last_mentioned: str = ""
     category: str = "general"
     priority: str = "medium"  # low, medium, high
     deadline: Optional[str] = None
-    embedding: Optional[list[float]] = None
+    embedding: Optional[List[float]] = None
+
+    # GS-001: Progress tracking
+    progress: float = 0.0  # 0.0 to 1.0
+    progress_notes: List[str] = field(default_factory=list)
+
+    # GS-002: Enhanced prioritization
+    priority_score: int = 5  # 1-10, where 10 is highest priority
+    due_date: Optional[str] = None  # ISO format date
+    is_overdue: bool = False
+
+    # GS-003: Parent/child relationships
+    parent_id: Optional[str] = None
+    child_ids: List[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -393,7 +419,453 @@ class Goal:
                 SubTask.from_dict(st) if isinstance(st, dict) else st
                 for st in data["sub_tasks"]
             ]
+        # Handle new fields with defaults for backwards compatibility
+        if "progress" not in data:
+            data["progress"] = 0.0
+        if "progress_notes" not in data:
+            data["progress_notes"] = []
+        if "priority_score" not in data:
+            # Convert old priority to score
+            old_priority = data.get("priority", "medium")
+            data["priority_score"] = {"low": 3, "medium": 5, "high": 8}.get(old_priority, 5)
+        if "due_date" not in data:
+            data["due_date"] = None
+        if "is_overdue" not in data:
+            data["is_overdue"] = False
+        if "parent_id" not in data:
+            data["parent_id"] = None
+        if "child_ids" not in data:
+            data["child_ids"] = []
         return cls(**data)
+
+    # ========== GS-001: Progress Methods ==========
+
+    def update_progress(self, progress: float, note: str = "") -> bool:
+        """
+        Update goal progress (GS-001)
+
+        Args:
+            progress: New progress value (0.0 to 1.0)
+            note: Optional note about the progress
+
+        Returns:
+            True if goal is now complete
+        """
+        old_progress = self.progress
+        self.progress = max(0.0, min(1.0, progress))
+
+        if note:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            self.progress_notes.append(f"[{timestamp}] {int(self.progress*100)}% - {note}")
+
+        self.last_mentioned = datetime.now().isoformat()
+
+        # Check if goal is now complete
+        if self.progress >= 1.0 and old_progress < 1.0:
+            self.status = "completed"
+            return True
+
+        return False
+
+    def calculate_progress_from_subtasks(self) -> float:
+        """Calculate progress based on completed subtasks"""
+        if not self.sub_tasks:
+            return self.progress
+
+        completed = sum(1 for st in self.sub_tasks if st.status == "completed")
+        return completed / len(self.sub_tasks)
+
+    def sync_progress_from_subtasks(self):
+        """Sync progress value from subtask completion"""
+        self.progress = self.calculate_progress_from_subtasks()
+
+    # ========== GS-002: Priority Methods ==========
+
+    def set_priority(self, score: int):
+        """Set priority score (1-10)"""
+        self.priority_score = max(1, min(10, score))
+        # Update old-style priority for compatibility
+        if self.priority_score <= 3:
+            self.priority = "low"
+        elif self.priority_score <= 6:
+            self.priority = "medium"
+        else:
+            self.priority = "high"
+
+    def set_due_date(self, due_date: str):
+        """Set due date (ISO format or parseable string)"""
+        parsed = parse_due_date(due_date)
+        if parsed:
+            self.due_date = parsed
+            self.check_overdue()
+
+    def check_overdue(self) -> bool:
+        """Check and update overdue status"""
+        if not self.due_date:
+            self.is_overdue = False
+            return False
+
+        try:
+            due = datetime.fromisoformat(self.due_date.replace("Z", "+00:00"))
+            # Handle date-only strings
+            if "T" not in self.due_date:
+                due = datetime.strptime(self.due_date, "%Y-%m-%d")
+
+            self.is_overdue = datetime.now() > due and self.status == "active"
+            return self.is_overdue
+        except Exception:
+            self.is_overdue = False
+            return False
+
+    # ========== GS-003: Relationship Methods ==========
+
+    def add_child(self, child_id: str):
+        """Add a child goal"""
+        if child_id not in self.child_ids:
+            self.child_ids.append(child_id)
+
+    def remove_child(self, child_id: str):
+        """Remove a child goal"""
+        if child_id in self.child_ids:
+            self.child_ids.remove(child_id)
+
+    def has_children(self) -> bool:
+        """Check if goal has children"""
+        return len(self.child_ids) > 0
+
+    def is_child(self) -> bool:
+        """Check if goal is a child of another goal"""
+        return self.parent_id is not None
+
+
+def parse_due_date(text: str) -> Optional[str]:
+    """
+    Parse due date from text (GS-002)
+
+    Supports:
+    - "by Friday" -> next Friday
+    - "by tomorrow" -> tomorrow
+    - "by next week" -> next Monday
+    - "2024-01-15" -> that date
+    - "in 3 days" -> 3 days from now
+    """
+    text_lower = text.lower().strip()
+    now = datetime.now()
+
+    # Direct ISO format
+    if re.match(r'\d{4}-\d{2}-\d{2}', text):
+        return text[:10]
+
+    # "by tomorrow"
+    if "tomorrow" in text_lower:
+        return (now + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # "by today"
+    if "today" in text_lower:
+        return now.strftime("%Y-%m-%d")
+
+    # "by next week"
+    if "next week" in text_lower:
+        days_until_monday = (7 - now.weekday()) % 7 or 7
+        return (now + timedelta(days=days_until_monday)).strftime("%Y-%m-%d")
+
+    # "by next month"
+    if "next month" in text_lower:
+        if now.month == 12:
+            return datetime(now.year + 1, 1, 1).strftime("%Y-%m-%d")
+        return datetime(now.year, now.month + 1, 1).strftime("%Y-%m-%d")
+
+    # "end of week"
+    if "end of" in text_lower and "week" in text_lower:
+        days_until_friday = (4 - now.weekday()) % 7 or 7
+        return (now + timedelta(days=days_until_friday)).strftime("%Y-%m-%d")
+
+    # "end of month"
+    if "end of" in text_lower and "month" in text_lower:
+        if now.month == 12:
+            return datetime(now.year, 12, 31).strftime("%Y-%m-%d")
+        next_month = datetime(now.year, now.month + 1, 1)
+        return (next_month - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # "in N days"
+    in_days_match = re.search(r"in\s+(\d+)\s+days?", text_lower)
+    if in_days_match:
+        days = int(in_days_match.group(1))
+        return (now + timedelta(days=days)).strftime("%Y-%m-%d")
+
+    # "in N weeks"
+    in_weeks_match = re.search(r"in\s+(\d+)\s+weeks?", text_lower)
+    if in_weeks_match:
+        weeks = int(in_weeks_match.group(1))
+        return (now + timedelta(weeks=weeks)).strftime("%Y-%m-%d")
+
+    # Day of week
+    days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    for i, day in enumerate(days):
+        if day in text_lower:
+            days_until = (i - now.weekday()) % 7 or 7
+            return (now + timedelta(days=days_until)).strftime("%Y-%m-%d")
+
+    return None
+
+
+# ========== GS-001: Progress Detection ==========
+
+class GoalProgressDetector:
+    """
+    Detect goal progress from conversation (GS-001)
+
+    Uses semantic similarity to match accomplishments to goals
+    """
+
+    # Accomplishment indicators
+    ACCOMPLISHMENT_PATTERNS = [
+        r"i (?:finished|completed|done with|wrapped up) ([\w\s]+)",
+        r"(?:finally|just) (?:finished|completed|done) ([\w\s]+)",
+        r"i (?:did|made|created|built|wrote) ([\w\s]+)",
+        r"([\w\s]+) is (?:done|complete|finished|ready)",
+        r"i've (?:been|started|begun) ([\w\s]+)",  # Partial progress
+        r"made progress on ([\w\s]+)",
+        r"halfway through ([\w\s]+)",
+    ]
+
+    # Progress amount indicators
+    PROGRESS_INDICATORS = {
+        "started": 0.1,
+        "begun": 0.1,
+        "beginning": 0.1,
+        "halfway": 0.5,
+        "almost": 0.8,
+        "nearly": 0.8,
+        "mostly": 0.7,
+        "finished": 1.0,
+        "completed": 1.0,
+        "done": 1.0,
+    }
+
+    def __init__(self, goal_tracker: "GoalTracker"):
+        self.tracker = goal_tracker
+
+    def detect_progress(self, message: str) -> List[Tuple[Goal, float, str]]:
+        """
+        Detect progress mentions in message
+
+        Args:
+            message: User message to analyze
+
+        Returns:
+            List of (goal, progress_amount, matched_text) tuples
+        """
+        results = []
+        message_lower = message.lower()
+
+        for pattern in self.ACCOMPLISHMENT_PATTERNS:
+            for match in re.finditer(pattern, message_lower):
+                matched_text = match.group(1).strip() if match.lastindex else match.group(0)
+                progress = self._estimate_progress(message_lower)
+
+                # Find matching goal
+                goal = self._find_matching_goal(matched_text)
+                if goal:
+                    results.append((goal, progress, matched_text))
+
+        return results
+
+    def _estimate_progress(self, text: str) -> float:
+        """Estimate progress amount from text"""
+        for indicator, amount in self.PROGRESS_INDICATORS.items():
+            if indicator in text:
+                return amount
+        return 0.3  # Default to 30% if no indicator found
+
+    def _find_matching_goal(self, text: str) -> Optional[Goal]:
+        """Find goal matching the text"""
+        active_goals = self.tracker.get_active_goals()
+
+        if EMBEDDINGS_AVAILABLE:
+            text_embedding = embed_text(text)
+            if text_embedding:
+                best_match = None
+                best_score = 0.5  # Threshold
+
+                for goal in active_goals:
+                    if goal.embedding:
+                        score = cosine_similarity(text_embedding, goal.embedding)
+                        if score > best_score:
+                            best_score = score
+                            best_match = goal
+
+                return best_match
+
+        # Fallback: keyword matching
+        text_words = set(text.lower().split())
+        for goal in active_goals:
+            goal_words = set(goal.description.lower().split())
+            overlap = len(text_words & goal_words)
+            if overlap >= 2:  # At least 2 words match
+                return goal
+
+        return None
+
+    def detect_subtask_completion(self, message: str) -> List[Tuple[Goal, SubTask]]:
+        """Detect subtask completions in message"""
+        results = []
+        message_lower = message.lower()
+
+        for goal in self.tracker.get_active_goals():
+            for subtask in goal.sub_tasks:
+                if subtask.status == "completed":
+                    continue
+
+                # Check if subtask text appears in message
+                subtask_words = set(subtask.task.lower().split())
+                if len(subtask_words) >= 2:
+                    message_words = set(message_lower.split())
+                    overlap = len(subtask_words & message_words)
+                    if overlap >= len(subtask_words) * 0.6:  # 60% word match
+                        results.append((goal, subtask))
+
+        return results
+
+
+# ========== GS-003: Goal Tree ==========
+
+class GoalTree:
+    """
+    Hierarchical goal management (GS-003)
+
+    Provides tree operations for parent/child relationships
+    """
+
+    def __init__(self, goal_tracker: "GoalTracker"):
+        self.tracker = goal_tracker
+
+    def create_child_goal(self, parent_id: str, description: str, **kwargs) -> Optional[Goal]:
+        """Create a child goal under a parent"""
+        parent = self.tracker.get_goal_by_id(parent_id)
+        if not parent:
+            return None
+
+        child = Goal(
+            id=self.tracker._generate_id(),
+            description=description,
+            created=datetime.now().isoformat(),
+            parent_id=parent_id,
+            **kwargs
+        )
+
+        # Link parent and child
+        parent.add_child(child.id)
+
+        # Save
+        self.tracker.goals.append(child)
+        self.tracker._save_goals()
+
+        return child
+
+    def get_children(self, goal_id: str) -> List[Goal]:
+        """Get all children of a goal"""
+        goal = self.tracker.get_goal_by_id(goal_id)
+        if not goal:
+            return []
+
+        return [
+            self.tracker.get_goal_by_id(child_id)
+            for child_id in goal.child_ids
+            if self.tracker.get_goal_by_id(child_id)
+        ]
+
+    def get_parent(self, goal_id: str) -> Optional[Goal]:
+        """Get parent of a goal"""
+        goal = self.tracker.get_goal_by_id(goal_id)
+        if not goal or not goal.parent_id:
+            return None
+        return self.tracker.get_goal_by_id(goal.parent_id)
+
+    def aggregate_progress(self, goal_id: str) -> float:
+        """
+        Calculate aggregated progress from children (GS-003)
+
+        If goal has children, progress is average of children's progress.
+        Otherwise, returns the goal's own progress.
+        """
+        goal = self.tracker.get_goal_by_id(goal_id)
+        if not goal:
+            return 0.0
+
+        if not goal.has_children():
+            return goal.progress
+
+        children = self.get_children(goal_id)
+        if not children:
+            return goal.progress
+
+        return sum(c.progress for c in children) / len(children)
+
+    def sync_parent_progress(self, child_id: str):
+        """Update parent's progress based on children"""
+        goal = self.tracker.get_goal_by_id(child_id)
+        if not goal or not goal.parent_id:
+            return
+
+        parent = self.tracker.get_goal_by_id(goal.parent_id)
+        if parent:
+            parent.progress = self.aggregate_progress(parent.id)
+            self.tracker._save_goals()
+
+    def get_root_goals(self) -> List[Goal]:
+        """Get all goals that have no parent"""
+        return [g for g in self.tracker.goals if not g.parent_id and g.status == "active"]
+
+    def get_tree_view(self, goal_id: str = None, indent: int = 0) -> str:
+        """
+        Generate tree visualization for CLI (GS-003)
+
+        Args:
+            goal_id: Root goal ID, or None for all root goals
+            indent: Current indentation level
+
+        Returns:
+            Tree string for display
+        """
+        lines = []
+        prefix = "  " * indent
+
+        if goal_id is None:
+            # Show all root goals
+            for goal in self.get_root_goals():
+                lines.append(self._format_goal_line(goal, prefix))
+                if goal.has_children():
+                    for child_id in goal.child_ids:
+                        lines.append(self.get_tree_view(child_id, indent + 1))
+        else:
+            goal = self.tracker.get_goal_by_id(goal_id)
+            if goal:
+                lines.append(self._format_goal_line(goal, prefix))
+                for child_id in goal.child_ids:
+                    lines.append(self.get_tree_view(child_id, indent + 1))
+
+        return "\n".join(lines)
+
+    def _format_goal_line(self, goal: Goal, prefix: str) -> str:
+        """Format a single goal line for tree view"""
+        status_icons = {
+            "active": "*",
+            "completed": "+",
+            "paused": "~",
+            "abandoned": "x"
+        }
+        icon = status_icons.get(goal.status, "?")
+        progress_bar = self._make_progress_bar(goal.progress)
+        overdue = " [OVERDUE]" if goal.is_overdue else ""
+
+        return f"{prefix}{icon} [{goal.id}] {goal.description[:40]} {progress_bar}{overdue}"
+
+    def _make_progress_bar(self, progress: float, width: int = 10) -> str:
+        """Create a simple text progress bar"""
+        filled = int(progress * width)
+        empty = width - filled
+        return f"[{'=' * filled}{' ' * empty}] {int(progress * 100)}%"
 
 
 class GoalTracker:
@@ -650,9 +1122,90 @@ Respond with valid JSON only, no other text."""
 
         return overlap > 0.7
 
-    def get_active_goals(self) -> list[Goal]:
+    def get_active_goals(self) -> List[Goal]:
         """Get all active goals"""
         return [g for g in self.goals if g.status == "active"]
+
+    def get_goal_by_id(self, goal_id: str) -> Optional[Goal]:
+        """Get a goal by its ID"""
+        for goal in self.goals:
+            if goal.id == goal_id:
+                return goal
+        return None
+
+    # ========== GS-002: Priority Methods ==========
+
+    def get_goals_by_priority(self) -> List[Goal]:
+        """Get active goals sorted by priority (highest first)"""
+        active = self.get_active_goals()
+        return sorted(active, key=lambda g: g.priority_score, reverse=True)
+
+    def get_overdue_goals(self) -> List[Goal]:
+        """Get all overdue goals"""
+        # First refresh overdue status
+        for goal in self.goals:
+            goal.check_overdue()
+
+        return [g for g in self.goals if g.is_overdue]
+
+    def set_goal_priority(self, goal_id: str, priority: int) -> bool:
+        """Set priority for a goal (1-10)"""
+        goal = self.get_goal_by_id(goal_id)
+        if goal:
+            goal.set_priority(priority)
+            self._save_goals()
+            return True
+        return False
+
+    def set_goal_due_date(self, goal_id: str, due_date: str) -> bool:
+        """Set due date for a goal"""
+        goal = self.get_goal_by_id(goal_id)
+        if goal:
+            goal.set_due_date(due_date)
+            self._save_goals()
+            return True
+        return False
+
+    # ========== GS-001: Progress Methods ==========
+
+    def update_goal_progress(self, goal_id: str, progress: float, note: str = "") -> bool:
+        """Update progress for a goal"""
+        goal = self.get_goal_by_id(goal_id)
+        if goal:
+            completed = goal.update_progress(progress, note)
+
+            # If completed, notify
+            if completed and self.message_bus:
+                self._notify_goal_complete(goal)
+
+            self._save_goals()
+            return True
+        return False
+
+    def _notify_goal_complete(self, goal: Goal):
+        """Send notification when goal is complete"""
+        try:
+            import sys
+            daemon_path = str(self.senter_root / "daemon")
+            if daemon_path not in sys.path:
+                sys.path.insert(0, daemon_path)
+            try:
+                from daemon.message_bus import MessageType
+            except ImportError:
+                from message_bus import MessageType
+
+            self.message_bus.send(
+                MessageType.NOTIFICATION,
+                source="goal_tracker",
+                payload={
+                    "event": "goal_completed",
+                    "title": "Goal Completed!",
+                    "message": f"Congratulations! You completed: {goal.description}",
+                    "goal_id": goal.id
+                }
+            )
+        except Exception as e:
+            logger.debug(f"Could not send completion notification: {e}")
 
     def get_relevant_goals(self, query: str, limit: int = 3) -> list[Goal]:
         """Get goals relevant to a query using semantic search"""

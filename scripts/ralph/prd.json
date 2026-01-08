@@ -1328,8 +1328,8 @@
         "Focuses/internal/Goal_Detector/SENTER.md"
       ],
       "priority": 46,
-      "passes": false,
-      "notes": "Goal System - Progress detection"
+      "passes": true,
+      "notes": "COMPLETED - GoalProgressDetector with semantic similarity, subtask detection, 100% notification"
     },
     {
       "id": "GS-002",
@@ -1356,8 +1356,8 @@
         "scripts/senter_ctl.py"
       ],
       "priority": 47,
-      "passes": false,
-      "notes": "Goal System - Prioritization"
+      "passes": true,
+      "notes": "COMPLETED - priority_score 1-10, parse_due_date(), check_overdue(), get_goals_by_priority()"
     },
     {
       "id": "GS-003",
@@ -1383,8 +1383,8 @@
         "scripts/senter_ctl.py"
       ],
       "priority": 48,
-      "passes": false,
-      "notes": "Goal System - Relationships"
+      "passes": true,
+      "notes": "COMPLETED - GoalTree with parent_id/child_ids, aggregate_progress(), get_tree_view()"
     },
     {
       "id": "LS-001",
