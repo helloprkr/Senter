@@ -223,3 +223,16 @@ Project: Senter 3.0 Depth Improvements
   - JSON parsing needs regex extraction fallback for embedded JSON
   - Clamp values to valid ranges (-1 to 1 for sentiment, 0 to 1 for confidence)
 ---
+
+## 2026-01-07 - US-015: Add emotional pattern detection to AffectiveMemory
+- Implemented: EmotionalPattern dataclass, detect_emotional_patterns, store/get pattern methods
+- Files changed:
+  - memory/affective.py (added EmotionalPattern, pattern detection and storage methods)
+  - tests/test_depth_features.py (added 15 tests for emotional pattern detection)
+- Learnings:
+  - EmotionalPattern stores trigger_topic, emotion, frequency, avg_intensity, examples
+  - detect_emotional_patterns analyzes frustration events for recurring topics
+  - Topic extraction uses stop word filtering and 3+ char minimum
+  - get_pattern_warnings returns warnings for response composer
+  - Patterns sorted by frequency (most common first)
+---

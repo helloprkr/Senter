@@ -3779,3 +3779,347 @@ class TestLLMSentimentAnalysis:
 
         assert -1 <= result.sentiment <= 1
         assert result.sentiment == -0.7
+
+
+# =============================================================================
+# US-015: Add emotional pattern detection to AffectiveMemory
+# =============================================================================
+
+
+class TestEmotionalPatternDetection:
+    """Tests for emotional pattern detection."""
+
+    def _create_memory(self, model=None):
+        """Create an in-memory affective memory for testing."""
+        import sqlite3
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute("""
+            CREATE TABLE affective (
+                id TEXT PRIMARY KEY,
+                episode_id TEXT,
+                sentiment REAL,
+                frustration REAL,
+                satisfaction REAL,
+                timestamp TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE episodic (
+                id TEXT PRIMARY KEY,
+                input TEXT,
+                response TEXT,
+                mode TEXT
+            )
+        """)
+        conn.commit()
+        from memory.affective import AffectiveMemory
+        return AffectiveMemory(conn, {}, model=model)
+
+    def test_emotional_pattern_dataclass(self):
+        """Test EmotionalPattern dataclass creation."""
+        from memory.affective import EmotionalPattern
+
+        pattern = EmotionalPattern(
+            trigger_topic="work",
+            emotion="frustrated",
+            frequency=5,
+            avg_intensity=0.7,
+            example_inputs=["I hate my work", "Work is terrible"],
+            last_seen="2026-01-07T12:00:00"
+        )
+
+        assert pattern.trigger_topic == "work"
+        assert pattern.emotion == "frustrated"
+        assert pattern.frequency == 5
+        assert pattern.avg_intensity == 0.7
+        assert len(pattern.example_inputs) == 2
+
+    def test_extract_topics_removes_stop_words(self):
+        """Test topic extraction removes stop words."""
+        memory = self._create_memory()
+
+        topics = memory._extract_topics("The project is broken and I am frustrated")
+
+        assert "the" not in topics
+        assert "is" not in topics
+        assert "and" not in topics
+        assert "project" in topics
+        assert "broken" in topics
+        assert "frustrated" in topics
+
+    def test_extract_topics_filters_short_words(self):
+        """Test topic extraction filters words shorter than 3 chars."""
+        memory = self._create_memory()
+
+        topics = memory._extract_topics("I am so mad at my PC for this")
+
+        assert "am" not in topics
+        assert "so" not in topics
+        assert "at" not in topics
+        assert "mad" in topics
+
+    def test_detect_emotional_patterns_empty_history(self):
+        """Test pattern detection with no frustration events."""
+        memory = self._create_memory()
+
+        patterns = memory.detect_emotional_patterns()
+
+        assert patterns == []
+
+    def test_detect_emotional_patterns_finds_recurring_topics(self):
+        """Test pattern detection finds recurring topics in frustration events."""
+        memory = self._create_memory()
+
+        # Insert episodes and affective data
+        for i in range(5):
+            memory.conn.execute(
+                "INSERT INTO episodic (id, input, response, mode) VALUES (?, ?, ?, ?)",
+                (f"ep_{i}", "The deployment keeps failing", "I'll help", "dialogue")
+            )
+            memory.conn.execute(
+                "INSERT INTO affective (id, episode_id, frustration, sentiment, satisfaction) VALUES (?, ?, ?, ?, ?)",
+                (f"aff_{i}", f"ep_{i}", 0.8, 0.3, 0.3)
+            )
+        memory.conn.commit()
+
+        patterns = memory.detect_emotional_patterns(min_occurrences=3)
+
+        # Should find "deployment" and "failing" as recurring topics
+        topics = [p.trigger_topic for p in patterns]
+        assert "deployment" in topics or "failing" in topics
+        assert all(p.emotion == "frustrated" for p in patterns)
+
+    def test_detect_emotional_patterns_respects_min_occurrences(self):
+        """Test pattern detection respects minimum occurrences threshold."""
+        memory = self._create_memory()
+
+        # Insert only 2 events
+        for i in range(2):
+            memory.conn.execute(
+                "INSERT INTO episodic (id, input, response, mode) VALUES (?, ?, ?, ?)",
+                (f"ep_{i}", "The deployment keeps failing", "I'll help", "dialogue")
+            )
+            memory.conn.execute(
+                "INSERT INTO affective (id, episode_id, frustration, sentiment, satisfaction) VALUES (?, ?, ?, ?, ?)",
+                (f"aff_{i}", f"ep_{i}", 0.8, 0.3, 0.3)
+            )
+        memory.conn.commit()
+
+        patterns = memory.detect_emotional_patterns(min_occurrences=3)
+
+        assert patterns == []
+
+    def test_store_emotional_pattern(self):
+        """Test storing an emotional pattern."""
+        from memory.affective import EmotionalPattern
+        memory = self._create_memory()
+
+        pattern = EmotionalPattern(
+            trigger_topic="meetings",
+            emotion="frustrated",
+            frequency=4,
+            avg_intensity=0.6,
+            example_inputs=["Too many meetings"],
+            last_seen="2026-01-07T12:00:00"
+        )
+
+        pattern_id = memory.store_emotional_pattern(pattern)
+
+        assert pattern_id is not None
+        assert len(pattern_id) == 8
+
+    def test_get_emotional_patterns(self):
+        """Test retrieving stored emotional patterns."""
+        from memory.affective import EmotionalPattern
+        memory = self._create_memory()
+
+        pattern = EmotionalPattern(
+            trigger_topic="deadlines",
+            emotion="frustrated",
+            frequency=3,
+            avg_intensity=0.75,
+            example_inputs=["The deadline is impossible"],
+            last_seen="2026-01-07T12:00:00"
+        )
+        memory.store_emotional_pattern(pattern)
+
+        retrieved = memory.get_emotional_patterns()
+
+        assert len(retrieved) == 1
+        assert retrieved[0].trigger_topic == "deadlines"
+        assert retrieved[0].frequency == 3
+
+    def test_get_emotional_patterns_filter_by_emotion(self):
+        """Test filtering patterns by emotion type."""
+        from memory.affective import EmotionalPattern
+        memory = self._create_memory()
+
+        memory.store_emotional_pattern(EmotionalPattern(
+            trigger_topic="work",
+            emotion="frustrated",
+            frequency=3,
+            avg_intensity=0.7,
+            example_inputs=[],
+            last_seen=""
+        ))
+        memory.store_emotional_pattern(EmotionalPattern(
+            trigger_topic="vacation",
+            emotion="anxious",
+            frequency=2,
+            avg_intensity=0.5,
+            example_inputs=[],
+            last_seen=""
+        ))
+
+        frustrated_only = memory.get_emotional_patterns(emotion="frustrated")
+
+        assert len(frustrated_only) == 1
+        assert frustrated_only[0].emotion == "frustrated"
+
+    def test_get_emotional_patterns_filter_by_frequency(self):
+        """Test filtering patterns by minimum frequency."""
+        from memory.affective import EmotionalPattern
+        memory = self._create_memory()
+
+        memory.store_emotional_pattern(EmotionalPattern(
+            trigger_topic="bugs",
+            emotion="frustrated",
+            frequency=5,
+            avg_intensity=0.8,
+            example_inputs=[],
+            last_seen=""
+        ))
+        memory.store_emotional_pattern(EmotionalPattern(
+            trigger_topic="tests",
+            emotion="frustrated",
+            frequency=2,
+            avg_intensity=0.5,
+            example_inputs=[],
+            last_seen=""
+        ))
+
+        high_freq = memory.get_emotional_patterns(min_frequency=3)
+
+        assert len(high_freq) == 1
+        assert high_freq[0].trigger_topic == "bugs"
+
+    def test_get_pattern_warnings(self):
+        """Test getting warnings for emotional triggers in input."""
+        from memory.affective import EmotionalPattern
+        memory = self._create_memory()
+
+        memory.store_emotional_pattern(EmotionalPattern(
+            trigger_topic="deployment",
+            emotion="frustrated",
+            frequency=5,
+            avg_intensity=0.8,
+            example_inputs=[],
+            last_seen=""
+        ))
+
+        warnings = memory.get_pattern_warnings("I need to do another deployment")
+
+        assert len(warnings) == 1
+        assert "deployment" in warnings[0]
+        assert "frustrated" in warnings[0]
+
+    def test_get_pattern_warnings_no_triggers(self):
+        """Test no warnings when input doesn't contain triggers."""
+        from memory.affective import EmotionalPattern
+        memory = self._create_memory()
+
+        memory.store_emotional_pattern(EmotionalPattern(
+            trigger_topic="deployment",
+            emotion="frustrated",
+            frequency=5,
+            avg_intensity=0.8,
+            example_inputs=[],
+            last_seen=""
+        ))
+
+        warnings = memory.get_pattern_warnings("Let's go for a walk")
+
+        assert warnings == []
+
+    def test_get_pattern_warnings_requires_min_frequency(self):
+        """Test warnings only for patterns with min frequency."""
+        from memory.affective import EmotionalPattern
+        memory = self._create_memory()
+
+        memory.store_emotional_pattern(EmotionalPattern(
+            trigger_topic="coding",
+            emotion="frustrated",
+            frequency=1,  # Low frequency
+            avg_intensity=0.5,
+            example_inputs=[],
+            last_seen=""
+        ))
+
+        warnings = memory.get_pattern_warnings("Let's do some coding")
+
+        # Should not warn since frequency is only 1 (below min_frequency=2)
+        assert warnings == []
+
+    def test_clear_emotional_patterns(self):
+        """Test clearing all emotional patterns."""
+        from memory.affective import EmotionalPattern
+        memory = self._create_memory()
+
+        memory.store_emotional_pattern(EmotionalPattern(
+            trigger_topic="bugs",
+            emotion="frustrated",
+            frequency=3,
+            avg_intensity=0.7,
+            example_inputs=[],
+            last_seen=""
+        ))
+        memory.store_emotional_pattern(EmotionalPattern(
+            trigger_topic="meetings",
+            emotion="frustrated",
+            frequency=2,
+            avg_intensity=0.6,
+            example_inputs=[],
+            last_seen=""
+        ))
+
+        count = memory.clear_emotional_patterns()
+
+        assert count == 2
+        assert memory.get_emotional_patterns() == []
+
+    def test_patterns_sorted_by_frequency(self):
+        """Test that patterns are returned sorted by frequency."""
+        from memory.affective import EmotionalPattern
+        memory = self._create_memory()
+
+        memory.store_emotional_pattern(EmotionalPattern(
+            trigger_topic="low",
+            emotion="frustrated",
+            frequency=1,
+            avg_intensity=0.5,
+            example_inputs=[],
+            last_seen=""
+        ))
+        memory.store_emotional_pattern(EmotionalPattern(
+            trigger_topic="high",
+            emotion="frustrated",
+            frequency=10,
+            avg_intensity=0.9,
+            example_inputs=[],
+            last_seen=""
+        ))
+        memory.store_emotional_pattern(EmotionalPattern(
+            trigger_topic="medium",
+            emotion="frustrated",
+            frequency=5,
+            avg_intensity=0.7,
+            example_inputs=[],
+            last_seen=""
+        ))
+
+        patterns = memory.get_emotional_patterns()
+
+        assert patterns[0].trigger_topic == "high"
+        assert patterns[1].trigger_topic == "medium"
+        assert patterns[2].trigger_topic == "low"

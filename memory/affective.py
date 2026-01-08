@@ -25,6 +25,17 @@ class SentimentAnalysis:
     explanation: str  # Brief explanation
 
 
+@dataclass
+class EmotionalPattern:
+    """A detected recurring emotional pattern."""
+    trigger_topic: str  # Topic that triggers the emotion
+    emotion: str  # The emotion triggered (e.g., "frustrated", "anxious")
+    frequency: int  # How many times this pattern has been observed
+    avg_intensity: float  # Average intensity (0-1)
+    example_inputs: List[str]  # Example user inputs that triggered this
+    last_seen: str  # ISO timestamp of last occurrence
+
+
 class AffectiveMemory:
     """
     Affective memory for emotional context.
@@ -354,3 +365,249 @@ Return ONLY valid JSON, no other text."""
     def count(self) -> int:
         """Get total affective record count."""
         return self.conn.execute("SELECT COUNT(*) FROM affective").fetchone()[0]
+
+    # =========================================================================
+    # Emotional Pattern Detection (US-015)
+    # =========================================================================
+
+    def _ensure_emotional_patterns_table(self) -> None:
+        """Create emotional_patterns table if it doesn't exist."""
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS emotional_patterns (
+                id TEXT PRIMARY KEY,
+                trigger_topic TEXT NOT NULL,
+                emotion TEXT NOT NULL,
+                frequency INTEGER DEFAULT 1,
+                avg_intensity REAL DEFAULT 0.5,
+                example_inputs TEXT,
+                last_seen TEXT
+            )
+        """)
+        self.conn.commit()
+
+    def detect_emotional_patterns(
+        self,
+        min_occurrences: int = 3,
+        frustration_threshold: float = 0.5,
+    ) -> List[EmotionalPattern]:
+        """
+        Detect recurring emotional patterns from affective history.
+
+        Analyzes frustration events to find topics that consistently
+        trigger negative emotions.
+
+        Args:
+            min_occurrences: Minimum times a pattern must occur
+            frustration_threshold: Minimum frustration level to consider
+
+        Returns:
+            List of detected emotional patterns
+        """
+        # Get frustration events with their inputs
+        events = self.get_frustration_events(
+            threshold=frustration_threshold,
+            limit=100
+        )
+
+        if not events:
+            return []
+
+        # Extract topics from inputs (simple word extraction)
+        topic_data: Dict[str, Dict[str, Any]] = {}
+
+        for event in events:
+            input_text = event.get("input", "").lower()
+            words = self._extract_topics(input_text)
+
+            for word in words:
+                if word not in topic_data:
+                    topic_data[word] = {
+                        "frequency": 0,
+                        "intensities": [],
+                        "examples": [],
+                        "last_seen": event.get("timestamp", ""),
+                    }
+                topic_data[word]["frequency"] += 1
+                topic_data[word]["intensities"].append(event.get("frustration", 0.5))
+                if len(topic_data[word]["examples"]) < 3:
+                    topic_data[word]["examples"].append(input_text[:100])
+
+        # Convert to EmotionalPattern objects
+        patterns = []
+        for topic, data in topic_data.items():
+            if data["frequency"] >= min_occurrences:
+                avg_intensity = sum(data["intensities"]) / len(data["intensities"])
+                pattern = EmotionalPattern(
+                    trigger_topic=topic,
+                    emotion="frustrated",
+                    frequency=data["frequency"],
+                    avg_intensity=avg_intensity,
+                    example_inputs=data["examples"],
+                    last_seen=data["last_seen"],
+                )
+                patterns.append(pattern)
+
+        # Sort by frequency (most common first)
+        patterns.sort(key=lambda p: p.frequency, reverse=True)
+
+        return patterns
+
+    def _extract_topics(self, text: str) -> List[str]:
+        """Extract potential topic words from text."""
+        # Remove common words
+        stop_words = {
+            "the", "a", "an", "is", "are", "was", "were", "be", "been",
+            "being", "have", "has", "had", "do", "does", "did", "will",
+            "would", "could", "should", "may", "might", "must", "shall",
+            "can", "need", "dare", "ought", "used", "to", "of", "in",
+            "for", "on", "with", "at", "by", "from", "as", "into",
+            "through", "during", "before", "after", "above", "below",
+            "between", "under", "again", "further", "then", "once",
+            "here", "there", "when", "where", "why", "how", "all",
+            "each", "few", "more", "most", "other", "some", "such",
+            "no", "nor", "not", "only", "own", "same", "so", "than",
+            "too", "very", "just", "and", "but", "if", "or", "because",
+            "until", "while", "this", "that", "these", "those", "i",
+            "me", "my", "myself", "we", "our", "ours", "you", "your",
+            "he", "him", "his", "she", "her", "it", "its", "they",
+            "them", "their", "what", "which", "who", "whom",
+        }
+
+        # Extract words (alphanumeric, 3+ chars)
+        words = re.findall(r'\b[a-z]{3,}\b', text.lower())
+
+        # Filter out stop words
+        return [w for w in words if w not in stop_words]
+
+    def store_emotional_pattern(self, pattern: EmotionalPattern) -> str:
+        """
+        Store a detected emotional pattern.
+
+        Args:
+            pattern: The emotional pattern to store
+
+        Returns:
+            Pattern ID
+        """
+        self._ensure_emotional_patterns_table()
+
+        pattern_id = str(uuid.uuid4())[:8]
+
+        self.conn.execute(
+            """
+            INSERT INTO emotional_patterns
+            (id, trigger_topic, emotion, frequency, avg_intensity, example_inputs, last_seen)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+            (
+                pattern_id,
+                pattern.trigger_topic,
+                pattern.emotion,
+                pattern.frequency,
+                pattern.avg_intensity,
+                json.dumps(pattern.example_inputs),
+                pattern.last_seen,
+            ),
+        )
+        self.conn.commit()
+
+        return pattern_id
+
+    def get_emotional_patterns(
+        self,
+        emotion: Optional[str] = None,
+        min_frequency: int = 1,
+    ) -> List[EmotionalPattern]:
+        """
+        Get stored emotional patterns.
+
+        Args:
+            emotion: Filter by emotion type (optional)
+            min_frequency: Minimum frequency to include
+
+        Returns:
+            List of emotional patterns
+        """
+        self._ensure_emotional_patterns_table()
+
+        if emotion:
+            cursor = self.conn.execute(
+                """
+                SELECT * FROM emotional_patterns
+                WHERE emotion = ? AND frequency >= ?
+                ORDER BY frequency DESC
+            """,
+                (emotion, min_frequency),
+            )
+        else:
+            cursor = self.conn.execute(
+                """
+                SELECT * FROM emotional_patterns
+                WHERE frequency >= ?
+                ORDER BY frequency DESC
+            """,
+                (min_frequency,),
+            )
+
+        patterns = []
+        for row in cursor.fetchall():
+            try:
+                example_inputs = json.loads(row["example_inputs"] or "[]")
+            except json.JSONDecodeError:
+                example_inputs = []
+
+            patterns.append(
+                EmotionalPattern(
+                    trigger_topic=row["trigger_topic"],
+                    emotion=row["emotion"],
+                    frequency=row["frequency"],
+                    avg_intensity=row["avg_intensity"],
+                    example_inputs=example_inputs,
+                    last_seen=row["last_seen"] or "",
+                )
+            )
+
+        return patterns
+
+    def get_pattern_warnings(self, user_input: str) -> List[str]:
+        """
+        Get warnings about emotional triggers in user input.
+
+        Checks if the user input contains topics that have previously
+        triggered negative emotions.
+
+        Args:
+            user_input: The user's input text
+
+        Returns:
+            List of warning strings for response composer
+        """
+        patterns = self.get_emotional_patterns(min_frequency=2)
+
+        if not patterns:
+            return []
+
+        input_lower = user_input.lower()
+        warnings = []
+
+        for pattern in patterns:
+            if pattern.trigger_topic in input_lower:
+                warnings.append(
+                    f"Topic '{pattern.trigger_topic}' has previously triggered "
+                    f"{pattern.emotion} feelings ({pattern.frequency} times). "
+                    f"Consider being extra empathetic."
+                )
+
+        return warnings
+
+    def clear_emotional_patterns(self) -> int:
+        """
+        Clear all stored emotional patterns.
+
+        Returns:
+            Number of patterns cleared
+        """
+        self._ensure_emotional_patterns_table()
+        cursor = self.conn.execute("DELETE FROM emotional_patterns")
+        self.conn.commit()
+        return cursor.rowcount
