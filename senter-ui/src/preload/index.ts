@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('api', {
     focus?: string
     created?: string
   }) => ipcRenderer.invoke('senter:saveConversation', conversation),
+  getTasks: (limit?: number) => ipcRenderer.invoke('senter:getTasks', limit),
 
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
@@ -50,6 +51,7 @@ declare global {
         focus?: string
         created?: string
       }) => Promise<unknown>
+      getTasks: (limit?: number) => Promise<unknown>
       minimizeWindow: () => void
       maximizeWindow: () => void
       closeWindow: () => void

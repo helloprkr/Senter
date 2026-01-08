@@ -97,6 +97,10 @@ class SenterClient {
   }): Promise<SenterResponse> {
     return this.sendCommand('save_conversation', { conversation })
   }
+
+  async getTasks(limit = 20): Promise<SenterResponse> {
+    return this.sendCommand('get_tasks', { limit })
+  }
 }
 
 const senterClient = new SenterClient()
@@ -135,6 +139,11 @@ export function registerSenterIPC(): void {
   ipcMain.handle('senter:saveConversation', async (_, conversation) => {
     console.log('[SenterIPC] Received saveConversation request, id:', conversation?.id)
     return senterClient.saveConversation(conversation)
+  })
+
+  ipcMain.handle('senter:getTasks', async (_, limit?: number) => {
+    console.log('[SenterIPC] Received getTasks request, limit:', limit)
+    return senterClient.getTasks(limit)
   })
 
   console.log('[SenterIPC] IPC handlers registered')

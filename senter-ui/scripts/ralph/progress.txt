@@ -158,3 +158,28 @@ Date: 2026-01-08
 All 4 Phase 1 stories (P1-001 through P1-004) have passed.
 Continuing to Phase 2: Autonomous Research
 
+### P2-001: Tasks Tab Shows Real Tasks [PASSED]
+Date: 2026-01-08
+
+**Implementation:**
+1. Added `get_tasks` IPC handler in daemon/ipc_server.py:
+   - Combines pending tasks from research queue
+   - Combines completed tasks from TaskResultStorage
+   - Returns unified task list with status, timestamp, result preview
+
+2. Added Electron IPC bridge:
+   - getTasks() method in senterBridge.ts
+   - Registered senter:getTasks handler
+   - Updated preload with getTasks API
+
+3. Updated RightPanel Tasks tab:
+   - Fetches tasks when tab becomes active
+   - Shows loading state with spinner
+   - Displays task list with status badges (pending/completed/error)
+   - Click task to see detail view with result preview
+
+**Verification:**
+- Python syntax: OK
+- typecheck: PASSED
+- build: PASSED
+

@@ -157,8 +157,8 @@
       ],
       "qualityGate": "See 5 tasks with mixed statuses, click each to see details",
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented 2026-01-08: get_tasks IPC handler, Tasks tab with status badges and detail view"
     },
     {
       "id": "P2-002",

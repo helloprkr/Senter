@@ -64,6 +64,7 @@ class IPCServer:
             "get_events": self._handle_get_events,  # US-008
             "get_conversations": self._handle_get_conversations,  # P1-001
             "save_conversation": self._handle_save_conversation,  # P1-001
+            "get_tasks": self._handle_get_tasks,  # P2-001
         }
 
     def run(self):
@@ -911,4 +912,77 @@ class IPCServer:
 
         except Exception as e:
             logger.error(f"save_conversation error: {e}")
+            return {"error": str(e)}
+
+    def _handle_get_tasks(self, request: dict = None) -> dict:
+        """Handle get_tasks request (P2-001) - get all tasks with status"""
+        if not self.daemon:
+            return {"error": "Daemon not available"}
+
+        try:
+            from engine.task_results import TaskResultStorage
+            from datetime import datetime
+
+            tasks = []
+
+            # 1. Get pending tasks from research queue
+            try:
+                queue_status = self.daemon.get_research_queue_status()
+                pending_tasks = queue_status.get("tasks", [])
+                for task in pending_tasks:
+                    tasks.append({
+                        "id": task.get("id", ""),
+                        "title": task.get("description", "")[:50],
+                        "description": task.get("description", ""),
+                        "status": "pending",
+                        "timestamp": task.get("added_at", time.time()),
+                        "datetime": datetime.fromtimestamp(task.get("added_at", time.time())).isoformat(),
+                        "result": None
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to get pending tasks: {e}")
+
+            # 2. Get completed tasks from result storage
+            try:
+                results_dir = Path(self.daemon.senter_root) / "data" / "tasks" / "results"
+                if results_dir.exists():
+                    storage = TaskResultStorage(results_dir)
+                    limit = request.get("limit", 20) if request else 20
+                    completed = storage.get_recent(limit=limit)
+
+                    for result in completed:
+                        # Check if this task is not already in pending
+                        existing_ids = {t["id"] for t in tasks}
+                        if result.task_id not in existing_ids:
+                            # Truncate result for preview
+                            result_preview = str(result.result)
+                            if len(result_preview) > 200:
+                                result_preview = result_preview[:200] + "..."
+
+                            tasks.append({
+                                "id": result.task_id,
+                                "title": result.description[:50] if result.description else result.task_id,
+                                "description": result.description,
+                                "status": result.status,
+                                "timestamp": result.timestamp,
+                                "datetime": datetime.fromtimestamp(result.timestamp).isoformat(),
+                                "result": result_preview,
+                                "worker": result.worker,
+                                "latency_ms": result.latency_ms
+                            })
+            except Exception as e:
+                logger.warning(f"Failed to get completed tasks: {e}")
+
+            # Sort by timestamp (newest first)
+            tasks.sort(key=lambda x: x["timestamp"], reverse=True)
+
+            return {
+                "tasks": tasks,
+                "count": len(tasks),
+                "pending_count": sum(1 for t in tasks if t["status"] == "pending"),
+                "completed_count": sum(1 for t in tasks if t["status"] == "completed")
+            }
+
+        except Exception as e:
+            logger.error(f"get_tasks error: {e}")
             return {"error": str(e)}
