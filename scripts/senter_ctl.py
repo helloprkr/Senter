@@ -18,6 +18,7 @@ import time
 import json
 import subprocess
 from pathlib import Path
+from typing import Dict
 
 # Setup path
 senter_root = Path(__file__).parent.parent
@@ -466,6 +467,106 @@ def show_goals():
         print(f"Error getting goals: {e}")
 
 
+def show_mcp_servers():
+    """Show configured MCP servers (MCP-004)"""
+    try:
+        from mcp.mcp_client import MCPClient
+        client = MCPClient(senter_root)
+
+        print(f"\n{'='*60}")
+        print(f"  MCP SERVER CONFIGURATION")
+        print(f"{'='*60}")
+
+        configs = client.server_configs
+        if not configs:
+            print("\n  No MCP servers configured.")
+            print(f"  Edit {client.config_path} to add servers.")
+            print(f"\n{'='*60}")
+            return
+
+        print(f"\n  Configured Servers ({len(configs)}):")
+        print(f"  {'-'*56}")
+
+        for name, config in configs.items():
+            status = "ENABLED" if config.enabled else "disabled"
+            transport = config.transport.upper()
+
+            print(f"\n  [{status}] {name}")
+            print(f"    Transport: {transport}")
+
+            if config.transport == "stdio":
+                cmd = f"{config.command} {' '.join(config.args)}"
+                print(f"    Command:   {cmd[:50]}{'...' if len(cmd) > 50 else ''}")
+            elif config.transport == "http":
+                print(f"    URL:       {config.url}")
+
+            if config.env:
+                env_keys = list(config.env.keys())
+                print(f"    Env vars:  {', '.join(env_keys)}")
+
+        print(f"\n  {'-'*56}")
+        print(f"  Config file: {client.config_path}")
+        print(f"\n{'='*60}")
+
+    except Exception as e:
+        print(f"Error loading MCP config: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def list_mcp_tools():
+    """List tools from connected MCP servers (MCP-004)"""
+    try:
+        from mcp.mcp_client import MCPClient
+        client = MCPClient(senter_root)
+
+        print(f"\n{'='*60}")
+        print(f"  MCP TOOLS")
+        print(f"{'='*60}")
+
+        # Try to connect to enabled servers
+        enabled_servers = [n for n, c in client.server_configs.items() if c.enabled]
+
+        if not enabled_servers:
+            print("\n  No MCP servers enabled.")
+            print("  Enable servers in config/mcp_servers.json")
+            print(f"\n{'='*60}")
+            return
+
+        print(f"\n  Connecting to {len(enabled_servers)} enabled server(s)...")
+
+        client.connect_all()
+
+        tools = client.list_tools()
+
+        if not tools:
+            print("\n  No tools discovered from connected servers.")
+        else:
+            print(f"\n  Discovered Tools ({len(tools)}):")
+            print(f"  {'-'*56}")
+
+            # Group by server
+            by_server: Dict[str, list] = {}
+            for tool in tools:
+                by_server.setdefault(tool.server_name, []).append(tool)
+
+            for server, server_tools in by_server.items():
+                print(f"\n  [{server}]")
+                for tool in server_tools:
+                    print(f"    - {tool.name}")
+                    if tool.description:
+                        desc = tool.description[:50]
+                        print(f"      {desc}{'...' if len(tool.description) > 50 else ''}")
+
+        client.disconnect_all()
+        print(f"\n{'='*60}")
+
+    except Exception as e:
+        print(f"Error listing MCP tools: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 def main():
     """Main entry point"""
     import argparse
@@ -530,6 +631,12 @@ def main():
     # shell
     subparsers.add_parser("shell", help="Start interactive shell")
 
+    # mcp (MCP-004)
+    mcp_parser = subparsers.add_parser("mcp", help="MCP server management")
+    mcp_subparsers = mcp_parser.add_subparsers(dest="mcp_command", help="MCP commands")
+    mcp_subparsers.add_parser("list", help="List configured MCP servers")
+    mcp_subparsers.add_parser("tools", help="List tools from connected MCP servers")
+
     args = parser.parse_args()
 
     if args.command == "start":
@@ -561,6 +668,13 @@ def main():
     elif args.command == "shell":
         from scripts.senter_shell import run_shell
         run_shell()
+    elif args.command == "mcp":
+        if args.mcp_command == "list":
+            show_mcp_servers()
+        elif args.mcp_command == "tools":
+            list_mcp_tools()
+        else:
+            mcp_parser.print_help()
     else:
         parser.print_help()
 

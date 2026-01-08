@@ -234,17 +234,24 @@ class MCPHttpTransport:
 
 class MCPClient:
     """
-    Client for interacting with MCP servers.
+    Client for interacting with MCP servers (MCP-001).
 
     Features:
     - Multi-server support
     - Tool discovery and registration
     - Standardized tool calling interface
+    - Parameter validation against JSON schema (MCP-003)
     """
 
-    def __init__(self, senter_root: Path = None):
+    # Default connection timeout (MCP-001)
+    DEFAULT_CONNECT_TIMEOUT = 30
+
+    def __init__(self, senter_root: Path = None, connect_timeout: float = None):
         self.senter_root = Path(senter_root) if senter_root else Path(".")
         self.config_path = self.senter_root / "config" / "mcp_servers.json"
+
+        # Connection timeout (MCP-001)
+        self.connect_timeout = connect_timeout or self.DEFAULT_CONNECT_TIMEOUT
 
         # Server connections
         self.servers: Dict[str, Any] = {}  # name -> transport
@@ -341,20 +348,82 @@ class MCPClient:
 
         logger.info(f"Discovered {len(tools)} tools from {server_name}")
 
-    def call_tool(self, tool_name: str, arguments: dict = None) -> dict:
+    def validate_parameters(self, tool_name: str, arguments: dict) -> tuple[bool, str]:
         """
-        Call an MCP tool.
+        Validate parameters against tool's JSON schema (MCP-003).
+
+        Args:
+            tool_name: Name of the tool
+            arguments: Parameters to validate
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        tool = self.tools.get(tool_name)
+        if not tool:
+            return False, f"Unknown tool: {tool_name}"
+
+        schema = tool.input_schema
+        if not schema:
+            return True, ""  # No schema = no validation
+
+        # Validate required parameters
+        required = schema.get("required", [])
+        properties = schema.get("properties", {})
+
+        for req_param in required:
+            if req_param not in arguments:
+                return False, f"Missing required parameter: {req_param}"
+
+        # Validate parameter types
+        for param_name, param_value in arguments.items():
+            if param_name not in properties:
+                # Unknown parameter - allow by default
+                continue
+
+            param_schema = properties[param_name]
+            expected_type = param_schema.get("type")
+
+            if expected_type:
+                type_map = {
+                    "string": str,
+                    "number": (int, float),
+                    "integer": int,
+                    "boolean": bool,
+                    "array": list,
+                    "object": dict
+                }
+
+                expected_python_type = type_map.get(expected_type)
+                if expected_python_type and not isinstance(param_value, expected_python_type):
+                    return False, f"Parameter '{param_name}' expected {expected_type}, got {type(param_value).__name__}"
+
+        return True, ""
+
+    def call_tool(self, tool_name: str, arguments: dict = None, timeout: float = 60, validate: bool = True) -> dict:
+        """
+        Call an MCP tool (MCP-003).
 
         Args:
             tool_name: Name of the tool to call
             arguments: Tool arguments
+            timeout: Per-tool call timeout (default 60s)
+            validate: Validate parameters against schema (default True)
 
         Returns:
             Tool result dict with "content" or "error" key
         """
+        arguments = arguments or {}
+
         tool = self.tools.get(tool_name)
         if not tool:
             return {"error": f"Unknown tool: {tool_name}"}
+
+        # Validate parameters (MCP-003)
+        if validate:
+            is_valid, error_msg = self.validate_parameters(tool_name, arguments)
+            if not is_valid:
+                return {"error": f"Parameter validation failed: {error_msg}"}
 
         transport = self.servers.get(tool.server_name)
         if not transport:
@@ -362,8 +431,8 @@ class MCPClient:
 
         response = transport.send_request("tools/call", {
             "name": tool_name,
-            "arguments": arguments or {}
-        })
+            "arguments": arguments
+        }, timeout=timeout)
 
         if not response:
             return {"error": "No response from server"}
@@ -390,9 +459,10 @@ class MCPClient:
 
 class MCPToolRegistry:
     """
-    Global registry for MCP tools (CG-010).
+    Global registry for MCP tools (CG-010, MCP-002).
 
     Provides standardized interface for task engine to discover and call tools.
+    Integrates with engine.ToolRegistry for unified tool access.
     """
 
     _instance: Optional['MCPToolRegistry'] = None
@@ -400,6 +470,7 @@ class MCPToolRegistry:
     def __init__(self, senter_root: Path = None):
         self.client = MCPClient(senter_root)
         self._initialized = False
+        self.senter_root = Path(senter_root) if senter_root else Path(".")
 
     @classmethod
     def get_instance(cls, senter_root: Path = None) -> 'MCPToolRegistry':
@@ -416,6 +487,40 @@ class MCPToolRegistry:
         self.client.connect_all()
         self._initialized = True
         logger.info(f"MCP Tool Registry initialized with {len(self.client.tools)} tools")
+
+        # Register in engine ToolRegistry (MCP-002)
+        self._register_in_engine_registry()
+
+    def _register_in_engine_registry(self):
+        """Register MCP tools in engine's ToolRegistry with source tags (MCP-002)."""
+        try:
+            from engine.task_engine import ToolRegistry
+
+            engine_registry = ToolRegistry.get_instance(self.senter_root / "Functions")
+
+            for tool in self.client.tools.values():
+                # Source tag: mcp:<server_name> (MCP-002)
+                source_tag = f"mcp:{tool.server_name}"
+
+                # Create wrapper handler that calls the MCP tool
+                def make_handler(tool_name):
+                    def handler(**kwargs):
+                        return self.call(tool_name, kwargs)
+                    return handler
+
+                engine_registry.register(
+                    name=tool.name,
+                    handler=make_handler(tool.name),
+                    description=tool.description,
+                    parameters=tool.input_schema.get("properties", {}),
+                    source=source_tag
+                )
+                logger.debug(f"Registered MCP tool in engine: {tool.name} (source: {source_tag})")
+
+            logger.info(f"Registered {len(self.client.tools)} MCP tools in engine ToolRegistry")
+
+        except ImportError as e:
+            logger.warning(f"Could not register MCP tools in engine: {e}")
 
     def shutdown(self):
         """Disconnect from all servers."""

@@ -1731,7 +1731,7 @@
         "mcp/mcp_client.py"
       ],
       "priority": 61,
-      "passes": false,
+      "passes": true,
       "notes": "MCP Integration - Client module"
     },
     {
@@ -1758,7 +1758,7 @@
         "engine/tool_registry.py"
       ],
       "priority": 62,
-      "passes": false,
+      "passes": true,
       "notes": "MCP Integration - Tool discovery"
     },
     {
@@ -1785,7 +1785,7 @@
         "engine/task_engine.py"
       ],
       "priority": 63,
-      "passes": false,
+      "passes": true,
       "notes": "MCP Integration - Tool execution"
     },
     {
@@ -1813,7 +1813,7 @@
         "scripts/senter_ctl.py"
       ],
       "priority": 64,
-      "passes": false,
+      "passes": true,
       "notes": "MCP Integration - Server config"
     }
   ]
