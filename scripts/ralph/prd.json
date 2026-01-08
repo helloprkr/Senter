@@ -778,8 +778,8 @@
         "vision/gaze_detector.py"
       ],
       "priority": 26,
-      "passes": false,
-      "notes": "Gaze Detection - Enable by default"
+      "passes": true,
+      "notes": "COMPLETED - Env var override, camera fallback, status reporting"
     },
     {
       "id": "GD-002",
@@ -805,8 +805,8 @@
         "vision/gaze_detector.py"
       ],
       "priority": 27,
-      "passes": false,
-      "notes": "Gaze Detection - Occlusion handling"
+      "passes": true,
+      "notes": "COMPLETED - Occlusion score, glasses/mask detection, confidence reduction"
     },
     {
       "id": "GD-003",
@@ -832,8 +832,8 @@
         "vision/gaze_detector.py"
       ],
       "priority": 28,
-      "passes": false,
-      "notes": "Gaze Detection - Multi-face handling"
+      "passes": true,
+      "notes": "COMPLETED - Multi-face tracking, primary face selection, face persistence"
     },
     {
       "id": "TE-001",
