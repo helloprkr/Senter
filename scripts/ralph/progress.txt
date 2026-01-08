@@ -236,3 +236,16 @@ Project: Senter 3.0 Depth Improvements
   - get_pattern_warnings returns warnings for response composer
   - Patterns sorted by frequency (most common first)
 ---
+
+## 2026-01-07 - US-016: Add file reading capability
+- Implemented: FileContent dataclass, read_file() function, file type detection
+- Files changed:
+  - tools/file_ops.py (added FileContent, read_file, FILE_TYPE_MAP, summary generation)
+  - tests/test_depth_features.py (added 16 tests for file reading)
+- Learnings:
+  - FileContent holds path, content, metadata, summary, file_type, language
+  - FILE_TYPE_MAP maps extensions to (type, language) tuples
+  - Summary generation varies by file type: code shows imports/defs, markdown shows headers
+  - Error handling returns success=False with error message
+  - UnicodeDecodeError fallback to latin-1 encoding
+---

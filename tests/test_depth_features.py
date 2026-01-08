@@ -4123,3 +4123,220 @@ class TestEmotionalPatternDetection:
         assert patterns[0].trigger_topic == "high"
         assert patterns[1].trigger_topic == "medium"
         assert patterns[2].trigger_topic == "low"
+
+
+# =============================================================================
+# US-016: Add file reading capability
+# =============================================================================
+
+
+class TestFileReading:
+    """Tests for file reading capability."""
+
+    def test_file_content_dataclass(self):
+        """Test FileContent dataclass creation."""
+        from tools.file_ops import FileContent
+
+        fc = FileContent(
+            path="/test/file.py",
+            content="print('hello')",
+            metadata={"name": "file.py"},
+            summary="1 lines of python",
+            file_type="code",
+            language="python",
+            line_count=1,
+            char_count=15
+        )
+
+        assert fc.path == "/test/file.py"
+        assert fc.content == "print('hello')"
+        assert fc.file_type == "code"
+        assert fc.language == "python"
+        assert fc.success is True
+
+    def test_file_content_error_state(self):
+        """Test FileContent with error state."""
+        from tools.file_ops import FileContent
+
+        fc = FileContent(
+            path="/missing.txt",
+            content="",
+            metadata={},
+            summary="",
+            file_type="unknown",
+            success=False,
+            error="File not found"
+        )
+
+        assert fc.success is False
+        assert fc.error == "File not found"
+
+    def test_detect_file_type_python(self):
+        """Test file type detection for Python files."""
+        from tools.file_ops import _detect_file_type
+        from pathlib import Path
+
+        file_type, language = _detect_file_type(Path("test.py"))
+
+        assert file_type == "code"
+        assert language == "python"
+
+    def test_detect_file_type_markdown(self):
+        """Test file type detection for Markdown files."""
+        from tools.file_ops import _detect_file_type
+        from pathlib import Path
+
+        file_type, language = _detect_file_type(Path("README.md"))
+
+        assert file_type == "markdown"
+        assert language is None
+
+    def test_detect_file_type_text(self):
+        """Test file type detection for text files."""
+        from tools.file_ops import _detect_file_type
+        from pathlib import Path
+
+        file_type, language = _detect_file_type(Path("notes.txt"))
+
+        assert file_type == "text"
+        assert language is None
+
+    def test_detect_file_type_unknown(self):
+        """Test file type detection for unknown extensions."""
+        from tools.file_ops import _detect_file_type
+        from pathlib import Path
+
+        file_type, language = _detect_file_type(Path("file.xyz"))
+
+        assert file_type == "text"  # Falls back to text
+        assert language is None
+
+    def test_generate_summary_code(self):
+        """Test summary generation for code files."""
+        from tools.file_ops import _generate_summary
+
+        content = """import os
+from pathlib import Path
+
+def hello():
+    print('hello')
+
+class MyClass:
+    pass
+"""
+        summary = _generate_summary(content, "code", "python")
+
+        assert "lines of python" in summary
+        assert "imports" in summary
+
+    def test_generate_summary_markdown(self):
+        """Test summary generation for markdown files."""
+        from tools.file_ops import _generate_summary
+
+        content = """# Main Title
+
+Some content here.
+
+## Section 1
+More content.
+"""
+        summary = _generate_summary(content, "markdown", None)
+
+        assert "lines" in summary
+        assert "Headers" in summary or "markdown" in summary
+
+    def test_generate_summary_text(self):
+        """Test summary generation for text files."""
+        from tools.file_ops import _generate_summary
+
+        content = "This is a text file with some content.\nLine 2.\nLine 3."
+        summary = _generate_summary(content, "text", None)
+
+        assert "lines" in summary
+        assert "Preview" in summary
+
+    def test_read_file_not_found(self):
+        """Test reading non-existent file."""
+        from tools.file_ops import read_file
+
+        result = read_file("/nonexistent/path/file.txt")
+
+        assert result.success is False
+        assert "not found" in result.error.lower()
+
+    def test_read_file_success(self, tmp_path):
+        """Test successfully reading a file."""
+        from tools.file_ops import read_file
+
+        # Create a test file
+        test_file = tmp_path / "test.py"
+        test_file.write_text("print('hello world')")
+
+        result = read_file(str(test_file))
+
+        assert result.success is True
+        assert result.content == "print('hello world')"
+        assert result.file_type == "code"
+        assert result.language == "python"
+        assert result.line_count == 1
+
+    def test_read_file_markdown(self, tmp_path):
+        """Test reading a markdown file."""
+        from tools.file_ops import read_file
+
+        test_file = tmp_path / "README.md"
+        test_file.write_text("# Hello\n\nThis is content.")
+
+        result = read_file(str(test_file))
+
+        assert result.success is True
+        assert result.file_type == "markdown"
+        assert "# Hello" in result.content
+
+    def test_read_file_metadata(self, tmp_path):
+        """Test that metadata is populated correctly."""
+        from tools.file_ops import read_file
+
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("test content")
+
+        result = read_file(str(test_file))
+
+        assert result.success is True
+        assert result.metadata["name"] == "test.txt"
+        assert result.metadata["extension"] == ".txt"
+        assert result.metadata["size"] == 12
+        assert "modified" in result.metadata
+
+    def test_read_file_line_count(self, tmp_path):
+        """Test line counting."""
+        from tools.file_ops import read_file
+
+        test_file = tmp_path / "multiline.txt"
+        test_file.write_text("line 1\nline 2\nline 3")
+
+        result = read_file(str(test_file))
+
+        assert result.success is True
+        assert result.line_count == 3
+
+    def test_read_file_char_count(self, tmp_path):
+        """Test character counting."""
+        from tools.file_ops import read_file
+
+        test_file = tmp_path / "chars.txt"
+        test_file.write_text("12345")
+
+        result = read_file(str(test_file))
+
+        assert result.success is True
+        assert result.char_count == 5
+
+    def test_read_file_directory_error(self, tmp_path):
+        """Test error when trying to read a directory."""
+        from tools.file_ops import read_file
+
+        result = read_file(str(tmp_path))
+
+        assert result.success is False
+        assert "not a file" in result.error.lower()

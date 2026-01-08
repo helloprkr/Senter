@@ -317,7 +317,7 @@
         "visual": false
       },
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": "Gap #8: File Operations - Part 1"
     },
     {
