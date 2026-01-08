@@ -115,9 +115,9 @@ class TestProactiveIntelligence:
         assert isinstance(suggestions, list)
 
     @pytest.mark.asyncio
-    async def test_no_suggestions_at_low_trust(self, engine):
-        """No proactive suggestions at low trust."""
-        engine.trust.level = 0.3
+    async def test_no_suggestions_at_very_low_trust(self, engine):
+        """No proactive suggestions at very low trust (<0.3)."""
+        engine.trust.level = 0.2  # Below threshold of 0.3
 
         suggestions = await engine.proactive.generate_suggestions()
 

@@ -507,12 +507,13 @@ class ProactiveSuggestionEngine:
         trust = getattr(self.engine, "trust", None)
         trust_level = trust.level if trust else 0.5
 
-        # Only show proactive suggestions at sufficient trust
-        if trust_level < 0.6:
-            return []  # Not enough trust for proactive behavior
+        # Show some suggestions even at low trust for MVP (bootstrap value)
+        # More suggestions unlocked at higher trust
+        if trust_level < 0.3:
+            return []  # Only block at very low trust
 
         # Higher trust = more suggestions
-        max_suggestions = 1 if trust_level < 0.7 else (2 if trust_level < 0.8 else 3)
+        max_suggestions = 1 if trust_level < 0.5 else (2 if trust_level < 0.7 else 3)
 
         # Sort by priority
         sorted_suggestions = sorted(

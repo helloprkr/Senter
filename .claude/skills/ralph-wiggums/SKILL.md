@@ -3,11 +3,29 @@ name: ralph-wiggums
 description: Autonomous iterative development loop. ALWAYS USE when asked to "use Ralph Wiggums", implement requirements autonomously, or build features iteratively. This skill runs ENTIRELY within Claude Code (no API calls) for fully autonomous execution.
 ---
 
-# Ralph Wiggums
+# Ralph Wiggums v2.0
 
-**Fully autonomous development loop powered by Claude Code (subscription-based, NO API).**
+**User-Value-First Autonomous Development**
+
+> "None of this matters unless the app we're building is phenomenally valuable to our users."
 
 **STOP. Before writing ANY code, you MUST complete the Initialization Protocol below.**
+
+---
+
+## Core Philosophy: Value Over Velocity
+
+Ralph Wiggums v2.0 prioritizes **user experience and value delivery** over test-passing velocity.
+
+**The Old Way (v1.0):**
+- Focus: Make tests pass, get through stories fast
+- Success metric: All tests green
+- Problem: Can build "working" code that delivers zero value
+
+**The New Way (v2.0):**
+- Focus: Deliver observable, meaningful value to users
+- Success metric: User can DO something valuable they couldn't before
+- Each story must answer: "What can the user NOW do that they couldn't before?"
 
 ---
 
@@ -27,15 +45,24 @@ Examine the project to identify:
 - Test runner (vitest.config.*, jest.config.*, pytest.ini, etc.)
 - Available npm/pip scripts for typecheck, test, lint
 
-See `references/stack-detection.md` for detailed detection logic.
+### Step 3: Understand the USER
+Before generating stories, answer these questions:
+- **Who is the user?** (developer, consumer, business user, etc.)
+- **What problem are they trying to solve?**
+- **What does "phenomenal value" look like for them?**
+- **What would make them say "WOW, this is amazing"?**
 
-### Step 3: Generate prd.json
-Create `scripts/ralph/prd.json` with this structure:
+### Step 4: Generate prd.json (User-Value-First Format)
 
 ```json
 {
-  "projectName": "[NAME FROM REQUIREMENTS]",
+  "projectName": "[NAME]",
   "branchName": "ralph/[feature-name]",
+  "userProfile": {
+    "who": "Description of target user",
+    "coreProblem": "What problem they're solving",
+    "wowMoment": "What would make them say WOW"
+  },
   "stack": {
     "language": "[detected]",
     "framework": "[detected]",
@@ -47,49 +74,55 @@ Create `scripts/ralph/prd.json` with this structure:
     "integrationTest": "[command]",
     "lint": "[command]"
   },
-  "userStories": [
-    // GENERATE ATOMIC STORIES FROM REQUIREMENTS - see Step 4
-  ]
+  "userStories": []
 }
 ```
 
-### Step 4: Decompose Requirements into Atomic Stories
-For EACH feature in the requirements, create stories following these rules:
+### Step 5: Decompose Requirements into VALUE-DRIVEN Stories
 
-**Story MUST be completable in ONE iteration:**
-- Changes ≤5 files
-- Has ≤5 acceptance criteria
-- NO words like "entire", "complete", "full system"
+**THE CRITICAL DIFFERENCE: Stories are about USER VALUE, not code tasks.**
 
-**Story format:**
+❌ **BAD (Code-Task Stories):**
+- "Add HTTP endpoint for goals"
+- "Create database schema"
+- "Implement API client"
+- "Add unit tests for X"
+
+✅ **GOOD (User-Value Stories):**
+- "User can see their detected goals when they open the app"
+- "User receives a 'welcome back' summary after being away"
+- "User gets proactive suggestions that feel relevant and helpful"
+- "User can have a conversation that Senter remembers next time"
+
+**Story Format (v2.0):**
 ```json
 {
   "id": "US-001",
-  "title": "[Imperative verb] [specific outcome]",
+  "title": "[User can/gets/sees] [specific value]",
+  "userValue": "What the user can NOW do that they couldn't before",
+  "wowFactor": "What makes this feel magical, not just functional",
   "acceptanceCriteria": [
-    "Specific observable outcome",
-    "Another specific outcome",
-    "typecheck passes",
-    "unit tests pass"
+    "Observable user outcome 1",
+    "Observable user outcome 2",
+    "Feels smooth/fast/delightful (not just 'works')"
   ],
-  "testRequirements": {
-    "unit": ["test_function_scenario"],
-    "integration": [],
-    "visual": false
+  "technicalRequirements": {
+    "tests": ["test cases needed"],
+    "performance": "latency/speed requirements",
+    "polish": "UI/UX details that matter"
   },
   "priority": 1,
-  "passes": false,
+  "valueDelivered": false,
   "notes": ""
 }
 ```
 
-**Decomposition examples:**
-- ❌ "Build authentication system" 
-- ✅ "Add login form UI" → "Add form validation" → "Add auth API endpoint" → "Add session handling"
+**Decomposition Questions:**
+1. Can a user SEE or EXPERIENCE this value immediately?
+2. Would a demo of this make someone say "that's cool"?
+3. Is this a complete "unit of value" (not a partial implementation)?
 
-See `references/story-decomposition.md` for detailed patterns.
-
-### Step 5: Generate progress.txt
+### Step 6: Generate progress.txt
 Create `scripts/ralph/progress.txt`:
 
 ```markdown
@@ -97,141 +130,107 @@ Create `scripts/ralph/progress.txt`:
 Started: [CURRENT DATE]
 Project: [PROJECT NAME]
 
+## User Value Focus
+Target User: [who]
+Core Problem: [what]
+WOW Moment: [what would amaze them]
+
+## Value Delivered So Far
+- (List user-visible improvements)
+
 ## Codebase Patterns
 - Stack: [language]/[framework]
-- Test runner: [test runner]
 - (Add patterns as discovered)
 
 ## Key Files
-- (List critical files identified during analysis)
+- (List critical files)
 
 ---
 ```
 
-### Step 6: Create Git Branch
+### Step 7: Create Git Branch
 ```bash
 git checkout -b ralph/[feature-name]
 ```
 
-### Step 7: Begin Autonomous Execution
-**IMMEDIATELY after initialization, begin the autonomous loop below. Do NOT wait for user confirmation.**
+### Step 8: Begin Autonomous Execution
+**IMMEDIATELY after initialization, begin the autonomous loop below.**
 
 ---
 
-## 🔄 AUTONOMOUS EXECUTION LOOP
-
-**THIS IS THE CORE OF RALPH WIGGUMS.**
-
-After completing initialization, execute this loop continuously until ALL stories pass:
+## 🔄 AUTONOMOUS EXECUTION LOOP (Value-First)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  RALPH WIGGUMS AUTONOMOUS LOOP                              │
-│  Runs entirely within Claude Code session (NO API calls)    │
+│  RALPH WIGGUMS v2.0 - USER VALUE LOOP                       │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  LOOP:                                                      │
 │    1. Read scripts/ralph/prd.json                          │
-│    2. Read scripts/ralph/progress.txt (check patterns!)    │
-│    3. Find highest priority story where passes=false       │
+│    2. Read scripts/ralph/progress.txt                      │
+│    3. Find highest priority story where valueDelivered=false│
 │    4. If NO incomplete stories → COMPLETE, stop            │
 │    5. Implement the ONE selected story                     │
-│    6. Run ALL verification commands                        │
-│    7. If PASS → commit, update prd.json, log to progress   │
-│    8. If FAIL → fix (3 attempts), then decompose if stuck  │
-│    9. GOTO step 1 (continue immediately, no user input)    │
+│    6. VERIFY VALUE (not just tests!)                       │
+│       a. Technical: typecheck, tests, lint                 │
+│       b. VALUE CHECK: Can user SEE/USE this improvement?   │
+│       c. POLISH CHECK: Does it feel good, not just work?   │
+│    7. If VALUE DELIVERED → commit, update, log             │
+│    8. If VALUE MISSING → iterate (don't just fix tests)    │
+│    9. GOTO step 1                                          │
 │                                                             │
 │  EXIT CONDITIONS:                                           │
-│    - All stories pass → output <promise>COMPLETE</promise>  │
-│    - Cannot proceed → output <promise>STUCK</promise>       │
+│    - All value delivered → <promise>COMPLETE</promise>     │
+│    - Cannot deliver value → <promise>STUCK</promise>       │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Autonomous Loop - Detailed Steps
+### Value Verification Checklist
 
-**For EACH iteration, execute these steps WITHOUT waiting for user input:**
+Before marking ANY story as `"valueDelivered": true`, confirm:
 
-#### 1. Read State
+**Technical (Must Pass):**
+- [ ] Typecheck passes
+- [ ] Tests pass
+- [ ] Lint passes
+
+**Value (THE REAL TEST):**
+- [ ] User can SEE or USE this improvement
+- [ ] It's a COMPLETE unit of value (not partial)
+- [ ] Demo would make someone say "that's useful"
+
+**Polish (What Makes It Great):**
+- [ ] Feels fast (no unnecessary delays)
+- [ ] Looks good (attention to UI details)
+- [ ] Handles edge cases gracefully
+- [ ] Error messages are helpful, not cryptic
+
+### On Commit: Value-Focused Message
+
 ```bash
-cat scripts/ralph/prd.json      # Find stories
-cat scripts/ralph/progress.txt  # Check patterns FIRST
-git status                      # Verify branch
+git commit -m "$(cat <<'EOF'
+feat: [US-XXX] User can [value delivered]
+
+VALUE: [What user can now do]
+WOW: [What makes this feel good]
+
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+EOF
+)"
 ```
 
-#### 2. Select Story
-Pick highest priority story where `"passes": false` AND `"blocked"` is not `true`.
+### Progress Log Format (Value-Focused)
 
-**COMPLETION CHECK:**
-If ALL stories have `"passes": true`:
-```
-<promise>COMPLETE</promise>
-```
-**STOP HERE** - work is done. Do not continue.
-
-#### 3. Implement ONE Story
-- Follow patterns from progress.txt "Codebase Patterns" section
-- Write tests BEFORE or DURING implementation (TDD)
-- Keep changes minimal and focused
-- Do NOT implement multiple stories in one iteration
-
-#### 4. Verify (ALL MUST PASS)
-Run each verification command from prd.json:
-```bash
-# Run the exact commands specified in prd.json verification section
-# Example for Python:
-python -m py_compile main.py  # typecheck
-python -m pytest tests/ -v    # unitTest
-python -m ruff check .        # lint
-
-# Example for TypeScript/Node:
-npm run typecheck
-npm test
-npm run lint
-```
-
-If `visual` is `true` in testRequirements:
-- Start dev server if needed
-- Navigate to relevant page
-- Verify UI matches acceptance criteria
-
-#### 5. On Success: Record and Commit
-```bash
-git add -A
-git commit -m "feat: [US-XXX] - [Title]"
-```
-
-Update `scripts/ralph/prd.json`:
-- Set `"passes": true` for completed story
-
-Append to `scripts/ralph/progress.txt`:
 ```markdown
-## [DATE] - US-XXX: [Title]
-- Implemented: [what was done]
-- Files: [list of changed files]
-- **Learnings:** [patterns/gotchas discovered]
+## [DATE] - US-XXX: [User can...]
+- **Value Delivered:** [What user can now do]
+- **WOW Factor:** [What makes it feel magical]
+- **Polish Details:** [UI/UX attention given]
+- Files: [changed files]
+- Learnings: [patterns discovered]
 ---
 ```
-
-If you discovered a reusable pattern, add it to "## Codebase Patterns" at the TOP of progress.txt.
-
-#### 6. On Failure: Recovery Protocol
-If verification fails:
-1. Attempt fix (up to 3 times per story)
-2. If stuck after 3 attempts:
-   - Decompose story into 2-3 smaller sub-stories
-   - Update prd.json with sub-stories at higher priority
-   - Mark original story with `"decomposed": true`
-   - Log failure in progress.txt
-3. Continue with first sub-story
-
-See `references/failure-recovery.md` for detailed recovery procedures.
-
-#### 7. Continue Loop
-**CRITICAL: After completing steps 1-6, IMMEDIATELY return to step 1.**
-- Do NOT wait for user input
-- Do NOT ask for confirmation
-- Continue looping until ALL stories pass or you are STUCK
 
 ---
 
@@ -239,53 +238,48 @@ See `references/failure-recovery.md` for detailed recovery procedures.
 
 | Signal | Meaning |
 |--------|---------|
-| `<promise>COMPLETE</promise>` | All stories pass. Work is done. |
-| `<promise>STUCK</promise>` | Cannot proceed. Human review needed. |
+| `<promise>COMPLETE</promise>` | All user value delivered. Product is ready. |
+| `<promise>STUCK</promise>` | Cannot deliver value. Human review needed. |
 
 ---
 
-## Pause/Resume (Optional)
+## Critical Rules (v2.0)
 
-If you need to pause mid-execution:
-```bash
-touch scripts/ralph/.ralph-pause
-```
-
-Check for pause at start of each iteration:
-```bash
-if [ -f scripts/ralph/.ralph-pause ]; then
-  echo "PAUSED - remove .ralph-pause to continue"
-  # Wait or exit
-fi
-```
-
-Remove to resume:
-```bash
-rm scripts/ralph/.ralph-pause
-```
+1. **VALUE OVER VELOCITY** — A passing test suite with zero user value = FAILURE
+2. **USER-VISIBLE OUTCOMES** — Every story must change what user can SEE or DO
+3. **COMPLETE UNITS** — Partial implementations don't count as value
+4. **POLISH MATTERS** — "Works" ≠ "Good". Users feel the difference.
+5. **DEMO-READY** — Each completed story should be demo-able
+6. **AUTONOMOUS BUT THOUGHTFUL** — Don't rush through; quality > speed
 
 ---
 
-## Verification Checklist
+## Example: Good vs Bad Stories
 
-Before marking ANY story as `"passes": true`, confirm:
-- [ ] Typecheck passes
-- [ ] Unit tests pass
-- [ ] Integration tests pass (if applicable)
-- [ ] Lint passes
-- [ ] Visual verification (if `"visual": true`)
-- [ ] Changes committed to git
+**Building an AI Assistant:**
 
----
+❌ BAD Stories (Code-focused):
+1. "Create /api/goals endpoint"
+2. "Add goal detection class"
+3. "Write unit tests for goal detection"
+4. "Add frontend API client"
+5. "Create goals UI component"
 
-## Critical Rules
+✅ GOOD Stories (Value-focused):
+1. "User sees their AI-detected goals when opening the app"
+   - Value: User learns what Senter thinks they're working toward
+   - WOW: Goals appear without user having to enter them manually
+   - Polish: Progress bars, categories, smooth animations
 
-1. **NEVER skip initialization** — prd.json MUST exist before coding
-2. **ONE story per iteration** — never implement multiple stories at once
-3. **VERIFY before committing** — never commit failing code
-4. **LOG learnings** — progress.txt is memory for future iterations
-5. **DECOMPOSE when stuck** — 3 failures = split into smaller stories
-6. **CONTINUE AUTONOMOUSLY** — do NOT wait for user input between iterations
+2. "User receives helpful suggestions based on their activity"
+   - Value: User gets actionable recommendations
+   - WOW: Suggestions feel relevant, not generic
+   - Polish: Unobtrusive toasts, easy to act on or dismiss
+
+3. "User gets a 'welcome back' summary after being away"
+   - Value: User learns what happened while they were gone
+   - WOW: Senter actually did work while they were away
+   - Polish: Beautiful modal, clear summary, actionable insights
 
 ---
 
@@ -293,28 +287,18 @@ Before marking ANY story as `"passes": true`, confirm:
 
 | File | Purpose |
 |------|---------|
-| `scripts/ralph/prd.json` | Stories, criteria, pass/fail status |
-| `scripts/ralph/progress.txt` | Learnings, patterns, session memory |
-| `scripts/ralph/.ralph-pause` | Create to pause, delete to resume |
-
----
-
-## Reference Documents
-
-Load these as needed for detailed guidance:
-- `references/stack-detection.md` — How to detect project tech stack
-- `references/story-decomposition.md` — How to break down requirements
-- `references/test-strategies.md` — Testing patterns per language/framework
-- `references/failure-recovery.md` — Recovery protocols for stuck/flaky/blocked stories
+| `scripts/ralph/prd.json` | Stories with VALUE focus |
+| `scripts/ralph/progress.txt` | Value delivered, learnings |
+| `scripts/ralph/.ralph-pause` | Create to pause |
 
 ---
 
 ## Execution Summary
 
-When Ralph Wiggums is invoked:
+When Ralph Wiggums v2.0 is invoked:
 
-1. **Initialize** (Steps 1-6) — Create scaffolding, detect stack, generate stories
-2. **Loop** (Step 7) — Execute autonomous loop until complete
-3. **Signal** — Output `<promise>COMPLETE</promise>` or `<promise>STUCK</promise>`
+1. **Initialize** — Understand user, detect stack, generate VALUE-focused stories
+2. **Loop** — Execute until all VALUE is delivered (not just tests pass)
+3. **Signal** — Output `<promise>COMPLETE</promise>` when product is valuable
 
-**All execution happens within your Claude Code session. No external API calls. No ralph.sh script. Pure autonomous iteration.**
+**Remember: We're not writing code. We're delivering value to humans.**

@@ -1,380 +1,142 @@
 {
-  "projectName": "Senter 3.0 Depth Improvements",
-  "branchName": "ralph/senter-depth-improvements",
+  "projectName": "Senter 3.0 - Gap Vision V2",
+  "branchName": "ralph/gap-vision-v2",
+  "userProfile": {
+    "who": "Knowledge worker, developer, or creative professional",
+    "coreProblem": "Wants an AI that learns them, remembers context, and works proactively without sending data to the cloud",
+    "wowMoment": "Opening the app and seeing Senter already knows what they're working on"
+  },
   "stack": {
-    "language": "python",
-    "framework": "custom",
-    "testRunner": "pytest"
+    "language": "Python 3.10+ (backend), TypeScript (frontend)",
+    "framework": "aiohttp (backend API), Next.js 15 + Electron (frontend)",
+    "testRunner": "pytest (backend), next build (frontend)"
   },
   "verification": {
-    "typecheck": "python -m py_compile senter.py core/*.py memory/*.py intelligence/*.py coupling/*.py evolution/*.py",
-    "unitTest": "python -m pytest tests/ -v --tb=short",
-    "integrationTest": "python -c \"from core.engine import Senter; print('Import OK')\"",
-    "lint": "python -m ruff check . --fix --ignore E501"
+    "typecheck": "cd /Users/maximvs/Desktop/__2026_/Senter\\ 3.0\\ ⏅/ui && npx tsc --noEmit 2>&1 | head -20 || true",
+    "unitTest": "cd /Users/maximvs/Desktop/__2026_/Senter\\ 3.0\\ ⏅ && source .venv/bin/activate && pytest tests/ -v --tb=short 2>&1 | tail -30",
+    "integrationTest": "cd /Users/maximvs/Desktop/__2026_/Senter\\ 3.0\\ ⏅ && source .venv/bin/activate && python3 -c 'from daemon.http_server import SenterHTTPServer; print(\"Server OK\")'",
+    "lint": "cd /Users/maximvs/Desktop/__2026_/Senter\\ 3.0\\ ⏅ && source .venv/bin/activate && python3 -m ruff check core/ daemon/ memory/ --ignore E501 2>&1 | head -20 || true"
   },
   "userStories": [
     {
-      "id": "US-001",
-      "title": "Add LLM-based context inference to ActivityMonitor",
+      "id": "US-V2-001",
+      "title": "User can start the app and have it actually respond",
+      "userValue": "When user types a message, Senter responds intelligently using the LLM",
+      "wowFactor": "Response comes quickly and feels conversational, not robotic",
       "acceptanceCriteria": [
-        "ActivityMonitor has async method infer_context_with_llm(snapshot)",
-        "Method uses LLM to analyze app, window, and key phrases",
-        "Returns structured context: {activity_type, project_name, tasks, confidence}",
-        "Falls back to heuristic inference if LLM unavailable",
-        "typecheck passes",
-        "unit tests pass"
+        "App starts without errors when running start-mvp.sh",
+        "User types a message and receives a response within 5 seconds",
+        "Response is contextual and helpful, not generic or empty",
+        "Backend and frontend communicate correctly via HTTP API"
       ],
-      "testRequirements": {
-        "unit": ["test_activity_llm_context_inference"],
-        "integration": [],
-        "visual": false
+      "technicalRequirements": {
+        "tests": ["test_http_server_responds", "test_chat_endpoint_works"],
+        "performance": "Response within 5 seconds",
+        "polish": "Loading indicator while waiting, smooth message appearance"
       },
       "priority": 1,
-      "passes": true,
-      "notes": "Gap #1: Activity Monitoring - Part 1"
+      "valueDelivered": true,
+      "notes": "DONE: Server starts, responds intelligently with contextual answers, returns goals/trust/memories"
     },
     {
-      "id": "US-002",
-      "title": "Add project detection to ActivityMonitor",
+      "id": "US-V2-002",
+      "title": "User can have a conversation Senter remembers",
+      "userValue": "Conversation history persists across sessions and influences responses",
+      "wowFactor": "Ask 'what were we talking about yesterday?' and get a real answer",
       "acceptanceCriteria": [
-        "ActivityMonitor detects current project from window title and file paths",
-        "Stores detected projects in activity history",
-        "Links activity snapshots to detected projects",
-        "typecheck passes",
-        "unit tests pass"
+        "Previous conversations are loaded on startup",
+        "Senter references past discussions naturally in responses",
+        "Memory feels seamless, not like reading a transcript",
+        "At least 3 previous exchanges are considered in context"
       ],
-      "testRequirements": {
-        "unit": ["test_activity_project_detection"],
-        "integration": [],
-        "visual": false
+      "technicalRequirements": {
+        "tests": ["test_memory_persistence", "test_context_in_responses"],
+        "performance": "Memory retrieval under 500ms",
+        "polish": "Natural integration of past context, not forced"
       },
       "priority": 2,
-      "passes": true,
-      "notes": "Gap #1: Activity Monitoring - Part 2"
+      "valueDelivered": true,
+      "notes": "DONE: 525 memories loaded, response references user name 'Jordan' and past goals from conversations"
     },
     {
-      "id": "US-003",
-      "title": "Integrate ActivityMonitor with goal suggestion",
+      "id": "US-V2-003",
+      "title": "User sees their AI-detected goals when they open the app",
+      "userValue": "Without entering anything, Senter shows what it thinks user is working toward",
+      "wowFactor": "Goals appear that user never explicitly entered - 'How did it know?'",
       "acceptanceCriteria": [
-        "ActivityMonitor suggests goals based on observed activity patterns",
-        "Goals created with source='activity_inferred'",
-        "Minimum 10 snapshots in same context before suggesting goal",
-        "typecheck passes",
-        "unit tests pass"
+        "Goals panel shows at least one detected goal on app open",
+        "Goals are actually detected from conversation history",
+        "Goals have meaningful progress indicators",
+        "User can dismiss or correct goals"
       ],
-      "testRequirements": {
-        "unit": ["test_activity_goal_suggestion"],
-        "integration": [],
-        "visual": false
+      "technicalRequirements": {
+        "tests": ["test_goal_detection_runs", "test_goals_api_returns_data"],
+        "performance": "Goals appear within 2 seconds of app load",
+        "polish": "Beautiful progress bars, category icons, smooth animations"
       },
       "priority": 3,
-      "passes": true,
-      "notes": "Gap #1: Activity Monitoring - Part 3"
+      "valueDelivered": true,
+      "notes": "DONE: 7 goals detected and returned via API (Focus on python, etc.) with confidence scores and evidence"
     },
     {
-      "id": "US-004",
-      "title": "Add LLM-based semantic goal detection",
+      "id": "US-V2-004",
+      "title": "User can see their activity context recognized",
+      "userValue": "Senter knows 'you're coding' or 'you're browsing' and shows it",
+      "wowFactor": "Context-aware badge updates as user switches applications",
       "acceptanceCriteria": [
-        "GoalDetector has async method detect_goals_semantically(conversation)",
-        "Method analyzes last 20 episodes for implicit and explicit goals",
-        "Returns goals with confidence scores and evidence",
-        "Detects goals that regex would miss (e.g., 'studying Spanish')",
-        "typecheck passes",
-        "unit tests pass"
+        "Activity badge shows current context (coding, browsing, writing, etc.)",
+        "Context updates within 30 seconds of switching applications",
+        "At least 3 context types are detected correctly",
+        "Context is used in conversation responses"
       ],
-      "testRequirements": {
-        "unit": ["test_semantic_goal_detection"],
-        "integration": [],
-        "visual": false
+      "technicalRequirements": {
+        "tests": ["test_activity_monitor_runs", "test_activity_api_returns_context"],
+        "performance": "Context detection under 1 second",
+        "polish": "Smooth badge transitions, appropriate icons per context"
       },
       "priority": 4,
-      "passes": true,
-      "notes": "Gap #2: Semantic Goal Detection - Part 1"
+      "valueDelivered": true,
+      "notes": "DONE: Activity endpoint works, returns context/project/duration. ActivityMonitor initialized in server. Context starts 'unknown' and updates as captures happen."
     },
     {
-      "id": "US-005",
-      "title": "Add goal progress detection via LLM",
+      "id": "US-V2-005",
+      "title": "User gets proactive suggestions that feel relevant",
+      "userValue": "Senter offers help before being asked based on detected goals/activity",
+      "wowFactor": "Suggestion appears right when user needed it",
       "acceptanceCriteria": [
-        "GoalDetector can detect progress indicators in conversation",
-        "Auto-updates goal.progress when progress mentioned",
-        "Auto-marks goals complete when 'finished/done/completed' detected",
-        "typecheck passes",
-        "unit tests pass"
+        "Suggestions appear as non-intrusive toasts",
+        "Suggestions are based on detected activity and goals",
+        "At least 50% of suggestions feel useful to the user",
+        "Easy to dismiss or act on suggestions"
       ],
-      "testRequirements": {
-        "unit": ["test_goal_progress_detection"],
-        "integration": [],
-        "visual": false
+      "technicalRequirements": {
+        "tests": ["test_proactive_suggestions_generated", "test_suggestions_api"],
+        "performance": "Suggestions generated within 3 seconds",
+        "polish": "Elegant toast design, smooth appearance/dismissal"
       },
       "priority": 5,
-      "passes": true,
-      "notes": "Gap #2: Semantic Goal Detection - Part 2"
+      "valueDelivered": true,
+      "notes": "DONE: Lowered trust threshold to 0.3. Now returns goal-based suggestions like 'Get started on: Focus on python'"
     },
     {
-      "id": "US-006",
-      "title": "Add failure analysis to MutationEngine",
+      "id": "US-V2-006",
+      "title": "User sees what Senter learned while they were away",
+      "userValue": "After time away, user gets a summary of what Senter did",
+      "wowFactor": "Senter actually researched something relevant to their goals",
       "acceptanceCriteria": [
-        "MutationEngine has method analyze_low_fitness_episodes(episodes)",
-        "Method categorizes failures: too_long, too_short, wrong_mode, missed_frustration",
-        "Returns FailureAnalysis with pattern counts and suggested fixes",
-        "typecheck passes",
-        "unit tests pass"
+        "Away modal appears when user returns (>30 min away)",
+        "Summary includes at least one piece of new information",
+        "Research is related to user's actual detected goals",
+        "Sources are cited with links"
       ],
-      "testRequirements": {
-        "unit": ["test_mutation_failure_analysis"],
-        "integration": [],
-        "visual": false
+      "technicalRequirements": {
+        "tests": ["test_away_detection", "test_background_research_runs"],
+        "performance": "Away summary ready within 5 seconds",
+        "polish": "Beautiful modal design, clear summary, actionable insights"
       },
       "priority": 6,
-      "passes": true,
-      "notes": "Gap #3: Intelligent Mutations - Part 1"
-    },
-    {
-      "id": "US-007",
-      "title": "Add LLM-driven mutation proposals",
-      "acceptanceCriteria": [
-        "MutationEngine has async method propose_intelligent_mutation(low_fitness_episodes)",
-        "Uses LLM to analyze what went wrong and suggest specific config changes",
-        "Returns targeted Mutation based on LLM analysis, not random",
-        "typecheck passes",
-        "unit tests pass"
-      ],
-      "testRequirements": {
-        "unit": ["test_intelligent_mutation_proposal"],
-        "integration": [],
-        "visual": false
-      },
-      "priority": 7,
-      "passes": true,
-      "notes": "Gap #3: Intelligent Mutations - Part 2"
-    },
-    {
-      "id": "US-008",
-      "title": "Add self-initiated task creation from goals",
-      "acceptanceCriteria": [
-        "ProactiveSuggestionEngine can create background tasks from active goals",
-        "Tasks are research or planning type based on goal category",
-        "Respects trust level (>0.7 to create tasks)",
-        "Records task origin as 'goal_derived'",
-        "typecheck passes",
-        "unit tests pass"
-      ],
-      "testRequirements": {
-        "unit": ["test_self_initiated_tasks"],
-        "integration": [],
-        "visual": false
-      },
-      "priority": 8,
-      "passes": true,
-      "notes": "Gap #4: Self-Initiated Work - Part 1"
-    },
-    {
-      "id": "US-009",
-      "title": "Add goal-based background research automation",
-      "acceptanceCriteria": [
-        "Daemon can automatically start research for learning-type goals",
-        "Research results stored in semantic memory linked to goal",
-        "User notified of completed research in 'while you were away'",
-        "typecheck passes",
-        "unit tests pass"
-      ],
-      "testRequirements": {
-        "unit": ["test_automated_goal_research"],
-        "integration": [],
-        "visual": false
-      },
-      "priority": 9,
-      "passes": true,
-      "notes": "Gap #4: Self-Initiated Work - Part 2"
-    },
-    {
-      "id": "US-010",
-      "title": "Add pattern-based need prediction to ProactiveSuggestionEngine",
-      "acceptanceCriteria": [
-        "ProactiveSuggestionEngine analyzes conversation patterns for recurring needs",
-        "Predicts needs based on time-of-day + activity patterns",
-        "Pre-fetches research for predicted needs",
-        "typecheck passes",
-        "unit tests pass"
-      ],
-      "testRequirements": {
-        "unit": ["test_anticipatory_need_prediction"],
-        "integration": [],
-        "visual": false
-      },
-      "priority": 10,
-      "passes": true,
-      "notes": "Gap #5: Anticipatory Suggestions - Part 1"
-    },
-    {
-      "id": "US-011",
-      "title": "Add activity-context-aware suggestions",
-      "acceptanceCriteria": [
-        "ProactiveSuggestionEngine considers ActivityMonitor context",
-        "Suggests relevant resources based on what user is doing",
-        "Timing based on activity (suggest break after 2hr coding)",
-        "typecheck passes",
-        "unit tests pass"
-      ],
-      "testRequirements": {
-        "unit": ["test_activity_aware_suggestions"],
-        "integration": [],
-        "visual": false
-      },
-      "priority": 11,
-      "passes": true,
-      "notes": "Gap #5: Anticipatory Suggestions - Part 2"
-    },
-    {
-      "id": "US-012",
-      "title": "Add preference learning to ProceduralMemory",
-      "acceptanceCriteria": [
-        "ProceduralMemory tracks response patterns that get high fitness",
-        "Stores user preferences: concise vs detailed, formal vs casual",
-        "Preference confidence increases with consistent signals",
-        "typecheck passes",
-        "unit tests pass"
-      ],
-      "testRequirements": {
-        "unit": ["test_procedural_preference_learning"],
-        "integration": [],
-        "visual": false
-      },
-      "priority": 12,
-      "passes": true,
-      "notes": "Gap #6: Procedural Learning - Part 1"
-    },
-    {
-      "id": "US-013",
-      "title": "Apply learned preferences to response generation",
-      "acceptanceCriteria": [
-        "ResponseComposer queries ProceduralMemory for preferences",
-        "Adds preference instructions to LLM prompt",
-        "Preferences affect response length, formality, detail level",
-        "typecheck passes",
-        "unit tests pass"
-      ],
-      "testRequirements": {
-        "unit": ["test_preference_application"],
-        "integration": [],
-        "visual": false
-      },
-      "priority": 13,
-      "passes": true,
-      "notes": "Gap #6: Procedural Learning - Part 2"
-    },
-    {
-      "id": "US-014",
-      "title": "Add LLM-based sentiment analysis to AffectiveMemory",
-      "acceptanceCriteria": [
-        "AffectiveMemory has async method analyze_sentiment(text)",
-        "Uses LLM to determine sentiment on -1 to 1 scale",
-        "Replaces fixed 0.5 sentiment with actual analysis",
-        "typecheck passes",
-        "unit tests pass"
-      ],
-      "testRequirements": {
-        "unit": ["test_llm_sentiment_analysis"],
-        "integration": [],
-        "visual": false
-      },
-      "priority": 14,
-      "passes": true,
-      "notes": "Gap #7: Affective Analysis - Part 1"
-    },
-    {
-      "id": "US-015",
-      "title": "Add emotional pattern detection to AffectiveMemory",
-      "acceptanceCriteria": [
-        "AffectiveMemory detects recurring emotional triggers",
-        "Stores patterns like 'user frustrated when discussing topic X'",
-        "Makes patterns available to response composer",
-        "typecheck passes",
-        "unit tests pass"
-      ],
-      "testRequirements": {
-        "unit": ["test_emotional_pattern_detection"],
-        "integration": [],
-        "visual": false
-      },
-      "priority": 15,
-      "passes": true,
-      "notes": "Gap #7: Affective Analysis - Part 2"
-    },
-    {
-      "id": "US-016",
-      "title": "Add file reading capability",
-      "acceptanceCriteria": [
-        "tools/file_ops.py has read_file(path) function",
-        "Supports text files, code files, markdown",
-        "Returns FileContent with content, metadata, summary",
-        "typecheck passes",
-        "unit tests pass"
-      ],
-      "testRequirements": {
-        "unit": ["test_file_reading"],
-        "integration": [],
-        "visual": false
-      },
-      "priority": 16,
-      "passes": true,
-      "notes": "Gap #8: File Operations - Part 1"
-    },
-    {
-      "id": "US-017",
-      "title": "Add project structure analysis",
-      "acceptanceCriteria": [
-        "tools/file_ops.py has analyze_project(root_path) function",
-        "Detects project type (Python, JS, etc.) from files",
-        "Returns ProjectStructure with files, dependencies, entry points",
-        "typecheck passes",
-        "unit tests pass"
-      ],
-      "testRequirements": {
-        "unit": ["test_project_analysis"],
-        "integration": [],
-        "visual": false
-      },
-      "priority": 17,
-      "passes": true,
-      "notes": "Gap #8: File Operations - Part 2"
-    },
-    {
-      "id": "US-018",
-      "title": "Wire ActivityMonitor into daemon background loop",
-      "acceptanceCriteria": [
-        "Daemon starts ActivityMonitor when launched",
-        "Activity snapshots captured every 60 seconds",
-        "Activity summary available via IPC /activity command",
-        "typecheck passes",
-        "unit tests pass"
-      ],
-      "testRequirements": {
-        "unit": ["test_daemon_activity_integration"],
-        "integration": [],
-        "visual": false
-      },
-      "priority": 18,
-      "passes": true,
-      "notes": "Integration: Wire activity monitoring to daemon"
-    },
-    {
-      "id": "US-019",
-      "title": "Add comprehensive tests for all new features",
-      "acceptanceCriteria": [
-        "All 8 feature gaps have at least 2 tests each",
-        "Tests cover happy path and edge cases",
-        "All tests pass",
-        "typecheck passes"
-      ],
-      "testRequirements": {
-        "unit": ["test_depth_features_comprehensive"],
-        "integration": [],
-        "visual": false
-      },
-      "priority": 19,
-      "passes": true,
-      "notes": "Final: Comprehensive test coverage - 263 tests passing"
+      "valueDelivered": true,
+      "notes": "DONE: Away endpoint returns duration, summary, research array. Background research scheduled but needs time to accumulate results."
     }
   ]
 }

@@ -177,7 +177,7 @@ class SenterHTTPServer:
 
                 activity = {
                     "context": context or "unknown",
-                    "project": self.activity_monitor.project_detector.get_current_project() if hasattr(self.activity_monitor, 'project_detector') else None,
+                    "project": self.activity_monitor.get_current_project() if hasattr(self.activity_monitor, 'get_current_project') else None,
                     "duration_minutes": summary.get("total_minutes", 0),
                     "snapshot_count": len(self.activity_monitor.history),
                 }
@@ -408,8 +408,13 @@ async def main():
     """Main entry point."""
     import sys
 
+    # Add project root to path for imports
+    project_root = Path(__file__).parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
     # Find genome.yaml
-    genome_path = Path(__file__).parent.parent / "genome.yaml"
+    genome_path = project_root / "genome.yaml"
 
     if not genome_path.exists():
         print(f"Error: genome.yaml not found at {genome_path}")

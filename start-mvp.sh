@@ -39,13 +39,23 @@ from pathlib import Path
 from daemon.http_server import SenterHTTPServer
 
 async def main():
-    genome_path = Path('data/genome.json')
+    # Use genome.yaml from project root
+    genome_path = Path('genome.yaml')
     if not genome_path.exists():
-        genome_path.parent.mkdir(parents=True, exist_ok=True)
-        genome_path.write_text('{}')
+        print(f'Error: genome.yaml not found at {genome_path.absolute()}')
+        return
 
     server = SenterHTTPServer(genome_path)
     await server.start()
+
+    # Keep running
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        await server.stop()
 
 asyncio.run(main())
 " &
