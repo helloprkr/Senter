@@ -38,7 +38,7 @@
         "performance": "Capture completes in <1s, no UI blocking"
       },
       "priority": 1,
-      "valueDelivered": false,
+      "valueDelivered": true,
       "notes": ""
     },
     {
@@ -60,7 +60,7 @@
         "performance": "Research completes in background, doesn't block user"
       },
       "priority": 2,
-      "valueDelivered": false,
+      "valueDelivered": true,
       "notes": ""
     },
     {
@@ -82,7 +82,7 @@
         "performance": "First token <500ms, smooth streaming"
       },
       "priority": 3,
-      "valueDelivered": false,
+      "valueDelivered": true,
       "notes": ""
     },
     {
@@ -104,7 +104,7 @@
         "performance": "Briefing generates in <10s"
       },
       "priority": 4,
-      "valueDelivered": false,
+      "valueDelivered": true,
       "notes": "THIS IS THE V4 LITMUS TEST - autonomous value creation"
     },
     {
@@ -126,7 +126,7 @@
         "performance": "Plan generation <5s per goal"
       },
       "priority": 5,
-      "valueDelivered": false,
+      "valueDelivered": true,
       "notes": ""
     },
     {
@@ -148,7 +148,7 @@
         "performance": "Synthesis completes in <5s"
       },
       "priority": 6,
-      "valueDelivered": false,
+      "valueDelivered": true,
       "notes": ""
     }
   ],
