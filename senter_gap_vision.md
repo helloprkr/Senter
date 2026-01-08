@@ -847,3 +847,248 @@ Following the Gap Vision v2 plan, 11 user stories were implemented across 3 phas
 
 ---
 
+## Gap Vision v3 - "Activate What Exists" (2026-01-08)
+
+### The Philosophy Shift
+
+**v1-v2 Mindset:** "We need to BUILD more features"
+**v3 Mindset:** "We need to WIRE existing features"
+
+After thorough codebase exploration, a surprising reality emerged: **~85% of the infrastructure already existed**. The problem wasn't missing code—it was disconnected code.
+
+| What We Thought | What Was Actually True |
+|-----------------|------------------------|
+| Research is stub code | 4-stage pipeline is complete (topic → search → synthesis → storage) |
+| Learning doesn't work | Pattern detection runs, just doesn't affect behavior |
+| Voice/Gaze disabled | Code complete, config-driven, optional dependencies graceful |
+| IPC is incomplete | 53 handlers fully implemented |
+| Task execution is empty | Full task engine with dependencies, retries, persistence |
+
+### v3 Stories Implemented (9/10 PASSED)
+
+| Story | Title | What Changed |
+|-------|-------|--------------|
+| V3-001 | Auto-Research Trigger | TopicExtractor called after each query, auto-queues research |
+| V3-002 | Learned Preferences in System Prompt | `_load_user_preferences` injects patterns into every prompt |
+| V3-003 | Research Complete Notification | Deep linking, source count, unviewed badges |
+| V3-004 | Insights Panel | New tab showing peak hours, top topics, preferences |
+| V3-005 | Goals Dashboard | New tab with goal cards, status, mark complete |
+| V3-007 | Morning Digest | Digest tab with overnight activity summary |
+| V3-008 | Context Sources | Already complete from P3-001/P3-002 |
+| V3-009 | Research Suggestions | CTA below bot messages for researchable topics |
+| V3-010 | Goal-Aware Context | `_load_active_goals` injects goals into prompts |
+| V3-006 | Response Streaming | SKIPPED - Complex, lower ROI |
+
+### What's Now Activated
+
+1. **Automatic Research Detection**: After every conversation, TopicExtractor scans for curiosity signals and auto-queues research tasks
+2. **Personalized Responses**: Learned preferences (response length, formality, technical level) injected into every system prompt
+3. **Goal Awareness**: Active goals influence how Senter responds to questions
+4. **Full UI Visibility**: Users can see:
+   - Their behavioral patterns (Insights tab)
+   - Their goals and progress (Goals tab)
+   - Morning digest with overnight activity (Digest tab)
+   - New research completion badges
+5. **Proactive Suggestions**: Research suggestions appear in chat for appropriate questions
+6. **Smart Notifications**: Research completion with source count, click to navigate directly
+
+### Key Files Modified (v3)
+
+**Daemon (Python):**
+- `daemon/ipc_server.py`: Handlers for get_insights, get_goals, update_goal, get_digest; _load_user_preferences, _load_active_goals, _auto_detect_research_topics, _detect_research_suggestion
+
+**Electron Main:**
+- `src/main/ipc/senterBridge.ts`: All new IPC handlers, addResearchTask
+- `src/main/notifications.ts`: Enhanced with deep linking and source counts
+
+**Electron Renderer:**
+- `src/renderer/components/ChatView/RightPanel.tsx`: Insights, Goals, Digest tabs; unviewed badges
+- `src/renderer/components/ChatView/MessageBubble.tsx`: Research suggestion CTA
+- `src/renderer/components/ChatView/ChatView.tsx`: Research click handler
+- `src/renderer/hooks/useSenter.ts`: suggested_research extraction
+- `src/renderer/types/index.ts`: Extended Message type, ChatViewTab type
+
+---
+
+## Meta-Analysis: Lessons Learned Across All Gap Visions
+
+### Level 1: Practical Perspective (What Actually Worked)
+
+**Challenges & Solutions:**
+
+| Challenge | How We Solved It |
+|-----------|------------------|
+| 64 stories → no working product | Shifted from "build" to "wire" mentality |
+| Tests pass but features don't work | Added "Quality Gates" and demo scripts to stories |
+| IPC exists but components disconnected | Traced data flow end-to-end before coding |
+| UI shows placeholders | Read actual component code, understood what was missing |
+| Learning exists but doesn't affect behavior | Injected preferences directly into system prompts |
+
+**What Worked:**
+- **"Wire, don't write"** - Most capability existed; the work was connection
+- **Demo scripts in stories** - Forces thinking about real user experience
+- **Quality gates** - Manual verification beyond automated tests
+- **Reading existing code first** - v3 started with deep exploration, not assumptions
+- **Small scope** - v3 had 10 stories vs. v1's 64; each delivered visible value
+
+### Level 2: Meta-Perspective (Process & Methodology)
+
+**The Decomposition Trap:**
+Breaking a vision into 64 atomic stories creates all the parts but loses the soul. Each story optimized for "does it pass?" not "does it deliver value?"
+
+**The Velocity Illusion:**
+Fast story completion felt like progress. But 64 passing tests ≠ 1 working product. Speed without direction is waste.
+
+**The Infrastructure Bias:**
+Developers naturally gravitate toward plumbing (message bus, IPC, queues) over value (does the user actually get something useful?). Infrastructure is necessary but not sufficient.
+
+**What Should Have Been Different:**
+1. **Start with the demo** - "Show me a user getting value" before any code
+2. **Integration tests first** - "Can a user accomplish X end-to-end?"
+3. **Fewer, bigger stories** - 8 high-value stories > 64 atomic stories
+4. **Manual quality gates** - "Rate this extraction: Good/Okay/Bad" not just pass/fail
+
+### Level 3: Meta-Meta-Perspective (What I Should Have Known Before Starting)
+
+**The 80/20 Question I Should Have Asked:**
+
+> "What is the ONE user experience that would make you say 'I can't live without this'? Describe exactly what happens, step by step."
+
+This question would have:
+- Forced concrete thinking instead of abstract features
+- Revealed that autonomous research was the killer app
+- Made "wire existing code" obvious (research pipeline was already complete)
+- Prevented building 60+ stories of infrastructure
+
+**The Highest Value Lever:**
+
+**→ Value-first story definition**
+
+Instead of:
+```
+US-001: TopicExtractor class
+Acceptance: Returns list of topics
+Test: unit tests pass
+```
+
+Should have been:
+```
+US-001: Senter Notices What You're Curious About
+VALUE STATEMENT: After any conversation, Senter identifies what you're genuinely curious about
+DEMO SCRIPT: 1. Have conversation 2. Mention "I wonder if..." 3. See topic detected automatically
+QUALITY GATE: 8/10 extractions rated "Good" by human review
+```
+
+**The Three Questions I Should Have Asked You:**
+
+1. **"What would make you say WOW?"**
+   - Not "what features do you want" but "what experience would delight you?"
+   - Would have surfaced that seamless auto-research is the magic moment
+
+2. **"Walk me through your ideal morning with Senter"**
+   - Concrete scenario reveals actual value proposition
+   - Would have exposed that all the pieces existed—just needed wiring
+
+3. **"If I showed you a demo tomorrow, what would it show?"**
+   - Forces prioritization by visible outcome
+   - Would have prevented building invisible infrastructure
+
+**How to Get 80/20 Out of Everything:**
+
+| Principle | Application |
+|-----------|-------------|
+| Demo before code | Define the video before writing the script |
+| Experience > Implementation | "User sees X" not "System does Y" |
+| Wire before write | Audit what exists before building new |
+| Quality gates | Human judgment, not just automated tests |
+| Fewer stories, more value | 8 stories that WOW > 64 stories that pass |
+| The killer question | "What ONE thing would make you say 'I can't live without this'?" |
+
+---
+
+## The Complete Journey: v1 → v2 → v3
+
+| Version | Mindset | Stories | Result |
+|---------|---------|---------|--------|
+| v1 | Build everything | 64 | Architecture complete, no working product |
+| v2.1 | Complete the gaps | 14 | Core loop works, research executes |
+| v3 | Wire existing code | 10 | Personalization, proactivity, visibility |
+
+**Total implementation:** ~88 stories across all phases
+**Actual working product:** Started emerging at v2.1, matured at v3
+
+**The Insight:**
+The first 64 stories were necessary scaffolding. But the product didn't become valuable until we stopped building infrastructure and started wiring experiences.
+
+---
+
+## Current State (Post-v3)
+
+### Gap Scores Updated
+
+| Feature | v1 | v2.1 | v3 |
+|---------|-----|------|-----|
+| Chat | 40% | 75% | 85% |
+| History | 30% | 90% | 90% |
+| Journal | 0% | 85% | 90% |
+| Tasks | 25% | 85% | 95% |
+| STT | 10% | 10% | 15% |
+| Gaze | 15% | 15% | 20% |
+| Context | 5% | 90% | 95% |
+| **Personalization** | 0% | 10% | 80% |
+| **Proactivity** | 0% | 20% | 75% |
+| **Visibility (what Senter knows)** | 0% | 0% | 85% |
+
+### What the Product Now Does
+
+1. **Remembers everything** - Conversations persist, context flows through
+2. **Learns your patterns** - Preferences detected and applied to responses
+3. **Works autonomously** - Research queues automatically from curiosity signals
+4. **Shows what it knows** - Insights, goals, digest visible in UI
+5. **Suggests proactively** - Research suggestions appear when appropriate
+6. **Notifies intelligently** - Deep-linking notifications for completed research
+
+### Remaining Gaps (Future Work)
+
+| Gap | Impact | Complexity |
+|-----|--------|------------|
+| Response streaming | UX feels slow for long responses | Medium |
+| Real gaze detection | "Just look and talk" vision | High |
+| Voice interaction | Full ambient experience | High |
+| Feedback loop | Learning from thumbs up/down | Medium |
+| Computer activity | Clipboard, file watching | High |
+
+---
+
+## Appendix: The Questions That Would Have Changed Everything
+
+**If starting over, ask these BEFORE any code:**
+
+1. "Show me the video of someone using this product and saying WOW. What happens in that video?"
+
+2. "It's 6 months from now and you're telling a friend about Senter. What's the ONE thing you mention?"
+
+3. "What would make you check Senter first thing every morning?"
+
+4. "Walk me through a day with Senter—not what it could do, but what it actually does that helps you."
+
+5. "If I could only ship ONE feature that works perfectly, what should it be?"
+
+These questions force concrete, value-focused thinking that prevents the infrastructure trap.
+
+---
+
+## Final Insight
+
+**The product was always about the experience, not the features.**
+
+64 features that pass tests < 1 experience that delights.
+
+The vision was "an AI that works for you 24/7." The implementation was "a daemon with many capabilities."
+
+The gap was never technical. It was philosophical: building parts vs. creating experiences.
+
+v3 closed that gap—not by building more, but by connecting what existed into something that actually feels like an assistant working for you.
+
+---
+
