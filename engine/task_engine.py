@@ -219,6 +219,13 @@ class TaskEngine:
             goal_desc = payload.get("description", "")
             self._create_plan(goal_id, goal_desc)
 
+        elif message.type == MessageType.GOAL_DETECTED:
+            # CG-008: Goal detected, create execution plan
+            goal_id = payload.get("goal_id") or str(uuid.uuid4())[:8]
+            goal_desc = payload.get("description", "")
+            logger.info(f"Goal detected: {goal_id} - {goal_desc[:50]}")
+            self._create_plan(goal_id, goal_desc)
+
         elif message.type == MessageType.JOB_TRIGGERED:
             # Scheduled job triggered
             job_id = payload.get("job_id")
@@ -335,7 +342,7 @@ class TaskEngine:
             self._check_plan_completion(task.goal_id)
 
     def _check_plan_completion(self, goal_id: str):
-        """Check if a plan is complete"""
+        """Check if a plan is complete (CG-008: sends GOAL_COMPLETE)"""
         plan = self.plans.get(goal_id)
         if not plan:
             return
@@ -349,6 +356,14 @@ class TaskEngine:
             completed = sum(1 for t in plan.tasks if t.status == TaskStatus.COMPLETED)
             failed = sum(1 for t in plan.tasks if t.status == TaskStatus.FAILED)
 
+            # Determine overall status
+            if failed == 0:
+                status = "success"
+            elif completed > 0:
+                status = "partial"
+            else:
+                status = "failed"
+
             logger.info(
                 f"Goal complete: {goal_id} - "
                 f"{completed} succeeded, {failed} failed"
@@ -360,6 +375,29 @@ class TaskEngine:
                 "tasks_completed": completed,
                 "tasks_failed": failed
             })
+
+            # CG-008: Send GOAL_COMPLETE notification
+            self.message_bus.send(
+                MessageType.GOAL_COMPLETE,
+                source="task_engine",
+                payload={
+                    "goal_id": goal_id,
+                    "description": plan.goal_description,
+                    "status": status,
+                    "tasks_completed": completed,
+                    "tasks_failed": failed,
+                    "total_tasks": len(plan.tasks),
+                    "results": [
+                        {
+                            "task_id": t.id,
+                            "description": t.description,
+                            "status": t.status.value,
+                            "result_summary": str(t.result)[:200] if t.result else None
+                        }
+                        for t in plan.tasks
+                    ]
+                }
+            )
 
             # Clean up
             del self.plans[goal_id]

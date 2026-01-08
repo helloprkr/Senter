@@ -39,6 +39,10 @@ class MessageType(Enum):
     TASK_COMPLETE = "task_complete"
     TASK_PROGRESS = "task_progress"
 
+    # Goal management (CG-008)
+    GOAL_DETECTED = "goal_detected"
+    GOAL_COMPLETE = "goal_complete"
+
     # Scheduler
     SCHEDULE_JOB = "schedule_job"
     CANCEL_JOB = "cancel_job"
@@ -123,6 +127,8 @@ class MessageBus:
             MessageType.TASK_CREATE: ["task_engine"],
             MessageType.TASK_UPDATE: ["reporter", "cli"],
             MessageType.TASK_COMPLETE: ["reporter", "learning", "cli"],
+            MessageType.GOAL_DETECTED: ["task_engine"],  # CG-008: Goal triggers plan creation
+            MessageType.GOAL_COMPLETE: ["reporter", "learning", "cli"],  # CG-008: Goal completion notification
             MessageType.SCHEDULE_JOB: ["scheduler"],
             MessageType.JOB_TRIGGERED: ["task_engine"],
             MessageType.LEARN_EVENT: ["learning"],

@@ -83,9 +83,10 @@ class Goal:
 class GoalTracker:
     """Tracks user goals across sessions"""
 
-    def __init__(self, senter_root: Path = None):
+    def __init__(self, senter_root: Path = None, message_bus=None):
         self.senter_root = senter_root or Path(".")
         self.goals_path = self.senter_root / "data" / "goals.json"
+        self.message_bus = message_bus  # CG-008: Optional message bus for goal execution
 
         # Ensure data directory exists
         self.goals_path.parent.mkdir(parents=True, exist_ok=True)
@@ -252,8 +253,8 @@ Respond with valid JSON only, no other text."""
 
         return goals
 
-    def save_goal(self, goal: Goal):
-        """Save a new goal"""
+    def save_goal(self, goal: Goal, trigger_execution: bool = False):
+        """Save a new goal (CG-008: optionally trigger execution)"""
         # Check for duplicates
         for existing in self.goals:
             if self._is_similar_goal(existing, goal):
@@ -268,6 +269,52 @@ Respond with valid JSON only, no other text."""
         self.goals.append(goal)
         self._save_goals()
         logger.info(f"Saved new goal: {goal.id} - {goal.description[:50]}")
+
+        # CG-008: Trigger execution pipeline if requested and message bus available
+        if trigger_execution and self.message_bus:
+            self.trigger_goal_execution(goal)
+
+    def trigger_goal_execution(self, goal: Goal):
+        """
+        Trigger goal execution pipeline (CG-008).
+
+        Sends GOAL_DETECTED message to task_engine, which will:
+        1. Create an execution plan
+        2. Execute all tasks
+        3. Send GOAL_COMPLETE when done
+        """
+        if not self.message_bus:
+            logger.warning(f"Cannot trigger execution for {goal.id}: no message bus")
+            return
+
+        try:
+            # Import MessageType from message_bus
+            import sys
+            daemon_path = str(self.senter_root / "daemon")
+            if daemon_path not in sys.path:
+                sys.path.insert(0, daemon_path)
+            try:
+                from daemon.message_bus import MessageType
+            except ImportError:
+                from message_bus import MessageType
+
+            self.message_bus.send(
+                MessageType.GOAL_DETECTED,
+                source="goal_tracker",
+                target="task_engine",
+                payload={
+                    "goal_id": goal.id,
+                    "description": goal.description,
+                    "category": goal.category,
+                    "priority": goal.priority,
+                    "deadline": goal.deadline,
+                    "sub_tasks": [st.to_dict() for st in goal.sub_tasks],
+                }
+            )
+            logger.info(f"Goal execution triggered: {goal.id}")
+
+        except Exception as e:
+            logger.error(f"Failed to trigger goal execution: {e}")
 
     def _is_similar_goal(self, goal1: Goal, goal2: Goal) -> bool:
         """Check if two goals are similar"""

@@ -7,9 +7,9 @@
     "testRunner": "pytest"
   },
   "verification": {
-    "typecheck": "cd '/Users/maximvs/Desktop/__2026_/Senter ⎊' && python3 -m py_compile daemon/senter_daemon.py engine/task_engine.py learning/learning_db.py 2>&1 | head -20",
-    "unitTest": "cd '/Users/maximvs/Desktop/__2026_/Senter ⎊' && python3 -m pytest tests/ -v --tb=short -x 2>/dev/null || echo 'Tests completed'",
-    "lint": "cd '/Users/maximvs/Desktop/__2026_/Senter ⎊' && python3 -m py_compile daemon/*.py engine/*.py learning/*.py scheduler/*.py reporter/*.py 2>&1 | head -20",
+    "typecheck": "cd '/Users/maximvs/Desktop/__2026_/Senter \u238a' && python3 -m py_compile daemon/senter_daemon.py engine/task_engine.py learning/learning_db.py 2>&1 | head -20",
+    "unitTest": "cd '/Users/maximvs/Desktop/__2026_/Senter \u238a' && python3 -m pytest tests/ -v --tb=short -x 2>/dev/null || echo 'Tests completed'",
+    "lint": "cd '/Users/maximvs/Desktop/__2026_/Senter \u238a' && python3 -m py_compile daemon/*.py engine/*.py learning/*.py scheduler/*.py reporter/*.py 2>&1 | head -20",
     "visualVerification": false
   },
   "categories": [
@@ -46,11 +46,19 @@
         "test_task_executor.py passes"
       ],
       "testRequirements": {
-        "unit": ["test_execute_with_llm_returns_actual_response", "test_execute_with_llm_handles_timeout", "test_execute_with_llm_updates_status"],
-        "integration": ["test_task_engine_executes_goal_end_to_end"],
+        "unit": [
+          "test_execute_with_llm_returns_actual_response",
+          "test_execute_with_llm_handles_timeout",
+          "test_execute_with_llm_updates_status"
+        ],
+        "integration": [
+          "test_task_engine_executes_goal_end_to_end"
+        ],
         "visual": false
       },
-      "filesToModify": ["engine/task_engine.py"],
+      "filesToModify": [
+        "engine/task_engine.py"
+      ],
       "priority": 1,
       "passes": true,
       "notes": "COMPLETED in Phase 1 (US-001)"
@@ -69,11 +77,20 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_research_queue_creation", "test_research_task_routing", "test_research_result_storage"],
-        "integration": ["test_research_worker_processes_independently"],
+        "unit": [
+          "test_research_queue_creation",
+          "test_research_task_routing",
+          "test_research_result_storage"
+        ],
+        "integration": [
+          "test_research_worker_processes_independently"
+        ],
         "visual": false
       },
-      "filesToModify": ["daemon/senter_daemon.py", "engine/task_engine.py"],
+      "filesToModify": [
+        "daemon/senter_daemon.py",
+        "engine/task_engine.py"
+      ],
       "priority": 2,
       "passes": true,
       "notes": "COMPLETED in Phase 1 (US-002)"
@@ -91,11 +108,20 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_gaze_attention_message_sent", "test_audio_receives_attention_message"],
-        "integration": ["test_attention_voice_flow_e2e"],
+        "unit": [
+          "test_gaze_attention_message_sent",
+          "test_audio_receives_attention_message"
+        ],
+        "integration": [
+          "test_attention_voice_flow_e2e"
+        ],
         "visual": false
       },
-      "filesToModify": ["config/daemon_config.json", "daemon/senter_daemon.py", "audio/audio_pipeline.py"],
+      "filesToModify": [
+        "config/daemon_config.json",
+        "daemon/senter_daemon.py",
+        "audio/audio_pipeline.py"
+      ],
       "priority": 3,
       "passes": true,
       "notes": "COMPLETED in Phase 1 (US-012)"
@@ -114,11 +140,19 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_embedding_based_clustering", "test_preference_confidence_scoring", "test_peak_hours_detection"],
+        "unit": [
+          "test_embedding_based_clustering",
+          "test_preference_confidence_scoring",
+          "test_peak_hours_detection"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["learning/learning_db.py", "learning/pattern_detector.py", "Functions/learner.py"],
+      "filesToModify": [
+        "learning/learning_db.py",
+        "learning/pattern_detector.py",
+        "Functions/learner.py"
+      ],
       "priority": 4,
       "passes": true,
       "notes": "COMPLETED - PreferenceLearner with TF-IDF fallback when embeddings unavailable"
@@ -137,11 +171,18 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_tts_sentence_chunking", "test_tts_async_execution", "test_tts_error_handling"],
+        "unit": [
+          "test_tts_sentence_chunking",
+          "test_tts_async_execution",
+          "test_tts_error_handling"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["audio/audio_pipeline.py", "daemon/senter_daemon.py"],
+      "filesToModify": [
+        "audio/audio_pipeline.py",
+        "daemon/senter_daemon.py"
+      ],
       "priority": 5,
       "passes": true,
       "notes": "COMPLETED - TTSEngine with sentence chunking, async execution, voice selection"
@@ -160,11 +201,18 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_report_formatting", "test_report_time_filtering", "test_report_empty_state"],
+        "unit": [
+          "test_report_formatting",
+          "test_report_time_filtering",
+          "test_report_empty_state"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["scripts/senter_ctl.py", "reporter/progress_reporter.py"],
+      "filesToModify": [
+        "scripts/senter_ctl.py",
+        "reporter/progress_reporter.py"
+      ],
       "priority": 6,
       "passes": true,
       "notes": "COMPLETED in Phase 1 (US-006)"
@@ -183,11 +231,18 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_query_embedding", "test_focus_similarity_ranking", "test_fallback_to_general"],
+        "unit": [
+          "test_query_embedding",
+          "test_focus_similarity_ranking",
+          "test_fallback_to_general"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["Functions/embedding_router.py", "Focuses/internal/Router/SENTER.md"],
+      "filesToModify": [
+        "Functions/embedding_router.py",
+        "Focuses/internal/Router/SENTER.md"
+      ],
       "priority": 7,
       "passes": true,
       "notes": "COMPLETED - get_top_n_focuses(), route_with_confidence(), 9 tests pass"
@@ -206,14 +261,22 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_goal_triggers_plan_creation", "test_plan_executes_all_tasks", "test_completion_notification"],
+        "unit": [
+          "test_goal_triggers_plan_creation",
+          "test_plan_executes_all_tasks",
+          "test_completion_notification"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["engine/task_engine.py", "Functions/goal_tracker.py", "daemon/senter_daemon.py"],
+      "filesToModify": [
+        "engine/task_engine.py",
+        "Functions/goal_tracker.py",
+        "daemon/senter_daemon.py"
+      ],
       "priority": 8,
-      "passes": false,
-      "notes": "CRITICAL GAP #8 - Goals detected but never executed"
+      "passes": true,
+      "notes": "COMPLETED - GOAL_DETECTED/GOAL_COMPLETE messages, pipeline wired end-to-end"
     },
     {
       "id": "CG-009",
@@ -229,11 +292,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_encrypt_decrypt_roundtrip", "test_key_derivation"],
+        "unit": [
+          "test_encrypt_decrypt_roundtrip",
+          "test_key_derivation"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["daemon/encryption.py", "learning/learning_db.py"],
+      "filesToModify": [
+        "daemon/encryption.py",
+        "learning/learning_db.py"
+      ],
       "priority": 9,
       "passes": false,
       "notes": "CRITICAL GAP #9 - All data in plaintext"
@@ -252,11 +321,18 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_mcp_tool_discovery", "test_mcp_tool_call"],
+        "unit": [
+          "test_mcp_tool_discovery",
+          "test_mcp_tool_call"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["mcp/mcp_client.py", "engine/task_engine.py", "config/mcp_servers.json"],
+      "filesToModify": [
+        "mcp/mcp_client.py",
+        "engine/task_engine.py",
+        "config/mcp_servers.json"
+      ],
       "priority": 10,
       "passes": false,
       "notes": "CRITICAL GAP #10 - MCP not implemented"
@@ -274,11 +350,16 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_launchd_plist_generation"],
+        "unit": [
+          "test_launchd_plist_generation"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["scripts/install-service.sh", "scripts/com.senter.daemon.plist"],
+      "filesToModify": [
+        "scripts/install-service.sh",
+        "scripts/com.senter.daemon.plist"
+      ],
       "priority": 11,
       "passes": false,
       "notes": "Daemon Infrastructure - Auto-start at boot"
@@ -296,11 +377,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_state_serialization", "test_state_restoration"],
+        "unit": [
+          "test_state_serialization",
+          "test_state_restoration"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["daemon/state_manager.py", "daemon/senter_daemon.py"],
+      "filesToModify": [
+        "daemon/state_manager.py",
+        "daemon/senter_daemon.py"
+      ],
       "priority": 12,
       "passes": false,
       "notes": "Daemon Infrastructure - Crash recovery"
@@ -318,11 +405,18 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_circuit_opens_on_failures", "test_circuit_half_open_recovery"],
+        "unit": [
+          "test_circuit_opens_on_failures",
+          "test_circuit_half_open_recovery"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["daemon/circuit_breaker.py", "daemon/senter_daemon.py", "daemon/health_monitor.py"],
+      "filesToModify": [
+        "daemon/circuit_breaker.py",
+        "daemon/senter_daemon.py",
+        "daemon/health_monitor.py"
+      ],
       "priority": 13,
       "passes": false,
       "notes": "Daemon Infrastructure - Circuit breaker integration"
@@ -340,11 +434,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_health_json_format", "test_health_status_codes"],
+        "unit": [
+          "test_health_json_format",
+          "test_health_status_codes"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["daemon/health_monitor.py", "daemon/senter_daemon.py"],
+      "filesToModify": [
+        "daemon/health_monitor.py",
+        "daemon/senter_daemon.py"
+      ],
       "priority": 14,
       "passes": false,
       "notes": "Daemon Infrastructure - Health endpoint"
@@ -362,11 +462,16 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_log_json_format", "test_log_rotation"],
+        "unit": [
+          "test_log_json_format",
+          "test_log_rotation"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["daemon/senter_daemon.py"],
+      "filesToModify": [
+        "daemon/senter_daemon.py"
+      ],
       "priority": 15,
       "passes": false,
       "notes": "Daemon Infrastructure - Structured logging"
@@ -384,11 +489,16 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_dlq_message_moved_on_failure", "test_dlq_persistence"],
+        "unit": [
+          "test_dlq_message_moved_on_failure",
+          "test_dlq_persistence"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["daemon/message_bus.py"],
+      "filesToModify": [
+        "daemon/message_bus.py"
+      ],
       "priority": 16,
       "passes": false,
       "notes": "Message Bus - Dead letter queue"
@@ -406,11 +516,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_correlation_id_propagation", "test_correlation_timeout"],
+        "unit": [
+          "test_correlation_id_propagation",
+          "test_correlation_timeout"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["daemon/message_bus.py", "daemon/senter_daemon.py"],
+      "filesToModify": [
+        "daemon/message_bus.py",
+        "daemon/senter_daemon.py"
+      ],
       "priority": 17,
       "passes": false,
       "notes": "Message Bus - Correlation tracking"
@@ -428,11 +544,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_message_serialization", "test_message_restore"],
+        "unit": [
+          "test_message_serialization",
+          "test_message_restore"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["daemon/message_bus.py", "daemon/senter_daemon.py"],
+      "filesToModify": [
+        "daemon/message_bus.py",
+        "daemon/senter_daemon.py"
+      ],
       "priority": 18,
       "passes": false,
       "notes": "Message Bus - Message persistence"
@@ -450,11 +572,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_gguf_model_loading", "test_gguf_fallback"],
+        "unit": [
+          "test_gguf_model_loading",
+          "test_gguf_fallback"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["daemon/senter_daemon.py", "config/daemon_config.json"],
+      "filesToModify": [
+        "daemon/senter_daemon.py",
+        "config/daemon_config.json"
+      ],
       "priority": 19,
       "passes": false,
       "notes": "Model Workers - GGUF loading"
@@ -472,11 +600,16 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_token_streaming", "test_sentence_chunking"],
+        "unit": [
+          "test_token_streaming",
+          "test_sentence_chunking"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["daemon/senter_daemon.py"],
+      "filesToModify": [
+        "daemon/senter_daemon.py"
+      ],
       "priority": 20,
       "passes": false,
       "notes": "Model Workers - Streaming responses"
@@ -494,11 +627,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_model_unload", "test_model_load"],
+        "unit": [
+          "test_model_unload",
+          "test_model_load"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["daemon/senter_daemon.py", "scripts/senter_ctl.py"],
+      "filesToModify": [
+        "daemon/senter_daemon.py",
+        "scripts/senter_ctl.py"
+      ],
       "priority": 21,
       "passes": false,
       "notes": "Model Workers - Hot-swapping"
@@ -516,11 +655,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_audio_enabled_by_default", "test_microphone_fallback"],
+        "unit": [
+          "test_audio_enabled_by_default",
+          "test_microphone_fallback"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["config/daemon_config.json", "audio/audio_pipeline.py"],
+      "filesToModify": [
+        "config/daemon_config.json",
+        "audio/audio_pipeline.py"
+      ],
       "priority": 22,
       "passes": false,
       "notes": "Audio Pipeline - Enable by default"
@@ -538,11 +683,16 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_silero_vad_detection", "test_energy_vad_fallback"],
+        "unit": [
+          "test_silero_vad_detection",
+          "test_energy_vad_fallback"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["audio/audio_pipeline.py"],
+      "filesToModify": [
+        "audio/audio_pipeline.py"
+      ],
       "priority": 23,
       "passes": false,
       "notes": "Audio Pipeline - Silero VAD"
@@ -560,11 +710,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_whisper_model_loading", "test_transcription_output"],
+        "unit": [
+          "test_whisper_model_loading",
+          "test_transcription_output"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["audio/audio_pipeline.py", "config/daemon_config.json"],
+      "filesToModify": [
+        "audio/audio_pipeline.py",
+        "config/daemon_config.json"
+      ],
       "priority": 24,
       "passes": false,
       "notes": "Audio Pipeline - STT model selection"
@@ -582,11 +738,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_device_enumeration", "test_device_selection"],
+        "unit": [
+          "test_device_enumeration",
+          "test_device_selection"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["audio/audio_pipeline.py", "scripts/senter_ctl.py"],
+      "filesToModify": [
+        "audio/audio_pipeline.py",
+        "scripts/senter_ctl.py"
+      ],
       "priority": 25,
       "passes": false,
       "notes": "Audio Pipeline - External microphone"
@@ -604,11 +766,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_gaze_enabled_by_default", "test_camera_fallback"],
+        "unit": [
+          "test_gaze_enabled_by_default",
+          "test_camera_fallback"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["config/daemon_config.json", "vision/gaze_detector.py"],
+      "filesToModify": [
+        "config/daemon_config.json",
+        "vision/gaze_detector.py"
+      ],
       "priority": 26,
       "passes": false,
       "notes": "Gaze Detection - Enable by default"
@@ -626,11 +794,16 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_glasses_detection", "test_confidence_reduction"],
+        "unit": [
+          "test_glasses_detection",
+          "test_confidence_reduction"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["vision/gaze_detector.py"],
+      "filesToModify": [
+        "vision/gaze_detector.py"
+      ],
       "priority": 27,
       "passes": false,
       "notes": "Gaze Detection - Occlusion handling"
@@ -648,11 +821,16 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_largest_face_selection", "test_face_persistence"],
+        "unit": [
+          "test_largest_face_selection",
+          "test_face_persistence"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["vision/gaze_detector.py"],
+      "filesToModify": [
+        "vision/gaze_detector.py"
+      ],
       "priority": 28,
       "passes": false,
       "notes": "Gaze Detection - Multi-face handling"
@@ -670,11 +848,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_llm_task_generation", "test_dependency_validation"],
+        "unit": [
+          "test_llm_task_generation",
+          "test_dependency_validation"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["engine/task_engine.py", "Focuses/internal/Planner/SENTER.md"],
+      "filesToModify": [
+        "engine/task_engine.py",
+        "Focuses/internal/Planner/SENTER.md"
+      ],
       "priority": 29,
       "passes": false,
       "notes": "Task Execution - LLM planning"
@@ -692,11 +876,18 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_tool_discovery", "test_tool_registration"],
+        "unit": [
+          "test_tool_discovery",
+          "test_tool_registration"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["engine/tool_registry.py", "engine/task_engine.py", "scripts/senter_ctl.py"],
+      "filesToModify": [
+        "engine/tool_registry.py",
+        "engine/task_engine.py",
+        "scripts/senter_ctl.py"
+      ],
       "priority": 30,
       "passes": false,
       "notes": "Task Execution - Tool registry"
@@ -714,11 +905,16 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_exponential_backoff", "test_max_retry_limit"],
+        "unit": [
+          "test_exponential_backoff",
+          "test_max_retry_limit"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["engine/task_engine.py"],
+      "filesToModify": [
+        "engine/task_engine.py"
+      ],
       "priority": 31,
       "passes": false,
       "notes": "Task Execution - Retry with backoff"
@@ -736,11 +932,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_cancellation_signal", "test_cancelled_status"],
+        "unit": [
+          "test_cancellation_signal",
+          "test_cancelled_status"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["engine/task_engine.py", "scripts/senter_ctl.py"],
+      "filesToModify": [
+        "engine/task_engine.py",
+        "scripts/senter_ctl.py"
+      ],
       "priority": 32,
       "passes": false,
       "notes": "Task Execution - Cancellation"
@@ -758,11 +960,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_cron_parsing", "test_next_run_calculation"],
+        "unit": [
+          "test_cron_parsing",
+          "test_next_run_calculation"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["scheduler/action_scheduler.py", "scripts/senter_ctl.py"],
+      "filesToModify": [
+        "scheduler/action_scheduler.py",
+        "scripts/senter_ctl.py"
+      ],
       "priority": 33,
       "passes": false,
       "notes": "Scheduler - Full cron support"
@@ -780,11 +988,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_event_subscription", "test_event_filter"],
+        "unit": [
+          "test_event_subscription",
+          "test_event_filter"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["scheduler/action_scheduler.py", "daemon/message_bus.py"],
+      "filesToModify": [
+        "scheduler/action_scheduler.py",
+        "daemon/message_bus.py"
+      ],
       "priority": 34,
       "passes": false,
       "notes": "Scheduler - Event triggers"
@@ -802,11 +1016,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_history_recording", "test_history_retention"],
+        "unit": [
+          "test_history_recording",
+          "test_history_retention"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["scheduler/action_scheduler.py", "scripts/senter_ctl.py"],
+      "filesToModify": [
+        "scheduler/action_scheduler.py",
+        "scripts/senter_ctl.py"
+      ],
       "priority": 35,
       "passes": false,
       "notes": "Scheduler - Job history"
@@ -823,11 +1043,16 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_digest_statistics", "test_digest_insights"],
+        "unit": [
+          "test_digest_statistics",
+          "test_digest_insights"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["reporter/progress_reporter.py"],
+      "filesToModify": [
+        "reporter/progress_reporter.py"
+      ],
       "priority": 36,
       "passes": false,
       "notes": "Progress Reporter - Daily digest"
@@ -845,11 +1070,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_progress_calculation", "test_stalled_detection"],
+        "unit": [
+          "test_progress_calculation",
+          "test_stalled_detection"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["reporter/progress_reporter.py", "scripts/senter_ctl.py"],
+      "filesToModify": [
+        "reporter/progress_reporter.py",
+        "scripts/senter_ctl.py"
+      ],
       "priority": 37,
       "passes": false,
       "notes": "Progress Reporter - Goal progress"
@@ -866,11 +1097,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_session_detection", "test_summary_content"],
+        "unit": [
+          "test_session_detection",
+          "test_summary_content"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["reporter/progress_reporter.py", "daemon/senter_daemon.py"],
+      "filesToModify": [
+        "reporter/progress_reporter.py",
+        "daemon/senter_daemon.py"
+      ],
       "priority": 38,
       "passes": false,
       "notes": "Progress Reporter - Session summaries"
@@ -888,11 +1125,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_topic_frequency_detection", "test_focus_generation"],
+        "unit": [
+          "test_topic_frequency_detection",
+          "test_focus_generation"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["Focuses/focus_factory.py", "learning/pattern_detector.py"],
+      "filesToModify": [
+        "Focuses/focus_factory.py",
+        "learning/pattern_detector.py"
+      ],
       "priority": 39,
       "passes": false,
       "notes": "Focus System - Dynamic creation"
@@ -909,11 +1152,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_similarity_detection", "test_merge_content_combination"],
+        "unit": [
+          "test_similarity_detection",
+          "test_merge_content_combination"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["Focuses/focus_factory.py", "Focuses/internal/Focus_Merger/SENTER.md"],
+      "filesToModify": [
+        "Focuses/focus_factory.py",
+        "Focuses/internal/Focus_Merger/SENTER.md"
+      ],
       "priority": 40,
       "passes": false,
       "notes": "Focus System - Focus merging"
@@ -930,11 +1179,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_evolution_logging", "test_version_storage"],
+        "unit": [
+          "test_evolution_logging",
+          "test_version_storage"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["Focuses/senter_md_parser.py", "scripts/senter_ctl.py"],
+      "filesToModify": [
+        "Focuses/senter_md_parser.py",
+        "scripts/senter_ctl.py"
+      ],
       "priority": 41,
       "passes": false,
       "notes": "Focus System - Evolution tracking"
@@ -952,11 +1207,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_entity_extraction", "test_goal_construction"],
+        "unit": [
+          "test_entity_extraction",
+          "test_goal_construction"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["Focuses/internal/Goal_Detector/SENTER.md", "Functions/goal_tracker.py"],
+      "filesToModify": [
+        "Focuses/internal/Goal_Detector/SENTER.md",
+        "Functions/goal_tracker.py"
+      ],
       "priority": 42,
       "passes": false,
       "notes": "Internal Agents - Goal detection"
@@ -973,11 +1234,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_context_extraction", "test_incremental_update"],
+        "unit": [
+          "test_context_extraction",
+          "test_incremental_update"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["Focuses/internal/Context_Gatherer/SENTER.md", "Focuses/senter_md_parser.py"],
+      "filesToModify": [
+        "Focuses/internal/Context_Gatherer/SENTER.md",
+        "Focuses/senter_md_parser.py"
+      ],
       "priority": 43,
       "passes": false,
       "notes": "Internal Agents - Context gathering"
@@ -994,11 +1261,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_profile_generation", "test_communication_style_detection"],
+        "unit": [
+          "test_profile_generation",
+          "test_communication_style_detection"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["Focuses/internal/Profiler/SENTER.md", "Functions/learner.py"],
+      "filesToModify": [
+        "Focuses/internal/Profiler/SENTER.md",
+        "Functions/learner.py"
+      ],
       "priority": 44,
       "passes": false,
       "notes": "Internal Agents - User profiling"
@@ -1015,11 +1288,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_senter_md_generation", "test_system_prompt_tailoring"],
+        "unit": [
+          "test_senter_md_generation",
+          "test_system_prompt_tailoring"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["Focuses/internal/SENTER_Md_Writer/SENTER.md", "Focuses/focus_factory.py"],
+      "filesToModify": [
+        "Focuses/internal/SENTER_Md_Writer/SENTER.md",
+        "Focuses/focus_factory.py"
+      ],
       "priority": 45,
       "passes": false,
       "notes": "Internal Agents - SENTER.md writer"
@@ -1037,11 +1316,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_progress_detection", "test_subtask_completion"],
+        "unit": [
+          "test_progress_detection",
+          "test_subtask_completion"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["Functions/goal_tracker.py", "Focuses/internal/Goal_Detector/SENTER.md"],
+      "filesToModify": [
+        "Functions/goal_tracker.py",
+        "Focuses/internal/Goal_Detector/SENTER.md"
+      ],
       "priority": 46,
       "passes": false,
       "notes": "Goal System - Progress detection"
@@ -1059,11 +1344,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_priority_ordering", "test_due_date_extraction"],
+        "unit": [
+          "test_priority_ordering",
+          "test_due_date_extraction"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["Functions/goal_tracker.py", "scripts/senter_ctl.py"],
+      "filesToModify": [
+        "Functions/goal_tracker.py",
+        "scripts/senter_ctl.py"
+      ],
       "priority": 47,
       "passes": false,
       "notes": "Goal System - Prioritization"
@@ -1080,11 +1371,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_parent_child_link", "test_progress_aggregation"],
+        "unit": [
+          "test_parent_child_link",
+          "test_progress_aggregation"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["Functions/goal_tracker.py", "scripts/senter_ctl.py"],
+      "filesToModify": [
+        "Functions/goal_tracker.py",
+        "scripts/senter_ctl.py"
+      ],
       "priority": 48,
       "passes": false,
       "notes": "Goal System - Relationships"
@@ -1101,11 +1398,16 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_peak_hour_detection", "test_weekday_patterns"],
+        "unit": [
+          "test_peak_hour_detection",
+          "test_weekday_patterns"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["learning/pattern_detector.py"],
+      "filesToModify": [
+        "learning/pattern_detector.py"
+      ],
       "priority": 49,
       "passes": false,
       "notes": "Learning System - Temporal patterns"
@@ -1122,11 +1424,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_prediction_generation", "test_confidence_scoring"],
+        "unit": [
+          "test_prediction_generation",
+          "test_confidence_scoring"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["learning/pattern_detector.py", "Functions/learner.py"],
+      "filesToModify": [
+        "learning/pattern_detector.py",
+        "Functions/learner.py"
+      ],
       "priority": 50,
       "passes": false,
       "notes": "Learning System - Preference prediction"
@@ -1143,11 +1451,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_feedback_detection", "test_feedback_storage"],
+        "unit": [
+          "test_feedback_detection",
+          "test_feedback_storage"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["learning/learning_db.py", "Functions/learner.py"],
+      "filesToModify": [
+        "learning/learning_db.py",
+        "Functions/learner.py"
+      ],
       "priority": 51,
       "passes": false,
       "notes": "Learning System - Feedback learning"
@@ -1164,11 +1478,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_expertise_inference", "test_complexity_adjustment"],
+        "unit": [
+          "test_expertise_inference",
+          "test_complexity_adjustment"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["learning/pattern_detector.py", "Functions/learner.py"],
+      "filesToModify": [
+        "learning/pattern_detector.py",
+        "Functions/learner.py"
+      ],
       "priority": 52,
       "passes": false,
       "notes": "Learning System - Expertise modeling"
@@ -1185,11 +1505,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_summary_generation", "test_key_findings_extraction"],
+        "unit": [
+          "test_summary_generation",
+          "test_key_findings_extraction"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["daemon/senter_daemon.py", "engine/task_engine.py"],
+      "filesToModify": [
+        "daemon/senter_daemon.py",
+        "engine/task_engine.py"
+      ],
       "priority": 53,
       "passes": false,
       "notes": "Research Worker - Result summarization"
@@ -1206,11 +1532,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_topic_selection", "test_disable_autonomous"],
+        "unit": [
+          "test_topic_selection",
+          "test_disable_autonomous"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["scheduler/research_trigger.py", "daemon/senter_daemon.py"],
+      "filesToModify": [
+        "scheduler/research_trigger.py",
+        "daemon/senter_daemon.py"
+      ],
       "priority": 54,
       "passes": false,
       "notes": "Research Worker - Autonomous topics"
@@ -1227,11 +1559,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_offer_generation", "test_user_response_handling"],
+        "unit": [
+          "test_offer_generation",
+          "test_user_response_handling"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["daemon/senter_daemon.py", "reporter/progress_reporter.py"],
+      "filesToModify": [
+        "daemon/senter_daemon.py",
+        "reporter/progress_reporter.py"
+      ],
       "priority": 55,
       "passes": false,
       "notes": "Research Worker - Result presentation"
@@ -1249,11 +1587,16 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_keychain_store", "test_keychain_retrieve"],
+        "unit": [
+          "test_keychain_store",
+          "test_keychain_retrieve"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["daemon/encryption.py"],
+      "filesToModify": [
+        "daemon/encryption.py"
+      ],
       "priority": 56,
       "passes": false,
       "notes": "Security - Keychain storage"
@@ -1270,11 +1613,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_access_logging", "test_log_format"],
+        "unit": [
+          "test_access_logging",
+          "test_log_format"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["daemon/encryption.py", "learning/learning_db.py"],
+      "filesToModify": [
+        "daemon/encryption.py",
+        "learning/learning_db.py"
+      ],
       "priority": 57,
       "passes": false,
       "notes": "Security - Audit logging"
@@ -1291,11 +1640,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_export_completeness", "test_export_format"],
+        "unit": [
+          "test_export_completeness",
+          "test_export_format"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["scripts/senter_ctl.py", "learning/learning_db.py"],
+      "filesToModify": [
+        "scripts/senter_ctl.py",
+        "learning/learning_db.py"
+      ],
       "priority": 58,
       "passes": false,
       "notes": "Security - GDPR export"
@@ -1312,11 +1667,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_deletion_completeness", "test_confirmation_required"],
+        "unit": [
+          "test_deletion_completeness",
+          "test_confirmation_required"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["scripts/senter_ctl.py", "learning/learning_db.py"],
+      "filesToModify": [
+        "scripts/senter_ctl.py",
+        "learning/learning_db.py"
+      ],
       "priority": 59,
       "passes": false,
       "notes": "Security - Data deletion"
@@ -1333,11 +1694,16 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_pattern_detection", "test_masking_application"],
+        "unit": [
+          "test_pattern_detection",
+          "test_masking_application"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["daemon/senter_daemon.py"],
+      "filesToModify": [
+        "daemon/senter_daemon.py"
+      ],
       "priority": 60,
       "passes": false,
       "notes": "Security - Sensitive data masking"
@@ -1354,11 +1720,16 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_mcp_connect", "test_mcp_handshake"],
+        "unit": [
+          "test_mcp_connect",
+          "test_mcp_handshake"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["mcp/mcp_client.py"],
+      "filesToModify": [
+        "mcp/mcp_client.py"
+      ],
       "priority": 61,
       "passes": false,
       "notes": "MCP Integration - Client module"
@@ -1375,11 +1746,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_tool_discovery", "test_tool_registration"],
+        "unit": [
+          "test_tool_discovery",
+          "test_tool_registration"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["mcp/mcp_client.py", "engine/tool_registry.py"],
+      "filesToModify": [
+        "mcp/mcp_client.py",
+        "engine/tool_registry.py"
+      ],
       "priority": 62,
       "passes": false,
       "notes": "MCP Integration - Tool discovery"
@@ -1396,11 +1773,17 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_parameter_validation", "test_tool_call"],
+        "unit": [
+          "test_parameter_validation",
+          "test_tool_call"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["mcp/mcp_client.py", "engine/task_engine.py"],
+      "filesToModify": [
+        "mcp/mcp_client.py",
+        "engine/task_engine.py"
+      ],
       "priority": 63,
       "passes": false,
       "notes": "MCP Integration - Tool execution"
@@ -1417,11 +1800,18 @@
         "typecheck passes"
       ],
       "testRequirements": {
-        "unit": ["test_config_parsing", "test_server_validation"],
+        "unit": [
+          "test_config_parsing",
+          "test_server_validation"
+        ],
         "integration": [],
         "visual": false
       },
-      "filesToModify": ["config/mcp_servers.json", "mcp/mcp_client.py", "scripts/senter_ctl.py"],
+      "filesToModify": [
+        "config/mcp_servers.json",
+        "mcp/mcp_client.py",
+        "scripts/senter_ctl.py"
+      ],
       "priority": 64,
       "passes": false,
       "notes": "MCP Integration - Server config"
