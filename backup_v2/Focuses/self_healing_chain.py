@@ -4,7 +4,6 @@ Self-Healing Chain - Error Detection and Fix System
 Detects errors from function outputs and triggers Planner → Coder chain
 """
 
-import os
 import sys
 import json
 from pathlib import Path
@@ -127,7 +126,7 @@ class SelfHealingChain:
         Use Diagnostic_Agent to analyze the problem
         """
         if not self.diagnostic:
-            print(f"   ⚠️  Diagnostic_Agent not available, skipping analysis")
+            print("   ⚠️  Diagnostic_Agent not available, skipping analysis")
             return None
 
         diagnostic_prompt = f"""
@@ -178,7 +177,7 @@ class SelfHealingChain:
         Use Planner_Agent to create step-by-step fix plan
         """
         if not self.planner:
-            print(f"   ⚠️  Planner_Agent not available, skipping planning")
+            print("   ⚠️  Planner_Agent not available, skipping planning")
             return None
 
         plan_prompt = f"""
@@ -211,7 +210,7 @@ class SelfHealingChain:
         Use Coder_Agent to write the fix code
         """
         if not self.coder:
-            print(f"   ⚠️  Coder_Agent not available, skipping code generation")
+            print("   ⚠️  Coder_Agent not available, skipping code generation")
             return None
 
         code_prompt = f"""

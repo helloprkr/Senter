@@ -7,8 +7,7 @@ Modular functions for embed filtering + LLM selection
 import os
 import sys
 import json
-import numpy as np
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Tuple
 
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(__file__))

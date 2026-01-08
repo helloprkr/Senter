@@ -9,11 +9,8 @@ import sys
 import json
 import subprocess
 import platform
-import shutil
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-import urllib.request
-import urllib.error
+from typing import Dict, List
 
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(__file__))

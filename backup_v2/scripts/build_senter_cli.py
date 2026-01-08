@@ -32,9 +32,9 @@ def main():
         "cmake",
         f"-S{llama_cpp}",
         f"-B{build_dir}",
-        f"-DLLAMA_CLI=ON",  # Build chat functionality
-        f"-DLLAMA_SHARED=ON",  # Build as shared library
-        f"-DCMAKE_BUILD_TYPE=Release",
+        "-DLLAMA_CLI=ON",  # Build chat functionality
+        "-DLLAMA_SHARED=ON",  # Build as shared library
+        "-DCMAKE_BUILD_TYPE=Release",
     ]
 
     result = subprocess.run(cmake_cmd, cwd=build_dir)

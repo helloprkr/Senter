@@ -2,13 +2,10 @@
 Tests for core module.
 """
 
-import pytest
-from pathlib import Path
-import tempfile
 import yaml
 
-from core.genome_parser import GenomeParser, load_genome
-from core.intent import IntentParser, Intent
+from core.genome_parser import load_genome
+from core.intent import IntentParser
 from core.composer import ResponseComposer, CompositionContext
 
 

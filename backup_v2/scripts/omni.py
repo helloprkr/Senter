@@ -1,7 +1,6 @@
 import argparse
 import sys
 import os
-from typing import Optional
 
 # Add the current directory to sys.path
 script_dir = os.path.dirname(__file__)

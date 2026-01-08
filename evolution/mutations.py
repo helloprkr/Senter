@@ -6,7 +6,6 @@ applies them to genome.yaml, and tracks results to keep what works.
 """
 
 from __future__ import annotations
-import copy
 import json
 import random
 import shutil

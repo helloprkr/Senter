@@ -3,8 +3,6 @@ Integration tests for Senter 3.0.
 """
 
 import pytest
-from pathlib import Path
-import tempfile
 import yaml
 
 

@@ -6,13 +6,12 @@ All behavior emerges from configuration, not from code here.
 """
 
 from __future__ import annotations
-import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .genome_parser import GenomeParser
-from .intent import IntentParser, Intent
+from .intent import IntentParser
 from .composer import ResponseComposer, CompositionContext
 
 
@@ -47,6 +46,11 @@ class Response:
     ai_state: AIState
     episode_id: Optional[str] = None
     fitness: Optional[float] = None
+    suggestions: List[Dict[str, Any]] = None  # Proactive suggestions
+
+    def __post_init__(self):
+        if self.suggestions is None:
+            self.suggestions = []
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -55,6 +59,7 @@ class Response:
             "ai_state": self.ai_state.to_dict(),
             "episode_id": self.episode_id,
             "fitness": self.fitness,
+            "suggestions": self.suggestions,
         }
 
 
@@ -82,7 +87,7 @@ class Senter:
 
         # Core components
         self.intent_parser = IntentParser(self.model)
-        self.composer = ResponseComposer(self.model)
+        self.composer = ResponseComposer(self.model, self.memory._procedural)
 
     def _init_model_layer(self) -> None:
         """Initialize the model layer."""
@@ -236,6 +241,15 @@ class Senter:
         # Get conversation history BEFORE adding current turn
         conversation_history = self.context.get_history_for_llm(limit=6)
 
+        # Get active goals for context-aware responses
+        active_goals = []
+        if self.goal_detector:
+            try:
+                goals = self.goal_detector.get_active_goals()
+                active_goals = [g.to_dict() for g in goals[:3]]  # Top 3 goals
+            except Exception:
+                pass  # Goal retrieval is optional
+
         context = CompositionContext(
             memory=memory_context,
             knowledge={"items": knowledge_result.knowledge} if knowledge_result.knowledge else None,
@@ -243,6 +257,7 @@ class Senter:
             joint_state=self.joint_state.to_dict(),
             conversation_history=conversation_history,
             user_profile=user_profile,
+            active_goals=active_goals,
         )
 
         # Update conversation context
@@ -308,6 +323,14 @@ class Senter:
             except Exception:
                 pass  # Goal detection is optional
 
+        # Generate proactive suggestions (if trust is high enough)
+        suggestions = []
+        if self.proactive and self.trust.level >= 0.6:
+            try:
+                suggestions = await self.proactive.generate_suggestions()
+            except Exception:
+                pass  # Suggestions are optional
+
         # 6. BUILD RESPONSE WITH AI STATE
         ai_state = AIState(
             focus=self.joint_state.focus or "general",
@@ -323,6 +346,7 @@ class Senter:
             ai_state=ai_state,
             episode_id=episode.id,
             fitness=fitness_score,
+            suggestions=suggestions,
         )
 
     def _compute_uncertainty(self, context: CompositionContext) -> float:

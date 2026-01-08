@@ -4,10 +4,9 @@ Senter TUI - Advanced Terminal User Interface
 Uses OmniAgentChain for async omniagent orchestration with Focus system
 """
 
-import os
 import sys
 from pathlib import Path
-from typing import Optional, List
+from typing import List
 
 try:
     from textual.app import App, ComposeResult

@@ -7,7 +7,7 @@ Supports running local GGUF models with GPU acceleration.
 from __future__ import annotations
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from .base import ModelInterface, ModelConfig, Message
 

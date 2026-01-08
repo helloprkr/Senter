@@ -19,12 +19,8 @@ Model Support:
 import os
 import sys
 import json
-import threading
-import queue
-import time
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Tuple
-from urllib.request import urlopen, Request
+from typing import Optional, List, Dict, Any
 
 try:
     from llama_cpp import Llama
@@ -49,11 +45,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(1, str(Path(__file__).parent))
 
 from embedding_utils import (
-    create_embeddings,
-    vector_search,
-    chunk_text_logical,
     load_llama_cpp_model,
-    get_default_embedding_model,
 )
 
 
@@ -252,7 +244,7 @@ class SenterOmniAgent:
         model_path = self.model_config.get("path")
 
         if not model_path:
-            print(f"   ❌ Error: No model path specified")
+            print("   ❌ Error: No model path specified")
             print("   ℹ️  Run setup_senter.py to configure your model")
             return
 
@@ -265,7 +257,7 @@ class SenterOmniAgent:
             return
 
         if not Llama:
-            print(f"   ❌ Error: llama-cpp-python not installed")
+            print("   ❌ Error: llama-cpp-python not installed")
             print("   ℹ️  Install with: pip install llama-cpp-python")
             return
 
@@ -351,7 +343,7 @@ class SenterOmniAgent:
 
         if not embed_path or not os.path.exists(embed_path):
             print(f"   ❌ Error: Embedding model not found: {embed_path}")
-            print(f"   💡 Update path in config/senter_config.json")
+            print("   💡 Update path in config/senter_config.json")
             self.embed_llm = None
             return
 
@@ -387,11 +379,11 @@ class SenterOmniAgent:
                 cache_size_mb=10,
                 decoder_batch_size=1,
             )
-            print(f"   ✅ Soprano TTS loaded successfully!")
-            print(f"   Latency: <15ms first audio chunk")
+            print("   ✅ Soprano TTS loaded successfully!")
+            print("   Latency: <15ms first audio chunk")
             print("   Streaming enabled")
         except ImportError:
-            print(f"   ⚠️  Soprano package not found: pip install soprano-tts")
+            print("   ⚠️  Soprano package not found: pip install soprano-tts")
             print("   ℹ️  Streaming TTS disabled")
             self.tts_llm = None
         except Exception as e:
@@ -423,7 +415,7 @@ class SenterOmniAgent:
         if not self.text_llm:
             return "❌ Error: User's model not loaded. Run setup_senter.py"
 
-        print(f"\n🎤 Generating text...")
+        print("\n🎤 Generating text...")
         print(f"   Max Tokens: {max_tokens}, Temperature: {temperature}")
 
         if enable_tts and self.tts_llm:
@@ -507,7 +499,7 @@ class SenterOmniAgent:
             return self._generate_text_only(prompt, max_tokens, temperature)
 
         try:
-            print(f"   🎵 Streaming TTS enabled...")
+            print("   🎵 Streaming TTS enabled...")
 
             # Generate text
             if self.text_llm == "openai_client":

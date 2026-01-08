@@ -97,7 +97,7 @@ def test_focus_config():
         parser = SenterMdParser(Path("."))
         config = parser.load_focus_config("general")
         if config:
-            print(f"  Loaded 'general' focus config")
+            print("  Loaded 'general' focus config")
             print(f"    Keys: {list(config.keys())}")
             return True
         else:

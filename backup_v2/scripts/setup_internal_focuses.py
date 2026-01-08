@@ -47,7 +47,7 @@ def setup_internal_focuses():
             print(f"   ❌ Failed to create {focus_name}: {e}")
 
     print("\n" + "=" * 60)
-    print(f"\n✅ Setup Complete!")
+    print("\n✅ Setup Complete!")
     print(f"   Created: {len(created)}/{len(internal_focuses)} internal Focuses")
 
     if failed:

@@ -24,8 +24,44 @@
       "fitness_after": null,
       "applied": true,
       "timestamp": "2026-01-07T17:13:07.802205"
+    },
+    {
+      "id": "8dd342c3",
+      "type": "threshold_modification",
+      "target": "coupling.trust.increase_on.successful_task_completion",
+      "old_value": 0.02,
+      "new_value": 0.03,
+      "reason": "Trust seems stagnant - increasing success reward",
+      "fitness_at_proposal": 0.516,
+      "fitness_after": null,
+      "applied": true,
+      "timestamp": "2026-01-07T19:32:47.624362"
+    },
+    {
+      "id": "3c76606d",
+      "type": "threshold_modification",
+      "target": "coupling.trust.increase_on.successful_task_completion",
+      "old_value": 0.02,
+      "new_value": 0.03,
+      "reason": "Trust seems stagnant - increasing success reward",
+      "fitness_at_proposal": 0.672,
+      "fitness_after": null,
+      "applied": true,
+      "timestamp": "2026-01-07T19:32:53.931990"
+    },
+    {
+      "id": "1567b426",
+      "type": "threshold_modification",
+      "target": "coupling.trust.increase_on.successful_task_completion",
+      "old_value": 0.02,
+      "new_value": 0.03,
+      "reason": "Trust seems stagnant - increasing success reward",
+      "fitness_at_proposal": 0.526,
+      "fitness_after": null,
+      "applied": true,
+      "timestamp": "2026-01-07T21:41:00.266517"
     }
   ],
   "rolled_back": [],
-  "timestamp": "2026-01-07T17:17:02.662655"
+  "timestamp": "2026-01-07T21:41:39.249470"
 }

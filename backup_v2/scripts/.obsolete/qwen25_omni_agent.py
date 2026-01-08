@@ -7,9 +7,6 @@ Full multimodal support with text, images, audio, and video
 import os
 import torch
 from transformers import Qwen2_5OmniForConditionalGeneration, Qwen2_5OmniProcessor
-import base64
-from PIL import Image
-import io
 
 class QwenOmniAgent:
     def __init__(self, model_path=None):

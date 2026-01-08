@@ -68,7 +68,6 @@ class EpisodicMemory:
         Returns:
             List of recent episodes
         """
-        from .living_memory import Episode
 
         cursor = self.conn.execute(
             """
@@ -92,7 +91,6 @@ class EpisodicMemory:
         Returns:
             List of matching episodes
         """
-        from .living_memory import Episode
 
         cursor = self.conn.execute(
             """
@@ -108,7 +106,6 @@ class EpisodicMemory:
 
     def get_by_mode(self, mode: str, limit: int = 20) -> List["Episode"]:
         """Get episodes by coupling mode."""
-        from .living_memory import Episode
 
         cursor = self.conn.execute(
             """
@@ -124,7 +121,6 @@ class EpisodicMemory:
 
     def get_high_fitness(self, threshold: float = 0.7, limit: int = 20) -> List["Episode"]:
         """Get episodes with high fitness scores."""
-        from .living_memory import Episode
 
         cursor = self.conn.execute(
             """

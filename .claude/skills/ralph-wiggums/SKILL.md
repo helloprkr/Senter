@@ -1,11 +1,15 @@
 ---
 name: ralph-wiggums
-description: Autonomous iterative development loop. ALWAYS USE when asked to "use Ralph Wiggums", implement requirements autonomously, or build features iteratively. This skill REQUIRES creating scripts/ralph/ scaffolding with prd.json, prompt.md, progress.txt before implementation begins.
+description: Autonomous iterative development loop. ALWAYS USE when asked to "use Ralph Wiggums", implement requirements autonomously, or build features iteratively. This skill runs ENTIRELY within Claude Code (no API calls) for fully autonomous execution.
 ---
 
 # Ralph Wiggums
 
+**Fully autonomous development loop powered by Claude Code (subscription-based, NO API).**
+
 **STOP. Before writing ANY code, you MUST complete the Initialization Protocol below.**
+
+---
 
 ## Initialization Protocol (REQUIRED)
 
@@ -85,16 +89,7 @@ For EACH feature in the requirements, create stories following these rules:
 
 See `references/story-decomposition.md` for detailed patterns.
 
-### Step 5: Generate prompt.md
-Create `scripts/ralph/prompt.md` with iteration instructions.
-
-Use the template from `assets/templates/prompt.md`, replacing:
-- `{{TYPECHECK_COMMAND}}` with detected typecheck command
-- `{{UNIT_TEST_COMMAND}}` with detected test command
-- `{{INTEGRATION_TEST_COMMAND}}` with detected integration test command
-- `{{LINT_COMMAND}}` with detected lint command
-
-### Step 6: Generate progress.txt
+### Step 5: Generate progress.txt
 Create `scripts/ralph/progress.txt`:
 
 ```markdown
@@ -113,105 +108,161 @@ Project: [PROJECT NAME]
 ---
 ```
 
-### Step 7: Copy ralph.sh
-Copy the loop script from `scripts/ralph.sh` in this skill to `scripts/ralph/ralph.sh` in the project, then make it executable:
-```bash
-chmod +x scripts/ralph/ralph.sh
-```
-
-### Step 8: Create Git Branch
+### Step 6: Create Git Branch
 ```bash
 git checkout -b ralph/[feature-name]
 ```
 
-### Step 9: Begin Execution Loop
-Either:
-- Run `./scripts/ralph/ralph.sh [max_iterations]` to start the autonomous loop, OR
-- Execute iterations manually by following the prompt.md instructions
+### Step 7: Begin Autonomous Execution
+**IMMEDIATELY after initialization, begin the autonomous loop below. Do NOT wait for user confirmation.**
 
 ---
 
-## Iteration Protocol
+## 🔄 AUTONOMOUS EXECUTION LOOP
 
-Each iteration (whether run via ralph.sh or manually), follow this EXACT sequence:
+**THIS IS THE CORE OF RALPH WIGGUMS.**
 
-### 1. Read State
+After completing initialization, execute this loop continuously until ALL stories pass:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  RALPH WIGGUMS AUTONOMOUS LOOP                              │
+│  Runs entirely within Claude Code session (NO API calls)    │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  LOOP:                                                      │
+│    1. Read scripts/ralph/prd.json                          │
+│    2. Read scripts/ralph/progress.txt (check patterns!)    │
+│    3. Find highest priority story where passes=false       │
+│    4. If NO incomplete stories → COMPLETE, stop            │
+│    5. Implement the ONE selected story                     │
+│    6. Run ALL verification commands                        │
+│    7. If PASS → commit, update prd.json, log to progress   │
+│    8. If FAIL → fix (3 attempts), then decompose if stuck  │
+│    9. GOTO step 1 (continue immediately, no user input)    │
+│                                                             │
+│  EXIT CONDITIONS:                                           │
+│    - All stories pass → output <promise>COMPLETE</promise>  │
+│    - Cannot proceed → output <promise>STUCK</promise>       │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Autonomous Loop - Detailed Steps
+
+**For EACH iteration, execute these steps WITHOUT waiting for user input:**
+
+#### 1. Read State
 ```bash
 cat scripts/ralph/prd.json      # Find stories
 cat scripts/ralph/progress.txt  # Check patterns FIRST
 git status                      # Verify branch
 ```
 
-### 2. Select Story
-Pick highest priority story where `"passes": false`.
+#### 2. Select Story
+Pick highest priority story where `"passes": false` AND `"blocked"` is not `true`.
 
+**COMPLETION CHECK:**
 If ALL stories have `"passes": true`:
 ```
 <promise>COMPLETE</promise>
 ```
-**STOP HERE** - work is done.
+**STOP HERE** - work is done. Do not continue.
 
-### 3. Implement ONE Story
-- Follow patterns from progress.txt
-- Write tests BEFORE or DURING implementation
+#### 3. Implement ONE Story
+- Follow patterns from progress.txt "Codebase Patterns" section
+- Write tests BEFORE or DURING implementation (TDD)
 - Keep changes minimal and focused
-- Do NOT implement multiple stories
+- Do NOT implement multiple stories in one iteration
 
-### 4. Verify (ALL MUST PASS)
+#### 4. Verify (ALL MUST PASS)
 Run each verification command from prd.json:
 ```bash
+# Run the exact commands specified in prd.json verification section
+# Example for Python:
+python -m py_compile main.py  # typecheck
+python -m pytest tests/ -v    # unitTest
+python -m ruff check .        # lint
+
 # Example for TypeScript/Node:
-npm run typecheck   # Must pass
-npm test            # Must pass  
-npm run lint        # Must pass
+npm run typecheck
+npm test
+npm run lint
 ```
 
-### 5. On Success: Record and Commit
+If `visual` is `true` in testRequirements:
+- Start dev server if needed
+- Navigate to relevant page
+- Verify UI matches acceptance criteria
+
+#### 5. On Success: Record and Commit
 ```bash
 git add -A
 git commit -m "feat: [US-XXX] - [Title]"
 ```
 
 Update `scripts/ralph/prd.json`:
-```json
-{ "id": "US-XXX", "passes": true, ... }
-```
+- Set `"passes": true` for completed story
 
 Append to `scripts/ralph/progress.txt`:
 ```markdown
-## [DATE] - US-XXX
-- Implemented: [what]
-- Files: [list]
+## [DATE] - US-XXX: [Title]
+- Implemented: [what was done]
+- Files: [list of changed files]
 - **Learnings:** [patterns/gotchas discovered]
 ---
 ```
 
 If you discovered a reusable pattern, add it to "## Codebase Patterns" at the TOP of progress.txt.
 
-### 6. On Failure: Recovery Protocol
+#### 6. On Failure: Recovery Protocol
 If verification fails:
-1. Attempt fix (up to 3 times)
-2. If stuck after 3 attempts → decompose story into 2-3 smaller sub-stories
-3. Update prd.json with sub-stories
-4. Log failure in progress.txt
-5. Continue with first sub-story
+1. Attempt fix (up to 3 times per story)
+2. If stuck after 3 attempts:
+   - Decompose story into 2-3 smaller sub-stories
+   - Update prd.json with sub-stories at higher priority
+   - Mark original story with `"decomposed": true`
+   - Log failure in progress.txt
+3. Continue with first sub-story
 
 See `references/failure-recovery.md` for detailed recovery procedures.
 
-### 7. Continue or Signal
-- More stories remaining? → End iteration (loop continues)
-- All stories pass? → Output `<promise>COMPLETE</promise>`
-- Stuck, cannot proceed? → Output `<promise>STUCK</promise>`
+#### 7. Continue Loop
+**CRITICAL: After completing steps 1-6, IMMEDIATELY return to step 1.**
+- Do NOT wait for user input
+- Do NOT ask for confirmation
+- Continue looping until ALL stories pass or you are STUCK
 
 ---
 
-## User Intervention
+## Stop Conditions
 
-| Action | Method |
-|--------|--------|
-| Pause loop | `touch scripts/ralph/.ralph-pause` |
-| Resume loop | `rm scripts/ralph/.ralph-pause` |
-| Abort | Ctrl+C or kill process |
+| Signal | Meaning |
+|--------|---------|
+| `<promise>COMPLETE</promise>` | All stories pass. Work is done. |
+| `<promise>STUCK</promise>` | Cannot proceed. Human review needed. |
+
+---
+
+## Pause/Resume (Optional)
+
+If you need to pause mid-execution:
+```bash
+touch scripts/ralph/.ralph-pause
+```
+
+Check for pause at start of each iteration:
+```bash
+if [ -f scripts/ralph/.ralph-pause ]; then
+  echo "PAUSED - remove .ralph-pause to continue"
+  # Wait or exit
+fi
+```
+
+Remove to resume:
+```bash
+rm scripts/ralph/.ralph-pause
+```
 
 ---
 
@@ -234,6 +285,7 @@ Before marking ANY story as `"passes": true`, confirm:
 3. **VERIFY before committing** — never commit failing code
 4. **LOG learnings** — progress.txt is memory for future iterations
 5. **DECOMPOSE when stuck** — 3 failures = split into smaller stories
+6. **CONTINUE AUTONOMOUSLY** — do NOT wait for user input between iterations
 
 ---
 
@@ -242,9 +294,7 @@ Before marking ANY story as `"passes": true`, confirm:
 | File | Purpose |
 |------|---------|
 | `scripts/ralph/prd.json` | Stories, criteria, pass/fail status |
-| `scripts/ralph/prompt.md` | Instructions for each iteration |
 | `scripts/ralph/progress.txt` | Learnings, patterns, session memory |
-| `scripts/ralph/ralph.sh` | The autonomous loop script |
 | `scripts/ralph/.ralph-pause` | Create to pause, delete to resume |
 
 ---
@@ -256,3 +306,15 @@ Load these as needed for detailed guidance:
 - `references/story-decomposition.md` — How to break down requirements
 - `references/test-strategies.md` — Testing patterns per language/framework
 - `references/failure-recovery.md` — Recovery protocols for stuck/flaky/blocked stories
+
+---
+
+## Execution Summary
+
+When Ralph Wiggums is invoked:
+
+1. **Initialize** (Steps 1-6) — Create scaffolding, detect stack, generate stories
+2. **Loop** (Step 7) — Execute autonomous loop until complete
+3. **Signal** — Output `<promise>COMPLETE</promise>` or `<promise>STUCK</promise>`
+
+**All execution happens within your Claude Code session. No external API calls. No ralph.sh script. Pure autonomous iteration.**

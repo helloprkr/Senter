@@ -1,6 +1,4 @@
 import os
-import subprocess
-import sys
 from pathlib import Path
 import torch
 from PIL import Image
@@ -91,7 +89,7 @@ class QwenImageGGUFGenerator:
         
         # Enable model CPU offloading to save GPU memory
         self.pipe.enable_model_cpu_offload()
-        print(f"Pipeline initialized and loaded with CPU offloading enabled.")
+        print("Pipeline initialized and loaded with CPU offloading enabled.")
 
     def generate_image_from_prompt(self, prompt_text: str, width: int = 1024, height: int = 1024, num_inference_steps: int = 8) -> Optional[Image.Image]:
         """

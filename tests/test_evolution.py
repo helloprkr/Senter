@@ -2,10 +2,9 @@
 Tests for evolution module.
 """
 
-import pytest
 from datetime import datetime
 
-from evolution.fitness import FitnessTracker, FitnessMetric
+from evolution.fitness import FitnessTracker
 from evolution.mutations import MutationEngine, Mutation
 from evolution.selection import SelectionPressure
 

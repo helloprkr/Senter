@@ -11,7 +11,7 @@ import threading
 import time
 import queue
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Callable
+from typing import Dict, List, Any
 from datetime import datetime
 
 # Add current directory to path

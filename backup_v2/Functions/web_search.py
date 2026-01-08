@@ -6,7 +6,6 @@ Uses DuckDuckGo API for web search integration
 
 import sys
 from pathlib import Path
-import json
 import logging
 
 # Add Senter to path

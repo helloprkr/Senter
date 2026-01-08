@@ -5,10 +5,8 @@ Modular tool for making intelligent choices from any list
 """
 
 import os
-import sys
 from pathlib import Path
-from typing import List, Optional, Union, Dict
-import json
+from typing import List, Optional, Union
 
 # Import from embedding utils
 from embedding_utils import (
@@ -81,7 +79,7 @@ def intelligent_selection(
         prompt, embeddings, chunks, top_k=top_k, model_path=embedding_model
     )
 
-    print(f"   Top matches (scores):")
+    print("   Top matches (scores):")
     for i, (item, score) in enumerate(zip(top_items, scores)):
         print(f"      {i + 1}. {item[:80]}... ({score:.3f})")
 
@@ -102,8 +100,8 @@ def intelligent_selection(
         if create_new:
             create_new_text = (
                 "If none of the {top_k} options are relevant, you MUST create a new "
-                f"category that better fits the user's input. "
-                f"Use a clear, descriptive name for the new category."
+                "category that better fits the user's input. "
+                "Use a clear, descriptive name for the new category."
             )
         else:
             create_new_text = ""
@@ -132,7 +130,7 @@ def intelligent_selection(
         )
 
         if not Path(model_path).exists():
-            print(f"   ⚠ Model not found, using fallback...")
+            print("   ⚠ Model not found, using fallback...")
             model_path = "/home/sovthpaw/Models/Hermes-3-Llama-3.2-3B.Q4_K_M.gguf"
 
         if not Path(model_path).exists():

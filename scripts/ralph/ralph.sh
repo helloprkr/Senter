@@ -1,93 +1,61 @@
 #!/bin/bash
 #
-# Ralph Wiggums - Autonomous Development Loop
+# Ralph Wiggums - Usage Helper
 #
-# Usage: ./ralph.sh [max_iterations]
-#
-# This script runs Claude Code in a loop, executing one user story per iteration.
-# Create .ralph-pause to pause, delete to resume.
-# Ctrl+C to abort.
+# This script no longer calls the Claude API.
+# Ralph Wiggums now runs entirely within Claude Code (subscription-based).
 #
 
 set -e
 
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+echo ""
+echo -e "${BLUE}╔═══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║              🚀 Ralph Wiggums - Autonomous Loop               ║${NC}"
+echo -e "${BLUE}╠═══════════════════════════════════════════════════════════════╣${NC}"
+echo -e "${BLUE}║  Runs entirely within Claude Code (NO API, uses subscription) ║${NC}"
+echo -e "${BLUE}╚═══════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-MAX_ITERATIONS=${1:-50}
-ITERATION=0
-PAUSE_FILE="$SCRIPT_DIR/.ralph-pause"
-
-echo "======================================"
-echo "  Ralph Wiggums Autonomous Loop"
-echo "======================================"
-echo "Project: $PROJECT_ROOT"
-echo "Max iterations: $MAX_ITERATIONS"
-echo ""
-echo "Controls:"
-echo "  - Create $PAUSE_FILE to pause"
-echo "  - Delete $PAUSE_FILE to resume"
-echo "  - Ctrl+C to abort"
-echo ""
-
-cd "$PROJECT_ROOT"
-
-while [ $ITERATION -lt $MAX_ITERATIONS ]; do
-    ITERATION=$((ITERATION + 1))
-
-    echo ""
-    echo "======================================"
-    echo "  Iteration $ITERATION / $MAX_ITERATIONS"
-    echo "======================================"
-    echo ""
-
-    # Check for pause
-    if [ -f "$PAUSE_FILE" ]; then
-        echo "[PAUSED] Remove $PAUSE_FILE to continue..."
-        while [ -f "$PAUSE_FILE" ]; do
-            sleep 5
-        done
-        echo "[RESUMED]"
+if [[ -f "$SCRIPT_DIR/prd.json" ]]; then
+    echo -e "${GREEN}✓ Found prd.json${NC}"
+    
+    if command -v jq &> /dev/null; then
+        total=$(jq '.userStories | length' "$SCRIPT_DIR/prd.json" 2>/dev/null || echo "?")
+        done=$(jq '[.userStories[] | select(.passes == true)] | length' "$SCRIPT_DIR/prd.json" 2>/dev/null || echo "?")
+        echo -e "  Progress: ${CYAN}$done/$total${NC} stories complete"
     fi
+else
+    echo -e "${YELLOW}⚠ No prd.json found - initialization required${NC}"
+fi
 
-    # Run Claude Code with the prompt
-    echo "[Starting iteration...]"
-
-    # Execute Claude Code with the iteration prompt
-    # The prompt instructs Claude to:
-    # 1. Read prd.json and progress.txt
-    # 2. Pick next uncompleted story
-    # 3. Implement it
-    # 4. Verify
-    # 5. Commit and update status
-
-    OUTPUT=$(claude --print "Execute one Ralph Wiggums iteration. Read scripts/ralph/prompt.md for instructions. Read scripts/ralph/prd.json for stories. Read scripts/ralph/progress.txt for patterns. Implement the highest priority story where passes=false. Verify all checks pass. Commit and update prd.json." 2>&1) || true
-
-    echo "$OUTPUT"
-
-    # Check for completion signal
-    if echo "$OUTPUT" | grep -q "<promise>COMPLETE</promise>"; then
-        echo ""
-        echo "======================================"
-        echo "  ALL STORIES COMPLETE!"
-        echo "======================================"
-        exit 0
-    fi
-
-    # Check for stuck signal
-    if echo "$OUTPUT" | grep -q "<promise>STUCK</promise>"; then
-        echo ""
-        echo "======================================"
-        echo "  STUCK - Manual intervention needed"
-        echo "======================================"
-        exit 1
-    fi
-
-    # Brief pause between iterations
-    sleep 2
-done
+if [[ -f "$SCRIPT_DIR/progress.txt" ]]; then
+    echo -e "${GREEN}✓ Found progress.txt${NC}"
+else
+    echo -e "${YELLOW}⚠ No progress.txt found${NC}"
+fi
 
 echo ""
-echo "======================================"
-echo "  Max iterations reached ($MAX_ITERATIONS)"
-echo "======================================"
+echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+echo -e "${CYAN}                    HOW TO USE RALPH WIGGUMS                    ${NC}"
+echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+echo ""
+echo "  In Claude Code, run:"
+echo ""
+echo -e "     ${GREEN}Continue Ralph Wiggums. Read scripts/ralph/prd.json and${NC}"
+echo -e "     ${GREEN}progress.txt, then implement remaining stories autonomously.${NC}"
+echo ""
+echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+echo ""
+echo "  Controls:"
+echo "    • Pause:  touch scripts/ralph/.ralph-pause"
+echo "    • Resume: rm scripts/ralph/.ralph-pause"
+echo ""

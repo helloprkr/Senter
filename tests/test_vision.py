@@ -10,11 +10,8 @@ Tests that the complete Senter vision is achieved:
 """
 
 import pytest
-import asyncio
 import time
-import json
 from pathlib import Path
-from datetime import datetime, timedelta
 import subprocess
 import sys
 

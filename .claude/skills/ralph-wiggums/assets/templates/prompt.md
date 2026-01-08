@@ -1,25 +1,31 @@
-# Ralph Wiggums Agent Instructions
+# Ralph Wiggums - Autonomous Iteration Protocol
 
-## Your Task
+**You are executing the Ralph Wiggums autonomous development loop.**
+**Continue iterating until ALL stories pass. Do NOT wait for user input.**
 
-Each iteration, execute these steps IN ORDER:
+---
+
+## LOOP INSTRUCTION
+
+Execute these steps repeatedly until complete:
 
 ### 1. Read State
-- Read `scripts/ralph/prd.json` - find the user stories
-- Read `scripts/ralph/progress.txt` - check Codebase Patterns section FIRST
-- Run `git status` - ensure you're on the correct branch
+```bash
+cat scripts/ralph/prd.json      # Stories and status
+cat scripts/ralph/progress.txt  # Patterns (read this FIRST!)
+git status                      # Verify branch
+```
 
 ### 2. Select Story
-Pick the highest priority story where `passes: false` AND `blocked` is not `true`.
-If ALL stories have `passes: true`, output `<promise>COMPLETE</promise>` and stop.
+- Pick highest priority story where `passes: false` AND `blocked` is not `true`
+- If ALL stories have `passes: true` → output `<promise>COMPLETE</promise>` and STOP
 
-### 3. Implement
-Implement ONLY the selected story:
-- Follow patterns from progress.txt
-- Keep changes minimal and focused
-- Write tests BEFORE or DURING implementation (TDD encouraged)
+### 3. Implement ONE Story
+- Follow patterns from "Codebase Patterns" in progress.txt
+- Write tests BEFORE or DURING implementation
+- Keep changes focused on this ONE story only
 
-### 4. Verify (ALL steps required)
+### 4. Verify (ALL must pass)
 
 ```bash
 # Typecheck
@@ -35,93 +41,65 @@ Implement ONLY the selected story:
 {{LINT_COMMAND}}
 ```
 
-If `visualVerification` is true in the story's testRequirements:
-- Start dev server if not running
-- Navigate to the relevant page
-- Take screenshot and verify UI matches acceptance criteria
+If `visual: true` in testRequirements → verify UI visually
 
-### 5. Record Results
+### 5. On Success: Commit & Record
 
-**If ALL verifications pass:**
-1. Commit: `git commit -am "feat: [STORY-ID] - [Title]"`
-2. Update prd.json: set `passes: true` for this story
-3. Append to progress.txt:
-   ```
-   ## [DATE] - [STORY-ID]
-   - What was implemented
-   - Files changed
-   - **Learnings:**
-     - Patterns discovered
-     - Gotchas encountered
-   ---
-   ```
-4. If you discovered a reusable pattern, add it to the "Codebase Patterns" section at the TOP of progress.txt
+```bash
+git add -A
+git commit -m "feat: [US-XXX] - [Title]"
+```
 
-**If verification fails:**
-1. Attempt to fix (up to 3 times per story)
-2. If stuck after 3 attempts, decompose into smaller stories (see failure recovery protocol)
-3. Document failure in progress.txt
+Update `scripts/ralph/prd.json`:
+- Set `passes: true` for this story
 
-### 6. Continue or Complete
-
-- More stories with `passes: false`? → End this iteration (loop will continue)
-- All stories `passes: true`? → Output: `<promise>COMPLETE</promise>`
-- Stuck and cannot proceed? → Output: `<promise>STUCK</promise>`
-
-## Progress Log Format
-
-When appending to progress.txt:
-
+Append to `scripts/ralph/progress.txt`:
 ```markdown
-## [DATE] - [STORY-ID]
-- What was implemented
-- Files changed: file1.ts, file2.ts
-- **Learnings:**
-  - Pattern: Always use X when doing Y
-  - Gotcha: Z requires special handling
+## [DATE] - US-XXX: [Title]
+- Implemented: [what]
+- Files: [list]
+- **Learnings:** [patterns discovered]
 ---
 ```
 
-## Codebase Patterns Format
+Add reusable patterns to "## Codebase Patterns" at TOP of progress.txt.
 
-Add reusable patterns to the TOP of progress.txt under "## Codebase Patterns":
+### 6. On Failure: Recovery
 
-```markdown
-## Codebase Patterns
-- Migrations: Use IF NOT EXISTS for idempotency
-- Forms: Use react-hook-form with zod validation
-- API: Always return consistent error shape
-```
+1. Attempt fix (up to 3 times)
+2. If stuck after 3 attempts:
+   - Decompose into 2-3 smaller sub-stories
+   - Update prd.json with sub-stories
+   - Set `decomposed: true` on original
+   - Log to progress.txt
+3. Continue with first sub-story
 
-## Failure Recovery Protocol
+### 7. CONTINUE IMMEDIATELY
 
-**Story fails 3+ times:**
-1. Log failure in progress.txt
-2. Decompose story into 2-3 smaller sub-stories
-3. Update prd.json with sub-stories at higher priority
-4. Mark original story as decomposed
-5. Continue with first sub-story
+**After steps 1-6, GO BACK TO STEP 1.**
+- Do NOT wait for user input
+- Do NOT ask for confirmation
+- Continue until all stories pass
 
-**Flaky tests detected:**
-1. Identify flaky test in progress.txt
-2. Replace with more deterministic alternative
-3. Avoid timing-based assertions
-4. Mock external dependencies
+---
 
-**Blocked by external dependency:**
-1. Set `"blocked": true` in prd.json for that story
-2. Document blocker in progress.txt
-3. Continue with other stories
+## Exit Conditions
+
+| Condition | Action |
+|-----------|--------|
+| All stories `passes: true` | Output `<promise>COMPLETE</promise>`, STOP |
+| Cannot proceed, blocked | Output `<promise>STUCK</promise>`, STOP |
+
+---
 
 ## Critical Rules
 
-1. **ONE story per iteration** - Do not attempt multiple stories
-2. **Verify BEFORE committing** - Never commit failing code
-3. **Log learnings** - Future iterations depend on this
-4. **Stay focused** - If changes cascade, consider decomposition
-5. **Check patterns FIRST** - Read Codebase Patterns before implementing
+1. **ONE story per iteration** — never multiple
+2. **VERIFY before committing** — never commit failing code
+3. **LOG learnings** — progress.txt is memory
+4. **DECOMPOSE when stuck** — 3 failures = split
+5. **CONTINUE AUTONOMOUSLY** — no waiting for user
 
-## Stop Conditions
+---
 
-- `<promise>COMPLETE</promise>` - All stories pass, work is done
-- `<promise>STUCK</promise>` - Cannot proceed, human review needed
+**BEGIN ITERATION NOW.**

@@ -5,7 +5,6 @@ Downloads required models from HuggingFace
 """
 
 import os
-import sys
 from pathlib import Path
 from huggingface_hub import hf_hub_download, snapshot_download
 

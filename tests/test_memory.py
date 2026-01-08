@@ -3,8 +3,6 @@ Tests for memory module.
 """
 
 import pytest
-from pathlib import Path
-import tempfile
 
 from memory.living_memory import LivingMemory, Episode, MemoryContext
 from memory.semantic import SemanticMemory

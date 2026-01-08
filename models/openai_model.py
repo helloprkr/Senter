@@ -6,7 +6,7 @@ Supports GPT-4, GPT-3.5, and embedding models via the OpenAI API.
 
 from __future__ import annotations
 import os
-from typing import Any, List, Optional, AsyncIterator
+from typing import List, Optional, AsyncIterator
 
 from .base import ModelInterface, ModelConfig, Message
 

@@ -6,7 +6,7 @@ Provides web search capability without API keys.
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 import httpx
 
 

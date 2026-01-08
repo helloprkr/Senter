@@ -10,7 +10,7 @@ import json
 import sqlite3
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Dict, List, Optional, TYPE_CHECKING
 
 import numpy as np
 

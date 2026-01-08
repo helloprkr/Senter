@@ -8,7 +8,7 @@ import asyncio
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 
 # Import Senter utilities
 import sys
@@ -77,7 +77,7 @@ class OmniAgentChain:
         Returns:
             Response from chat agent
         """
-        print(f"\n📤 Processing query...")
+        print("\n📤 Processing query...")
         print(f"   Query: {query[:100]}...")
 
         # Add to conversation history

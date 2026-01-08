@@ -33,8 +33,8 @@ def main():
         "cmake",
         f"-S{llama_cpp}",
         f"-B{build_dir}",
-        f"-DLLAMA_CLI=ON",
-        f"-DCMAKE_BUILD_TYPE=Release",
+        "-DLLAMA_CLI=ON",
+        "-DCMAKE_BUILD_TYPE=Release",
     ]
 
     result = subprocess.run(cmake_cmd, cwd=build_dir)
@@ -74,7 +74,7 @@ def main():
 
     print("✅ Senter CLI binary ready!")
     print(f"\n🚀 Run with: {dst_bin}")
-    print(f"\n💡 Note: This is a simple version that compiles with llama.cpp")
+    print("\n💡 Note: This is a simple version that compiles with llama.cpp")
     print("💡 For full functionality, use: python3 scripts/senter.py")
 
 

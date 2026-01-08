@@ -4,7 +4,7 @@ Embedding Utilities - Modular embedding creation and vector search
 """
 
 import re
-from typing import List, Tuple, Union, Optional
+from typing import List, Tuple, Optional
 import numpy as np
 from pathlib import Path
 import os

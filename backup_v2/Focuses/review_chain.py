@@ -4,7 +4,6 @@ Focus Review Chain - Background Focus Review System
 Uses omniagent instances to review and update all Focuses
 """
 
-import os
 import sys
 import json
 import threading
@@ -234,7 +233,7 @@ class FocusReviewChain:
     def _merge_focuses(self, focus1: str, focus2: str):
         """Merge two Focuses using Focus_Merger agent"""
         if not self.focus_merger:
-            print(f"   ⚠️  Focus_Merger not available, skipping merge")
+            print("   ⚠️  Focus_Merger not available, skipping merge")
             return
 
         # Load both Focus configs
@@ -301,7 +300,7 @@ class FocusReviewChain:
     def _split_focus(self, focus_name: str, sub_focuses: List[str]):
         """Split Focus into sub-Focuses"""
         if not self.focus_splitter:
-            print(f"   ⚠️  Focus_Splitter not available, skipping split")
+            print("   ⚠️  Focus_Splitter not available, skipping split")
             return
 
         # Load original Focus config

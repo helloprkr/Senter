@@ -2,8 +2,6 @@
 Tests for coupling module.
 """
 
-import pytest
-from datetime import datetime
 
 from coupling.joint_state import JointState, Goal
 from coupling.human_model import HumanModel, HumanCognitiveState

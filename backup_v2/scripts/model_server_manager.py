@@ -11,7 +11,7 @@ import subprocess
 import requests
 import time
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(__file__))
@@ -104,7 +104,7 @@ class ModelServerManager:
                     print(f"❌ Server failed to start: {stderr.decode()}")
                     return False
 
-            print(f"❌ Server failed to respond within timeout")
+            print("❌ Server failed to respond within timeout")
             process.terminate()
             return False
 
@@ -131,7 +131,7 @@ class ModelServerManager:
                 print(f"✅ Server stopped for {model_type}")
                 return True
             else:
-                print(f"⚠️ Server may still be running")
+                print("⚠️ Server may still be running")
                 return False
         else:
             print(f"✅ Server was not running for {model_type}")

@@ -26,6 +26,7 @@ class CompositionContext:
     joint_state: Optional[Dict[str, Any]] = None
     conversation_history: List[Dict[str, str]] = None  # Recent turns for context
     user_profile: List[Dict] = None  # Always-included user facts
+    active_goals: List[Dict] = None  # Current user goals for context-aware responses
 
     def __post_init__(self):
         if self.capabilities is None:
@@ -34,6 +35,8 @@ class CompositionContext:
             self.conversation_history = []
         if self.user_profile is None:
             self.user_profile = []
+        if self.active_goals is None:
+            self.active_goals = []
 
 
 class ResponseComposer:
@@ -125,6 +128,12 @@ class ResponseComposer:
             profile_info = self._format_user_profile(context.user_profile)
             if profile_info:
                 system_parts.append(f"User profile: {profile_info}")
+
+        # Add active goals for goal-aware responses
+        if context.active_goals:
+            goals_info = self._format_goals_context(context.active_goals)
+            if goals_info:
+                system_parts.append(f"User's current goals: {goals_info}")
 
         # Add memory context
         if context.memory:
@@ -234,5 +243,21 @@ class ResponseComposer:
                 parts.append(f"Role: {content}")
             else:
                 parts.append(content[:80])
+
+        return " | ".join(parts) if parts else ""
+
+    def _format_goals_context(self, goals: List[Dict]) -> str:
+        """Format active goals for the prompt."""
+        if not goals:
+            return ""
+
+        parts = []
+        for goal in goals[:3]:  # Top 3 active goals
+            description = goal.get("description", "")
+            progress = goal.get("progress", 0)
+            category = goal.get("category", "general")
+            if description:
+                progress_pct = int(progress * 100)
+                parts.append(f"{category}: {description} ({progress_pct}% complete)")
 
         return " | ".join(parts) if parts else ""

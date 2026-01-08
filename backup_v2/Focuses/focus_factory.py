@@ -4,11 +4,10 @@ Focus Factory - Dynamic Focus Creation
 Creates new Focus directories and SENTER.md files with user's model
 """
 
-import os
 import sys
 import yaml
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from datetime import datetime
 
 # Add parent to path for imports
@@ -255,12 +254,12 @@ context:
 
         # System prompts based on type
         system_prompts = {
-            "review": f"You are the Focus_Reviewer agent. Your job is to review Focuses and determine if they need updates, merging, or splitting. Be thorough but conservative - only suggest changes when clearly beneficial.",
-            "merge": f"You are the Focus_Merger agent. Your job is to combine multiple Focuses that should be merged together based on overlapping content. Preserve important information from both Focuses in the merged version.",
-            "split": f"You are the Focus_Splitter agent. Your job is to identify when a Focus has grown too large or diverse, and suggest how to split it into more focused sub-Focuses.",
-            "plan": f"You are the Planner_Agent. Your job is to break down user goals into actionable steps. Each step should be specific, achievable, and clearly related to achieving the overall goal.",
-            "code": f"You are the Coder_Agent. Your job is to write and fix code for Senter's functions. When you receive an error report, analyze it and produce a fix.",
-            "profile": f"You are the User_Profiler agent. Your job is to analyze user interactions using psychology-based approaches to detect: long-term goals, sense of humor, personality traits, communication style. Generate explorative follow-up questions to validate detected goals.",
+            "review": "You are the Focus_Reviewer agent. Your job is to review Focuses and determine if they need updates, merging, or splitting. Be thorough but conservative - only suggest changes when clearly beneficial.",
+            "merge": "You are the Focus_Merger agent. Your job is to combine multiple Focuses that should be merged together based on overlapping content. Preserve important information from both Focuses in the merged version.",
+            "split": "You are the Focus_Splitter agent. Your job is to identify when a Focus has grown too large or diverse, and suggest how to split it into more focused sub-Focuses.",
+            "plan": "You are the Planner_Agent. Your job is to break down user goals into actionable steps. Each step should be specific, achievable, and clearly related to achieving the overall goal.",
+            "code": "You are the Coder_Agent. Your job is to write and fix code for Senter's functions. When you receive an error report, analyze it and produce a fix.",
+            "profile": "You are the User_Profiler agent. Your job is to analyze user interactions using psychology-based approaches to detect: long-term goals, sense of humor, personality traits, communication style. Generate explorative follow-up questions to validate detected goals.",
         }
 
         system_prompt = system_prompts.get(

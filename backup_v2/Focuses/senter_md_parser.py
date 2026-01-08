@@ -5,12 +5,11 @@ Model-agnostic configuration loader for Focus system
 """
 
 import os
-import sys
 import re
 import yaml
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 
 
 # Use os.path.join for cross-platform path handling

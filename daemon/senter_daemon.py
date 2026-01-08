@@ -512,6 +512,10 @@ class SenterDaemon:
         except ImportError as e:
             print(f"[DAEMON] ActivityMonitor not available: {e}")
 
+        # Start auto-research task for learning goals
+        self.auto_research_task = asyncio.create_task(self._run_auto_research())
+        print("[DAEMON] Auto-research scheduler started")
+
         # Start IPC server
         self.running = True
 
@@ -549,6 +553,30 @@ class SenterDaemon:
 
             await asyncio.sleep(self.activity_capture_interval)
 
+    async def _run_auto_research(self) -> None:
+        """
+        Run auto-research loop for learning goals.
+
+        Checks for learning goals and runs research every 6 hours.
+        """
+        research_interval = 6 * 60 * 60  # 6 hours in seconds
+
+        while self.running:
+            try:
+                results = await self.auto_research_learning_goals()
+                if results:
+                    print(f"[DAEMON] Auto-research completed: {len(results)} topics")
+                    # Store results for "while you were away" summary
+                    for result in results:
+                        self.research_results.append(result)
+                        # Keep only recent results
+                        if len(self.research_results) > 20:
+                            self.research_results = self.research_results[-20:]
+            except Exception as e:
+                print(f"[DAEMON] Auto-research error: {e}")
+
+            await asyncio.sleep(research_interval)
+
     def get_activity_summary(self) -> Dict[str, Any]:
         """
         Get current activity summary (US-018).
@@ -582,6 +610,15 @@ class SenterDaemon:
             except asyncio.CancelledError:
                 pass
             print("[DAEMON] ActivityMonitor stopped")
+
+        # Stop auto-research task
+        if hasattr(self, 'auto_research_task') and self.auto_research_task:
+            self.auto_research_task.cancel()
+            try:
+                await self.auto_research_task
+            except asyncio.CancelledError:
+                pass
+            print("[DAEMON] Auto-research stopped")
 
         if self.worker:
             await self.worker.stop()

@@ -19,7 +19,6 @@ import threading
 import warnings
 from collections import deque
 from pathlib import Path
-from typing import Optional, List
 
 # Add ACE-Step to path BEFORE any imports to fix bus error
 project_root = Path(__file__).parent.parent.parent.absolute()

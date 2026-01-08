@@ -10,7 +10,6 @@ Downloads:
 - Qwen VL 8B (recommended VLM) - OPTIONAL
 """
 
-import os
 import sys
 import argparse
 from pathlib import Path
@@ -73,7 +72,7 @@ def download_soprano_tts(model_dir: Path) -> bool:
 
         except FileNotFoundError:
             print(
-                f"   ⚠️  huggingface-cli not found. Install with: pip install -U 'huggingface_hub[cli]'"
+                "   ⚠️  huggingface-cli not found. Install with: pip install -U 'huggingface_hub[cli]'"
             )
             return False
         except Exception as e:

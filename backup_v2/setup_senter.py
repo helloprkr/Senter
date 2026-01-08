@@ -4,13 +4,9 @@ Setup Senter - Initial Configuration and Model Downloads
 Guides users through setup with optional model downloads
 """
 
-import os
-import sys
 import json
-import argparse
 from pathlib import Path
-from urllib.request import urlopen, Request
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 
 def print_banner():
@@ -51,7 +47,7 @@ def download_infrastructure_models(senter_root: Path) -> bool:
     mmproj_path = omni_config.get("mmproj")
 
     if omni_path:
-        print(f"\n   📹 Checking Omni 3B model...")
+        print("\n   📹 Checking Omni 3B model...")
         omni_file = senter_root / omni_path
 
         if omni_file.exists():
@@ -75,7 +71,7 @@ def download_infrastructure_models(senter_root: Path) -> bool:
     embed_path = embed_config.get("path")
 
     if embed_path:
-        print(f"\n   🧠 Checking embedding model...")
+        print("\n   🧠 Checking embedding model...")
         embed_file = senter_root / embed_path
 
         if embed_file.exists():
@@ -173,7 +169,7 @@ def download_recommended_model(
         print(f"\n   📥 Selected: {selected['name']}")
         print(f"   📝 Description: {selected['description']}")
         print(f"   💾 Size: ~{selected['size_gb']}GB")
-        print(f"   👁️  VLM: Yes")
+        print("   👁️  VLM: Yes")
 
         # Update user profile
         user_profile["central_model"] = {

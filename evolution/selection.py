@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .mutations import Mutation, MutationResult
-    from .fitness import FitnessTracker
     from coupling.trust import TrustTracker
 
 

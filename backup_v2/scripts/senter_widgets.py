@@ -7,7 +7,7 @@ Interactive widgets for the modular sidebar system
 import os
 import sys
 import json
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,21 +16,14 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(__file__))
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical, Grid, Container
+from textual.containers import Horizontal, Vertical, Grid
 from textual.widgets import (
     Static,
     Button,
     Input,
     TextArea,
-    ListView,
-    ListItem,
-    Label,
-    Checkbox,
 )
-from textual import events
 from textual.widget import Widget
-from textual.css.query import NoMatches
-from textual.reactive import reactive
 
 
 @dataclass
