@@ -5,12 +5,54 @@ Senter doesn't just respond - it anticipates and suggests.
 """
 
 from __future__ import annotations
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.engine import Senter
     from .goals import GoalDetector
+
+
+@dataclass
+class GoalDerivedTask:
+    """A task created from an active goal."""
+    task_id: str
+    goal_id: str
+    task_type: str  # research, plan
+    description: str
+    parameters: Dict[str, Any]
+    origin: str = "goal_derived"
+    created_at: Optional[datetime] = None
+
+    def __post_init__(self):
+        if self.created_at is None:
+            self.created_at = datetime.now()
+
+
+@dataclass
+class NeedPattern:
+    """A detected recurring need pattern."""
+    topic: str
+    frequency: int  # How often this need occurs
+    time_slots: List[int]  # Hours of day when this need typically occurs
+    confidence: float  # Confidence this is a real pattern
+    last_occurrence: datetime
+    associated_activities: List[str]  # e.g., ["coding", "writing"]
+
+    def matches_time(self, hour: int) -> bool:
+        """Check if the current hour matches this pattern's time slots."""
+        return hour in self.time_slots
+
+
+@dataclass
+class PredictedNeed:
+    """A predicted future need based on patterns."""
+    topic: str
+    predicted_time: datetime
+    confidence: float
+    source_pattern: str  # ID or description of source pattern
+    prefetch_query: str  # Query for pre-fetching research
 
 
 class ProactiveSuggestionEngine:
@@ -27,6 +69,13 @@ class ProactiveSuggestionEngine:
         self.goal_detector = goal_detector
         self.last_suggestions: Dict[str, datetime] = {}
         self.suggestion_cooldown = timedelta(hours=4)
+        self.created_task_ids: Dict[str, datetime] = {}  # goal_id -> last task creation time
+        self.task_creation_cooldown = timedelta(hours=12)  # Don't create tasks too often
+        self.min_trust_for_tasks = 0.7  # Minimum trust level to create tasks
+        # Need pattern tracking
+        self.need_patterns: Dict[str, NeedPattern] = {}
+        self.prefetched_research: Dict[str, Dict[str, Any]] = {}  # topic -> research results
+        self.min_pattern_frequency = 3  # Minimum occurrences to consider a pattern
 
     async def generate_suggestions(self) -> List[Dict[str, Any]]:
         """Generate current suggestions."""
@@ -49,6 +98,87 @@ class ProactiveSuggestionEngine:
         filtered = self._filter_suggestions(suggestions)
 
         return filtered[:3]  # Return top 3
+
+    def create_tasks_from_goals(self) -> List[GoalDerivedTask]:
+        """
+        Create background tasks from active goals.
+
+        Requirements:
+        - Trust level must be > 0.7
+        - Respects task creation cooldown per goal
+        - Task type is 'research' for learning goals, 'plan' for others
+        - All tasks have origin='goal_derived'
+        """
+        tasks = []
+
+        # Check trust level
+        trust = getattr(self.engine, "trust", None)
+        trust_level = trust.level if trust else 0.5
+
+        if trust_level < self.min_trust_for_tasks:
+            return tasks  # Not enough trust to create tasks
+
+        if not self.goal_detector:
+            return tasks
+
+        # Get active goals
+        goals = self.goal_detector.get_active_goals()
+
+        for goal in goals:
+            # Check cooldown for this goal
+            if not self._should_create_task_for_goal(goal.id):
+                continue
+
+            # Determine task type based on goal category
+            if goal.category == "learning":
+                task_type = "research"
+                description = f"Research resources and latest information about: {goal.description}"
+            else:
+                task_type = "plan"
+                description = f"Create actionable steps for: {goal.description}"
+
+            # Create task
+            task = GoalDerivedTask(
+                task_id=f"goal_{goal.id}_{int(datetime.now().timestamp())}",
+                goal_id=goal.id,
+                task_type=task_type,
+                description=description,
+                parameters={
+                    "goal_description": goal.description,
+                    "goal_category": goal.category,
+                    "goal_confidence": goal.confidence,
+                    "goal_progress": goal.progress,
+                },
+                origin="goal_derived",
+            )
+
+            tasks.append(task)
+
+            # Mark as created
+            self.created_task_ids[goal.id] = datetime.now()
+
+        return tasks
+
+    def _should_create_task_for_goal(self, goal_id: str) -> bool:
+        """Check if we should create a task for this goal (respects cooldown)."""
+        if goal_id not in self.created_task_ids:
+            return True
+
+        elapsed = datetime.now() - self.created_task_ids[goal_id]
+        return elapsed >= self.task_creation_cooldown
+
+    def get_task_creation_status(self) -> Dict[str, Any]:
+        """Get status of task creation from goals."""
+        trust = getattr(self.engine, "trust", None)
+        trust_level = trust.level if trust else 0.5
+
+        return {
+            "trust_level": trust_level,
+            "min_trust_required": self.min_trust_for_tasks,
+            "can_create_tasks": trust_level >= self.min_trust_for_tasks,
+            "goals_with_recent_tasks": len(self.created_task_ids),
+            "cooldown_hours": self.task_creation_cooldown.total_seconds() / 3600,
+        }
 
     async def _goal_based_suggestions(self) -> List[Dict]:
         """Suggestions based on user goals."""
@@ -253,4 +383,220 @@ class ProactiveSuggestionEngine:
             "active_suggestions": len(self.last_suggestions),
             "cooldown_hours": self.suggestion_cooldown.total_seconds() / 3600,
             "has_goal_detector": self.goal_detector is not None,
+            "need_patterns_count": len(self.need_patterns),
+            "prefetched_research_count": len(self.prefetched_research),
         }
+
+    def analyze_needs_patterns(
+        self,
+        episodes: Optional[List[Any]] = None,
+        activity_context: Optional[str] = None
+    ) -> List[NeedPattern]:
+        """
+        Analyze conversation patterns for recurring needs.
+
+        Looks for:
+        - Topics that come up repeatedly
+        - Time-of-day correlations
+        - Activity-based correlations
+        """
+        patterns = []
+
+        if episodes is None:
+            try:
+                episodes = self.engine.memory._episodic.get_recent(limit=100)
+            except Exception:
+                return patterns
+
+        if not episodes:
+            return patterns
+
+        # Track topic occurrences with time and context
+        topic_occurrences: Dict[str, List[Dict[str, Any]]] = {}
+
+        for ep in episodes:
+            # Extract key topics (simple keyword extraction)
+            words = ep.input.lower().split()
+            # Filter to meaningful words
+            topics = [
+                w for w in words
+                if len(w) > 4
+                and w not in ["about", "would", "could", "should", "there", "their", "where", "which", "these", "those"]
+            ]
+
+            hour = getattr(ep, "timestamp", datetime.now()).hour if hasattr(ep, "timestamp") else datetime.now().hour
+            context = activity_context or getattr(ep, "context", "general")
+
+            for topic in set(topics):  # Dedupe within episode
+                if topic not in topic_occurrences:
+                    topic_occurrences[topic] = []
+                topic_occurrences[topic].append({
+                    "hour": hour,
+                    "context": context,
+                    "timestamp": getattr(ep, "timestamp", datetime.now()),
+                })
+
+        # Convert to patterns (topics with >= min_pattern_frequency occurrences)
+        for topic, occurrences in topic_occurrences.items():
+            if len(occurrences) >= self.min_pattern_frequency:
+                # Calculate time slots (hours where this topic commonly occurs)
+                hours = [o["hour"] for o in occurrences]
+                time_slots = list(set(hours))
+
+                # Calculate associated activities
+                contexts = [o["context"] for o in occurrences]
+                associated_activities = list(set(contexts))
+
+                # Confidence based on consistency
+                confidence = min(len(occurrences) / 10, 1.0)  # Cap at 1.0
+
+                pattern = NeedPattern(
+                    topic=topic,
+                    frequency=len(occurrences),
+                    time_slots=time_slots,
+                    confidence=confidence,
+                    last_occurrence=max(o["timestamp"] for o in occurrences),
+                    associated_activities=associated_activities,
+                )
+
+                patterns.append(pattern)
+
+                # Store in internal dict
+                self.need_patterns[topic] = pattern
+
+        # Sort by frequency
+        patterns.sort(key=lambda p: p.frequency, reverse=True)
+
+        return patterns
+
+    def predict_needs(
+        self,
+        current_hour: Optional[int] = None,
+        current_activity: Optional[str] = None
+    ) -> List[PredictedNeed]:
+        """
+        Predict needs based on time-of-day + activity patterns.
+
+        Returns list of predicted needs sorted by confidence.
+        """
+        predictions = []
+
+        if current_hour is None:
+            current_hour = datetime.now().hour
+
+        for topic, pattern in self.need_patterns.items():
+            # Check time match
+            time_match = pattern.matches_time(current_hour)
+
+            # Check activity match
+            activity_match = (
+                current_activity is not None
+                and current_activity in pattern.associated_activities
+            )
+
+            # Calculate prediction confidence
+            base_confidence = pattern.confidence
+            if time_match:
+                base_confidence *= 1.2  # Boost for time match
+            if activity_match:
+                base_confidence *= 1.3  # Boost for activity match
+
+            # Only predict if reasonably confident
+            if base_confidence >= 0.3 and (time_match or activity_match):
+                prediction = PredictedNeed(
+                    topic=topic,
+                    predicted_time=datetime.now(),
+                    confidence=min(base_confidence, 1.0),
+                    source_pattern=f"freq:{pattern.frequency}, time:{time_match}, activity:{activity_match}",
+                    prefetch_query=f"information about {topic}",
+                )
+                predictions.append(prediction)
+
+        # Sort by confidence
+        predictions.sort(key=lambda p: p.confidence, reverse=True)
+
+        return predictions[:5]  # Return top 5 predictions
+
+    async def prefetch_research_for_needs(
+        self,
+        predictions: Optional[List[PredictedNeed]] = None,
+        model: Optional[Any] = None
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Pre-fetch research for predicted needs.
+
+        Returns dict of topic -> research results.
+        """
+        if predictions is None:
+            predictions = self.predict_needs()
+
+        results = {}
+
+        # Use provided model or engine's model
+        llm = model or (self.engine.model if self.engine else None)
+
+        for prediction in predictions:
+            topic = prediction.topic
+
+            # Skip if already prefetched recently
+            if topic in self.prefetched_research:
+                existing = self.prefetched_research[topic]
+                if existing.get("fetched_at"):
+                    age = datetime.now() - existing["fetched_at"]
+                    if age < timedelta(hours=6):  # Cache for 6 hours
+                        results[topic] = existing
+                        continue
+
+            # Generate research using LLM if available
+            if llm:
+                try:
+                    prompt = f"""Provide a brief, helpful summary about: {prediction.prefetch_query}
+
+Include:
+1. Key points to know
+2. Common questions answered
+3. Useful tips
+
+Keep it concise (2-3 paragraphs)."""
+
+                    summary = await llm.generate(prompt)
+
+                    research = {
+                        "topic": topic,
+                        "summary": summary,
+                        "confidence": prediction.confidence,
+                        "fetched_at": datetime.now(),
+                        "source": "llm_prefetch",
+                    }
+
+                    results[topic] = research
+                    self.prefetched_research[topic] = research
+                except Exception as e:
+                    results[topic] = {
+                        "topic": topic,
+                        "error": str(e),
+                        "fetched_at": datetime.now(),
+                    }
+            else:
+                # No LLM, just mark as needing research
+                results[topic] = {
+                    "topic": topic,
+                    "summary": f"Research needed for: {topic}",
+                    "confidence": prediction.confidence,
+                    "fetched_at": datetime.now(),
+                    "source": "placeholder",
+                }
+                self.prefetched_research[topic] = results[topic]
+
+        return results
+
+    def get_prefetched_research(self, topic: str) -> Optional[Dict[str, Any]]:
+        """Get prefetched research for a topic if available."""
+        return self.prefetched_research.get(topic)
+
+    def clear_prefetched_research(self, topic: Optional[str] = None) -> None:
+        """Clear prefetched research cache."""
+        if topic:
+            self.prefetched_research.pop(topic, None)
+        else:
+            self.prefetched_research.clear()

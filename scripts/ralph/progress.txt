@@ -60,3 +60,116 @@ Project: Senter 3.0 Depth Improvements
   - Use every 10th cycle for LLM inference to balance accuracy vs cost
   - Mock AsyncMock for testing async LLM calls
 ---
+
+## 2026-01-07 - US-002: Add project detection to ActivityMonitor
+- Implemented: ProjectDetector class and integration with ActivityMonitor
+- Files changed:
+  - intelligence/activity.py (added ProjectDetector class, integration in _capture_cycle)
+  - tests/test_depth_features.py (added 12 tests for project detection)
+- Learnings:
+  - Pattern-based detection works well for IDE window titles
+  - Store project frequency for later goal suggestions
+  - Prefer LLM-detected project over pattern-detected when available
+---
+
+## 2026-01-07 - US-003: Integrate ActivityMonitor with goal suggestion
+- Implemented: Activity-to-goal pipeline with source tracking
+- Files changed:
+  - intelligence/goals.py (added source field, create_activity_inferred_goal, get_goals_by_source)
+  - intelligence/activity.py (added goal suggestion methods)
+  - tests/test_depth_features.py (added 12 tests for activity-goal integration)
+- Learnings:
+  - Use minimum snapshot threshold (10) to avoid spurious goal creation
+  - Track goal source for filtering and audit
+  - Suggest goals based on both context type and project name
+  - Confidence should scale with observation frequency
+---
+
+## 2026-01-07 - US-004: Add LLM-based semantic goal detection
+- Implemented: LLM-powered goal detection from conversation history
+- Files changed:
+  - intelligence/goals.py (added detect_goals_semantically, _parse_llm_goal_response)
+  - tests/test_depth_features.py (added 11 tests for semantic detection)
+- Learnings:
+  - JSON extraction needs both direct parse and regex fallback
+  - Filter out short descriptions (<5 chars) to avoid noise
+  - Clamp confidence to 0.3-0.9 range to avoid extremes
+  - Support both direct episode list and memory fetch patterns
+---
+
+## 2026-01-07 - US-005: Add goal progress detection via LLM
+- Implemented: Progress and completion detection from text
+- Files changed:
+  - intelligence/goals.py (added _detect_progress_from_text, _update_goal_by_topic, detect_progress_with_llm)
+  - tests/test_depth_features.py (added 12 tests for progress detection)
+- Learnings:
+  - Process progress patterns BEFORE completion patterns to avoid overlap
+  - Use Jaccard similarity for fuzzy topic matching
+  - Progress should only increase, never decrease
+  - Completion patterns: finished, completed, done with, wrapped up
+  - Progress patterns: percentages, halfway, almost done
+---
+
+## 2026-01-07 - US-006: Add failure analysis to MutationEngine
+- Implemented: Episode failure pattern analysis
+- Files changed:
+  - evolution/mutations.py (added FailureAnalysis dataclass, analyze_low_fitness_episodes, _generate_fixes_from_patterns)
+  - tests/test_depth_features.py (added 12 tests for failure analysis)
+- Learnings:
+  - Categorize failures: too_long, too_short, wrong_mode, missed_frustration, low_engagement, off_topic
+  - Skip high-fitness episodes when analyzing failures
+  - Generate targeted fix suggestions based on pattern frequency
+  - Track worst episode for debugging
+---
+
+## 2026-01-07 - US-007: Add LLM-driven mutation proposals
+- Implemented: LLM-based intelligent mutation proposals
+- Files changed:
+  - evolution/mutations.py (added propose_intelligent_mutation, _parse_llm_mutation_response, _create_mutation_from_llm, _propose_mutation_from_analysis)
+  - tests/test_depth_features.py (added 16 tests for intelligent mutations)
+- Learnings:
+  - Check bool before int/float since bool is subclass of int
+  - Use heuristic fallback when LLM unavailable or fails
+  - Map failure patterns to specific config changes
+  - JSON extraction needs both direct parse and regex fallback
+---
+
+## 2026-01-07 - US-008: Add self-initiated task creation from goals
+- Implemented: GoalDerivedTask dataclass and create_tasks_from_goals method
+- Files changed:
+  - intelligence/proactive.py (added GoalDerivedTask dataclass, create_tasks_from_goals, _should_create_task_for_goal, get_task_creation_status)
+  - intelligence/goals.py (added default values to Goal dataclass fields)
+  - tests/test_depth_features.py (added 14 tests for self-initiated tasks)
+- Learnings:
+  - Use trust level gating (>0.7) for autonomous task creation
+  - 12-hour cooldown prevents duplicate task creation for same goal
+  - Task type determined by goal category: learning -> research, others -> plan
+  - All tasks have origin='goal_derived' for audit trail
+  - Added defaults to Goal dataclass for easier test construction
+---
+
+## 2026-01-07 - US-009: Add goal-based background research automation
+- Implemented: GoalResearchResult dataclass, auto_research_learning_goals, _do_goal_research, get_while_you_were_away_summary
+- Files changed:
+  - daemon/senter_daemon.py (added GoalResearchResult, auto-research methods, while-you-were-away summary)
+  - tests/test_depth_features.py (added 13 tests for automated goal research)
+- Learnings:
+  - Store research results linked to goals in semantic memory with domain="goal_research"
+  - While-you-were-away summary filters by time window (default 24h)
+  - Research results list trimmed to prevent unbounded growth
+  - Integrate with proactive engine's cooldown to prevent duplicate research
+  - Remember to import timedelta when using time deltas
+---
+
+## 2026-01-07 - US-010: Add pattern-based need prediction to ProactiveSuggestionEngine
+- Implemented: NeedPattern, PredictedNeed dataclasses, analyze_needs_patterns, predict_needs, prefetch_research_for_needs
+- Files changed:
+  - intelligence/proactive.py (added dataclasses and pattern/prediction methods)
+  - tests/test_depth_features.py (added 18 tests for anticipatory need prediction)
+- Learnings:
+  - Filter common words to avoid noise in pattern detection
+  - Minimum frequency threshold (3) prevents spurious patterns
+  - Boost confidence for time and activity matches
+  - Cache prefetched research with 6-hour TTL
+  - Store patterns internally for efficient prediction lookup
+---

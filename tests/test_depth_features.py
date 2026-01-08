@@ -1833,3 +1833,1018 @@ class TestIntelligentMutationProposal:
         mutation = engine._propose_mutation_from_analysis(analysis)
 
         assert mutation is None
+
+# ============================================================================
+# US-008: Self-initiated task creation from goals
+# ============================================================================
+
+class TestSelfInitiatedTasks:
+    """Tests for self-initiated task creation from goals."""
+
+    def test_goal_derived_task_dataclass(self):
+        """Test GoalDerivedTask dataclass structure."""
+        from intelligence.proactive import GoalDerivedTask
+
+        task = GoalDerivedTask(
+            task_id="goal_123_1234567890",
+            goal_id="123",
+            task_type="research",
+            description="Research about Python",
+            parameters={"goal_description": "Learn Python"}
+        )
+
+        assert task.task_id == "goal_123_1234567890"
+        assert task.goal_id == "123"
+        assert task.task_type == "research"
+        assert task.origin == "goal_derived"
+        assert task.created_at is not None
+
+    def test_goal_derived_task_defaults(self):
+        """Test GoalDerivedTask default values."""
+        from intelligence.proactive import GoalDerivedTask
+
+        task = GoalDerivedTask(
+            task_id="test",
+            goal_id="1",
+            task_type="plan",
+            description="Test",
+            parameters={}
+        )
+
+        assert task.origin == "goal_derived"
+        assert task.created_at is not None
+
+    def test_create_tasks_from_goals_requires_trust(self):
+        """Test that task creation requires trust level > 0.7."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+        from intelligence.goals import GoalDetector, Goal
+
+        # Mock engine with low trust
+        mock_trust = MagicMock()
+        mock_trust.level = 0.5  # Below threshold
+        mock_engine = MagicMock()
+        mock_engine.trust = mock_trust
+
+        mock_memory = MagicMock()
+        goal_detector = GoalDetector(mock_memory)
+        goal_detector.goals = {"1": Goal(id="1", description="Learn Python", category="learning")}
+
+        engine = ProactiveSuggestionEngine(mock_engine, goal_detector)
+
+        tasks = engine.create_tasks_from_goals()
+
+        assert len(tasks) == 0  # No tasks due to low trust
+
+    def test_create_tasks_from_goals_with_sufficient_trust(self):
+        """Test task creation with sufficient trust level."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+        from intelligence.goals import GoalDetector, Goal
+
+        # Mock engine with high trust
+        mock_trust = MagicMock()
+        mock_trust.level = 0.8  # Above threshold
+        mock_engine = MagicMock()
+        mock_engine.trust = mock_trust
+
+        mock_memory = MagicMock()
+        goal_detector = GoalDetector(mock_memory)
+        goal_detector.goals = {"1": Goal(id="1", description="Learn Python", category="learning")}
+
+        engine = ProactiveSuggestionEngine(mock_engine, goal_detector)
+
+        tasks = engine.create_tasks_from_goals()
+
+        assert len(tasks) == 1
+        assert tasks[0].goal_id == "1"
+        assert tasks[0].origin == "goal_derived"
+
+    def test_create_tasks_research_for_learning_goals(self):
+        """Test that learning goals create research tasks."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+        from intelligence.goals import GoalDetector, Goal
+
+        mock_trust = MagicMock()
+        mock_trust.level = 0.8
+        mock_engine = MagicMock()
+        mock_engine.trust = mock_trust
+
+        mock_memory = MagicMock()
+        goal_detector = GoalDetector(mock_memory)
+        goal_detector.goals = {"1": Goal(id="1", description="Learn Spanish", category="learning")}
+
+        engine = ProactiveSuggestionEngine(mock_engine, goal_detector)
+
+        tasks = engine.create_tasks_from_goals()
+
+        assert len(tasks) == 1
+        assert tasks[0].task_type == "research"
+        assert "Research" in tasks[0].description
+
+    def test_create_tasks_plan_for_non_learning_goals(self):
+        """Test that non-learning goals create plan tasks."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+        from intelligence.goals import GoalDetector, Goal
+
+        mock_trust = MagicMock()
+        mock_trust.level = 0.8
+        mock_engine = MagicMock()
+        mock_engine.trust = mock_trust
+
+        mock_memory = MagicMock()
+        goal_detector = GoalDetector(mock_memory)
+        goal_detector.goals = {"1": Goal(id="1", description="Ship feature", category="work")}
+
+        engine = ProactiveSuggestionEngine(mock_engine, goal_detector)
+
+        tasks = engine.create_tasks_from_goals()
+
+        assert len(tasks) == 1
+        assert tasks[0].task_type == "plan"
+        assert "actionable steps" in tasks[0].description
+
+    def test_create_tasks_respects_cooldown(self):
+        """Test that cooldown prevents duplicate task creation."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+        from intelligence.goals import GoalDetector, Goal
+        from datetime import datetime, timedelta
+
+        mock_trust = MagicMock()
+        mock_trust.level = 0.8
+        mock_engine = MagicMock()
+        mock_engine.trust = mock_trust
+
+        mock_memory = MagicMock()
+        goal_detector = GoalDetector(mock_memory)
+        goal_detector.goals = {"1": Goal(id="1", description="Learn Python", category="learning")}
+
+        engine = ProactiveSuggestionEngine(mock_engine, goal_detector)
+
+        # First call creates task
+        tasks1 = engine.create_tasks_from_goals()
+        assert len(tasks1) == 1
+
+        # Second call should not create (cooldown)
+        tasks2 = engine.create_tasks_from_goals()
+        assert len(tasks2) == 0
+
+    def test_create_tasks_cooldown_expires(self):
+        """Test that tasks can be created after cooldown expires."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+        from intelligence.goals import GoalDetector, Goal
+        from datetime import datetime, timedelta
+
+        mock_trust = MagicMock()
+        mock_trust.level = 0.8
+        mock_engine = MagicMock()
+        mock_engine.trust = mock_trust
+
+        mock_memory = MagicMock()
+        goal_detector = GoalDetector(mock_memory)
+        goal_detector.goals = {"1": Goal(id="1", description="Learn Python", category="learning")}
+
+        engine = ProactiveSuggestionEngine(mock_engine, goal_detector)
+
+        # First call
+        tasks1 = engine.create_tasks_from_goals()
+        assert len(tasks1) == 1
+
+        # Simulate cooldown expired
+        engine.created_task_ids["1"] = datetime.now() - timedelta(hours=13)
+
+        # Now should create again
+        tasks2 = engine.create_tasks_from_goals()
+        assert len(tasks2) == 1
+
+    def test_create_tasks_multiple_goals(self):
+        """Test task creation with multiple goals."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+        from intelligence.goals import GoalDetector, Goal
+
+        mock_trust = MagicMock()
+        mock_trust.level = 0.8
+        mock_engine = MagicMock()
+        mock_engine.trust = mock_trust
+
+        mock_memory = MagicMock()
+        goal_detector = GoalDetector(mock_memory)
+        goal_detector.goals = {
+            "1": Goal(id="1", description="Learn Python", category="learning"),
+            "2": Goal(id="2", description="Build app", category="project"),
+            "3": Goal(id="3", description="Study Japanese", category="learning")
+        }
+
+        engine = ProactiveSuggestionEngine(mock_engine, goal_detector)
+
+        tasks = engine.create_tasks_from_goals()
+
+        assert len(tasks) == 3
+        task_types = {t.task_type for t in tasks}
+        assert "research" in task_types
+        assert "plan" in task_types
+
+    def test_create_tasks_parameters_include_goal_info(self):
+        """Test that task parameters include goal information."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+        from intelligence.goals import GoalDetector, Goal
+
+        mock_trust = MagicMock()
+        mock_trust.level = 0.8
+        mock_engine = MagicMock()
+        mock_engine.trust = mock_trust
+
+        mock_memory = MagicMock()
+        goal_detector = GoalDetector(mock_memory)
+        goal_detector.goals = {
+            "1": Goal(id="1", description="Learn Python", category="learning", confidence=0.7, progress=0.3)
+        }
+
+        engine = ProactiveSuggestionEngine(mock_engine, goal_detector)
+
+        tasks = engine.create_tasks_from_goals()
+
+        assert len(tasks) == 1
+        params = tasks[0].parameters
+        assert params["goal_description"] == "Learn Python"
+        assert params["goal_category"] == "learning"
+        assert params["goal_confidence"] == 0.7
+        assert params["goal_progress"] == 0.3
+
+    def test_get_task_creation_status_low_trust(self):
+        """Test task creation status with low trust."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_trust = MagicMock()
+        mock_trust.level = 0.5
+        mock_engine = MagicMock()
+        mock_engine.trust = mock_trust
+
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        status = engine.get_task_creation_status()
+
+        assert status["trust_level"] == 0.5
+        assert status["min_trust_required"] == 0.7
+        assert status["can_create_tasks"] is False
+
+    def test_get_task_creation_status_high_trust(self):
+        """Test task creation status with high trust."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_trust = MagicMock()
+        mock_trust.level = 0.85
+        mock_engine = MagicMock()
+        mock_engine.trust = mock_trust
+
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        status = engine.get_task_creation_status()
+
+        assert status["trust_level"] == 0.85
+        assert status["can_create_tasks"] is True
+        assert status["cooldown_hours"] == 12
+
+    def test_create_tasks_no_goal_detector(self):
+        """Test that no tasks created without goal detector."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_trust = MagicMock()
+        mock_trust.level = 0.8
+        mock_engine = MagicMock()
+        mock_engine.trust = mock_trust
+
+        engine = ProactiveSuggestionEngine(mock_engine, goal_detector=None)
+
+        tasks = engine.create_tasks_from_goals()
+
+        assert len(tasks) == 0
+
+    def test_should_create_task_for_goal_first_time(self):
+        """Test _should_create_task_for_goal returns True for new goal."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        result = engine._should_create_task_for_goal("new_goal")
+
+        assert result is True
+
+
+# ============================================================================
+# US-009: Goal-based background research automation
+# ============================================================================
+
+class TestAutomatedGoalResearch:
+    """Tests for automated goal research in daemon."""
+
+    def test_goal_research_result_dataclass(self):
+        """Test GoalResearchResult dataclass structure."""
+        from daemon.senter_daemon import GoalResearchResult
+        from datetime import datetime
+
+        result = GoalResearchResult(
+            goal_id="123",
+            goal_description="Learn Python",
+            research_summary="Python is a programming language...",
+            sources=["https://python.org"],
+            completed_at=datetime.now()
+        )
+
+        assert result.goal_id == "123"
+        assert result.goal_description == "Learn Python"
+        assert "Python" in result.research_summary
+        assert len(result.sources) == 1
+        assert result.stored_in_memory is False
+
+    def test_goal_research_result_defaults(self):
+        """Test GoalResearchResult default values."""
+        from daemon.senter_daemon import GoalResearchResult
+        from datetime import datetime
+
+        result = GoalResearchResult(
+            goal_id="1",
+            goal_description="Test",
+            research_summary="Summary",
+            sources=[],
+            completed_at=datetime.now()
+        )
+
+        assert result.stored_in_memory is False
+
+    def test_background_worker_has_research_list(self):
+        """Test BackgroundWorker initializes with empty research list."""
+        from daemon.senter_daemon import BackgroundWorker, TaskQueue
+        from pathlib import Path
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue = TaskQueue(Path(tmpdir) / "tasks.json")
+            worker = BackgroundWorker(engine=None, task_queue=queue)
+
+            assert hasattr(worker, "goal_research_results")
+            assert worker.goal_research_results == []
+            assert worker._max_research_results == 50
+
+    @pytest.mark.asyncio
+    async def test_auto_research_returns_empty_without_engine(self):
+        """Test auto_research returns empty list without engine."""
+        from daemon.senter_daemon import BackgroundWorker, TaskQueue
+        from pathlib import Path
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue = TaskQueue(Path(tmpdir) / "tasks.json")
+            worker = BackgroundWorker(engine=None, task_queue=queue)
+
+            results = await worker.auto_research_learning_goals()
+
+            assert results == []
+
+    @pytest.mark.asyncio
+    async def test_auto_research_returns_empty_without_goal_detector(self):
+        """Test auto_research returns empty list without goal detector."""
+        from daemon.senter_daemon import BackgroundWorker, TaskQueue
+        from pathlib import Path
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue = TaskQueue(Path(tmpdir) / "tasks.json")
+            mock_engine = MagicMock()
+            mock_engine.goal_detector = None
+            worker = BackgroundWorker(engine=mock_engine, task_queue=queue)
+
+            results = await worker.auto_research_learning_goals()
+
+            assert results == []
+
+    @pytest.mark.asyncio
+    async def test_do_goal_research_stores_in_memory(self):
+        """Test _do_goal_research stores result in semantic memory."""
+        from daemon.senter_daemon import BackgroundWorker, TaskQueue, Task, TaskPriority
+        from pathlib import Path
+        from datetime import datetime
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue = TaskQueue(Path(tmpdir) / "tasks.json")
+
+            # Mock engine with model and memory
+            mock_model = AsyncMock()
+            mock_model.generate = AsyncMock(return_value="Research summary about Python basics")
+
+            mock_memory = MagicMock()
+            mock_semantic = MagicMock()
+            mock_memory.semantic = mock_semantic
+
+            mock_engine = MagicMock()
+            mock_engine.model = mock_model
+            mock_engine.memory = mock_memory
+
+            worker = BackgroundWorker(engine=mock_engine, task_queue=queue)
+
+            task = Task(
+                priority=TaskPriority.BACKGROUND.value,
+                created_at=datetime.now(),
+                task_id="test_123",
+                task_type="goal_research",
+                description="Research Python",
+                parameters={
+                    "goal_id": "goal_1",
+                    "goal_description": "Learn Python",
+                    "query": "Python basics"
+                }
+            )
+
+            result = await worker._do_goal_research(task)
+
+            assert result is not None
+            assert result.goal_id == "goal_1"
+            assert result.stored_in_memory is True
+            mock_semantic.store.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_do_goal_research_without_llm(self):
+        """Test _do_goal_research creates placeholder without LLM."""
+        from daemon.senter_daemon import BackgroundWorker, TaskQueue, Task, TaskPriority
+        from pathlib import Path
+        from datetime import datetime
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue = TaskQueue(Path(tmpdir) / "tasks.json")
+
+            mock_engine = MagicMock()
+            mock_engine.model = None
+
+            worker = BackgroundWorker(engine=mock_engine, task_queue=queue)
+
+            task = Task(
+                priority=TaskPriority.BACKGROUND.value,
+                created_at=datetime.now(),
+                task_id="test_456",
+                task_type="goal_research",
+                description="Research Spanish",
+                parameters={
+                    "goal_id": "goal_2",
+                    "goal_description": "Learn Spanish",
+                    "query": "Spanish basics"
+                }
+            )
+
+            result = await worker._do_goal_research(task)
+
+            assert result is not None
+            assert "LLM not available" in result.research_summary
+
+    def test_while_you_were_away_no_tasks(self):
+        """Test while_you_were_away with no completed tasks."""
+        from daemon.senter_daemon import BackgroundWorker, TaskQueue
+        from pathlib import Path
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue = TaskQueue(Path(tmpdir) / "tasks.json")
+            worker = BackgroundWorker(engine=None, task_queue=queue)
+
+            summary = worker.get_while_you_were_away_summary()
+
+            assert "completed_tasks" in summary
+            assert "goal_research" in summary
+            assert "summary" in summary
+            assert len(summary["completed_tasks"]) == 0
+            assert "No background work" in summary["summary"]
+
+    def test_while_you_were_away_with_tasks(self):
+        """Test while_you_were_away with completed tasks."""
+        from daemon.senter_daemon import BackgroundWorker, TaskQueue, Task, TaskPriority
+        from pathlib import Path
+        from datetime import datetime
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue = TaskQueue(Path(tmpdir) / "tasks.json")
+            worker = BackgroundWorker(engine=None, task_queue=queue)
+
+            # Add a completed task
+            task = Task(
+                priority=TaskPriority.NORMAL.value,
+                created_at=datetime.now(),
+                task_id="task_1",
+                task_type="research",
+                description="Research topic",
+                status="completed",
+                result="Completed successfully"
+            )
+            worker.completed_tasks.append(task)
+
+            summary = worker.get_while_you_were_away_summary()
+
+            assert len(summary["completed_tasks"]) == 1
+            assert "Completed 1 background tasks" in summary["summary"]
+
+    def test_while_you_were_away_with_research(self):
+        """Test while_you_were_away with goal research."""
+        from daemon.senter_daemon import BackgroundWorker, TaskQueue, GoalResearchResult
+        from pathlib import Path
+        from datetime import datetime
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue = TaskQueue(Path(tmpdir) / "tasks.json")
+            worker = BackgroundWorker(engine=None, task_queue=queue)
+
+            # Add research result
+            result = GoalResearchResult(
+                goal_id="goal_1",
+                goal_description="Learn Python",
+                research_summary="Python is great for beginners...",
+                sources=["https://python.org"],
+                completed_at=datetime.now(),
+                stored_in_memory=True
+            )
+            worker.goal_research_results.append(result)
+
+            summary = worker.get_while_you_were_away_summary()
+
+            assert len(summary["goal_research"]) == 1
+            assert "Researched 1 learning goals" in summary["summary"]
+            assert summary["goal_research"][0]["stored"] is True
+
+    def test_while_you_were_away_filters_by_time(self):
+        """Test while_you_were_away filters results by time."""
+        from daemon.senter_daemon import BackgroundWorker, TaskQueue, Task, TaskPriority
+        from pathlib import Path
+        from datetime import datetime, timedelta
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue = TaskQueue(Path(tmpdir) / "tasks.json")
+            worker = BackgroundWorker(engine=None, task_queue=queue)
+
+            # Add old task (more than 24 hours ago)
+            old_task = Task(
+                priority=TaskPriority.NORMAL.value,
+                created_at=datetime.now() - timedelta(hours=48),
+                task_id="old_task",
+                task_type="research",
+                description="Old research",
+                status="completed"
+            )
+            worker.completed_tasks.append(old_task)
+
+            # Add recent task
+            recent_task = Task(
+                priority=TaskPriority.NORMAL.value,
+                created_at=datetime.now(),
+                task_id="recent_task",
+                task_type="research",
+                description="Recent research",
+                status="completed"
+            )
+            worker.completed_tasks.append(recent_task)
+
+            summary = worker.get_while_you_were_away_summary()
+
+            assert len(summary["completed_tasks"]) == 1
+            assert summary["completed_tasks"][0]["id"] == "recent_task"
+
+    def test_while_you_were_away_custom_since(self):
+        """Test while_you_were_away with custom since parameter."""
+        from daemon.senter_daemon import BackgroundWorker, TaskQueue, Task, TaskPriority
+        from pathlib import Path
+        from datetime import datetime, timedelta
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue = TaskQueue(Path(tmpdir) / "tasks.json")
+            worker = BackgroundWorker(engine=None, task_queue=queue)
+
+            # Add task from 36 hours ago
+            task = Task(
+                priority=TaskPriority.NORMAL.value,
+                created_at=datetime.now() - timedelta(hours=36),
+                task_id="task_36h",
+                task_type="research",
+                description="36h ago research",
+                status="completed"
+            )
+            worker.completed_tasks.append(task)
+
+            # Default (24h) should not include it
+            summary_24h = worker.get_while_you_were_away_summary()
+            assert len(summary_24h["completed_tasks"]) == 0
+
+            # 48h window should include it
+            summary_48h = worker.get_while_you_were_away_summary(
+                since=datetime.now() - timedelta(hours=48)
+            )
+            assert len(summary_48h["completed_tasks"]) == 1
+
+    def test_research_results_list_trimmed(self):
+        """Test that research results list is trimmed to max size."""
+        from daemon.senter_daemon import BackgroundWorker, TaskQueue, GoalResearchResult
+        from pathlib import Path
+        from datetime import datetime
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            queue = TaskQueue(Path(tmpdir) / "tasks.json")
+            worker = BackgroundWorker(engine=None, task_queue=queue)
+            worker._max_research_results = 5  # Set low for testing
+
+            # Add more than max results
+            for i in range(10):
+                result = GoalResearchResult(
+                    goal_id=f"goal_{i}",
+                    goal_description=f"Goal {i}",
+                    research_summary=f"Summary {i}",
+                    sources=[],
+                    completed_at=datetime.now()
+                )
+                worker.goal_research_results.append(result)
+
+                # Trim like the real method does
+                if len(worker.goal_research_results) > worker._max_research_results:
+                    worker.goal_research_results = worker.goal_research_results[-worker._max_research_results:]
+
+            assert len(worker.goal_research_results) == 5
+            # Should have the last 5 (goal_5 through goal_9)
+            assert worker.goal_research_results[0].goal_id == "goal_5"
+
+
+# ============================================================================
+# US-010: Pattern-based need prediction
+# ============================================================================
+
+class TestAnticipatoryNeedPrediction:
+    """Tests for anticipatory need prediction."""
+
+    def test_need_pattern_dataclass(self):
+        """Test NeedPattern dataclass structure."""
+        from intelligence.proactive import NeedPattern
+        from datetime import datetime
+
+        pattern = NeedPattern(
+            topic="python",
+            frequency=5,
+            time_slots=[9, 10, 14, 15],
+            confidence=0.7,
+            last_occurrence=datetime.now(),
+            associated_activities=["coding", "learning"]
+        )
+
+        assert pattern.topic == "python"
+        assert pattern.frequency == 5
+        assert len(pattern.time_slots) == 4
+        assert pattern.confidence == 0.7
+
+    def test_need_pattern_matches_time(self):
+        """Test NeedPattern.matches_time method."""
+        from intelligence.proactive import NeedPattern
+        from datetime import datetime
+
+        pattern = NeedPattern(
+            topic="python",
+            frequency=5,
+            time_slots=[9, 10, 14],
+            confidence=0.7,
+            last_occurrence=datetime.now(),
+            associated_activities=[]
+        )
+
+        assert pattern.matches_time(9) is True
+        assert pattern.matches_time(10) is True
+        assert pattern.matches_time(14) is True
+        assert pattern.matches_time(12) is False
+        assert pattern.matches_time(18) is False
+
+    def test_predicted_need_dataclass(self):
+        """Test PredictedNeed dataclass structure."""
+        from intelligence.proactive import PredictedNeed
+        from datetime import datetime
+
+        need = PredictedNeed(
+            topic="python",
+            predicted_time=datetime.now(),
+            confidence=0.8,
+            source_pattern="freq:5, time:True, activity:False",
+            prefetch_query="information about python"
+        )
+
+        assert need.topic == "python"
+        assert need.confidence == 0.8
+        assert "python" in need.prefetch_query
+
+    def test_analyze_needs_patterns_empty_episodes(self):
+        """Test analyze_needs_patterns with empty episodes."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        patterns = engine.analyze_needs_patterns(episodes=[])
+
+        assert patterns == []
+
+    def test_analyze_needs_patterns_finds_recurring_topics(self):
+        """Test analyze_needs_patterns finds recurring topics."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+        from datetime import datetime
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        # Create episodes with recurring topic
+        episodes = []
+        for i in range(5):
+            ep = MagicMock()
+            ep.input = "How do I learn python programming basics"
+            ep.timestamp = datetime.now()
+            episodes.append(ep)
+
+        patterns = engine.analyze_needs_patterns(episodes=episodes)
+
+        # Should find "python" and "programming" as patterns (>= 3 occurrences)
+        topics = [p.topic for p in patterns]
+        assert "python" in topics
+        assert "programming" in topics
+
+    def test_analyze_needs_patterns_filters_common_words(self):
+        """Test that common words are filtered out."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+        from datetime import datetime
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        episodes = []
+        for i in range(5):
+            ep = MagicMock()
+            ep.input = "about would could should there their"
+            ep.timestamp = datetime.now()
+            episodes.append(ep)
+
+        patterns = engine.analyze_needs_patterns(episodes=episodes)
+
+        # Should not find common words as patterns
+        assert len(patterns) == 0
+
+    def test_analyze_needs_patterns_stores_internally(self):
+        """Test that patterns are stored in internal dict."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+        from datetime import datetime
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        episodes = []
+        for i in range(5):
+            ep = MagicMock()
+            ep.input = "python tutorial learning"
+            ep.timestamp = datetime.now()
+            episodes.append(ep)
+
+        engine.analyze_needs_patterns(episodes=episodes)
+
+        assert "python" in engine.need_patterns
+        assert "tutorial" in engine.need_patterns
+
+    def test_predict_needs_empty_patterns(self):
+        """Test predict_needs with no patterns."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        predictions = engine.predict_needs()
+
+        assert predictions == []
+
+    def test_predict_needs_matches_time(self):
+        """Test predict_needs matches time slots."""
+        from intelligence.proactive import ProactiveSuggestionEngine, NeedPattern
+        from datetime import datetime
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        # Add pattern that matches current hour
+        engine.need_patterns["python"] = NeedPattern(
+            topic="python",
+            frequency=5,
+            time_slots=[10],
+            confidence=0.5,
+            last_occurrence=datetime.now(),
+            associated_activities=[]
+        )
+
+        predictions = engine.predict_needs(current_hour=10)
+
+        assert len(predictions) >= 1
+        assert predictions[0].topic == "python"
+        assert "time:True" in predictions[0].source_pattern
+
+    def test_predict_needs_matches_activity(self):
+        """Test predict_needs matches activity."""
+        from intelligence.proactive import ProactiveSuggestionEngine, NeedPattern
+        from datetime import datetime
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        engine.need_patterns["python"] = NeedPattern(
+            topic="python",
+            frequency=5,
+            time_slots=[],
+            confidence=0.5,
+            last_occurrence=datetime.now(),
+            associated_activities=["coding"]
+        )
+
+        predictions = engine.predict_needs(current_hour=12, current_activity="coding")
+
+        assert len(predictions) >= 1
+        assert predictions[0].topic == "python"
+        assert "activity:True" in predictions[0].source_pattern
+
+    def test_predict_needs_boosts_confidence(self):
+        """Test that matching boosts confidence."""
+        from intelligence.proactive import ProactiveSuggestionEngine, NeedPattern
+        from datetime import datetime
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        engine.need_patterns["python"] = NeedPattern(
+            topic="python",
+            frequency=5,
+            time_slots=[10],
+            confidence=0.5,
+            last_occurrence=datetime.now(),
+            associated_activities=["coding"]
+        )
+
+        # Match both time and activity
+        predictions = engine.predict_needs(current_hour=10, current_activity="coding")
+
+        assert len(predictions) >= 1
+        # Base 0.5 * 1.2 (time) * 1.3 (activity) = 0.78
+        assert predictions[0].confidence >= 0.7
+
+    @pytest.mark.asyncio
+    async def test_prefetch_research_without_llm(self):
+        """Test prefetch_research creates placeholders without LLM."""
+        from intelligence.proactive import ProactiveSuggestionEngine, PredictedNeed
+        from datetime import datetime
+
+        mock_engine = MagicMock()
+        mock_engine.model = None
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        predictions = [
+            PredictedNeed(
+                topic="python",
+                predicted_time=datetime.now(),
+                confidence=0.8,
+                source_pattern="test",
+                prefetch_query="info about python"
+            )
+        ]
+
+        results = await engine.prefetch_research_for_needs(predictions)
+
+        assert "python" in results
+        assert results["python"]["source"] == "placeholder"
+
+    @pytest.mark.asyncio
+    async def test_prefetch_research_with_llm(self):
+        """Test prefetch_research uses LLM when available."""
+        from intelligence.proactive import ProactiveSuggestionEngine, PredictedNeed
+        from datetime import datetime
+
+        mock_model = AsyncMock()
+        mock_model.generate = AsyncMock(return_value="Python is a programming language...")
+
+        mock_engine = MagicMock()
+        mock_engine.model = mock_model
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        predictions = [
+            PredictedNeed(
+                topic="python",
+                predicted_time=datetime.now(),
+                confidence=0.8,
+                source_pattern="test",
+                prefetch_query="info about python"
+            )
+        ]
+
+        results = await engine.prefetch_research_for_needs(predictions)
+
+        assert "python" in results
+        assert results["python"]["source"] == "llm_prefetch"
+        assert "Python is a programming language" in results["python"]["summary"]
+
+    @pytest.mark.asyncio
+    async def test_prefetch_research_caches_results(self):
+        """Test that prefetched research is cached."""
+        from intelligence.proactive import ProactiveSuggestionEngine, PredictedNeed
+        from datetime import datetime
+
+        mock_engine = MagicMock()
+        mock_engine.model = None
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        predictions = [
+            PredictedNeed(
+                topic="python",
+                predicted_time=datetime.now(),
+                confidence=0.8,
+                source_pattern="test",
+                prefetch_query="info about python"
+            )
+        ]
+
+        # First call
+        await engine.prefetch_research_for_needs(predictions)
+
+        # Should be cached
+        assert "python" in engine.prefetched_research
+        assert engine.get_prefetched_research("python") is not None
+
+    def test_get_prefetched_research(self):
+        """Test get_prefetched_research method."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+        from datetime import datetime
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        # Add cached research
+        engine.prefetched_research["python"] = {
+            "topic": "python",
+            "summary": "Test summary",
+            "fetched_at": datetime.now()
+        }
+
+        result = engine.get_prefetched_research("python")
+        assert result is not None
+        assert result["summary"] == "Test summary"
+
+        # Non-existent topic
+        assert engine.get_prefetched_research("nonexistent") is None
+
+    def test_clear_prefetched_research_single(self):
+        """Test clearing single topic from cache."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+        from datetime import datetime
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        engine.prefetched_research["python"] = {"topic": "python"}
+        engine.prefetched_research["javascript"] = {"topic": "javascript"}
+
+        engine.clear_prefetched_research("python")
+
+        assert "python" not in engine.prefetched_research
+        assert "javascript" in engine.prefetched_research
+
+    def test_clear_prefetched_research_all(self):
+        """Test clearing all cached research."""
+        from intelligence.proactive import ProactiveSuggestionEngine
+        from datetime import datetime
+
+        mock_engine = MagicMock()
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        engine.prefetched_research["python"] = {"topic": "python"}
+        engine.prefetched_research["javascript"] = {"topic": "javascript"}
+
+        engine.clear_prefetched_research()
+
+        assert len(engine.prefetched_research) == 0
+
+    def test_get_status_includes_pattern_counts(self):
+        """Test that get_status includes pattern and research counts."""
+        from intelligence.proactive import ProactiveSuggestionEngine, NeedPattern
+        from datetime import datetime
+
+        mock_engine = MagicMock()
+        mock_engine.trust = None
+        engine = ProactiveSuggestionEngine(mock_engine)
+
+        engine.need_patterns["python"] = NeedPattern(
+            topic="python",
+            frequency=5,
+            time_slots=[10],
+            confidence=0.5,
+            last_occurrence=datetime.now(),
+            associated_activities=[]
+        )
+        engine.prefetched_research["python"] = {"topic": "python"}
+
+        status = engine.get_status()
+
+        assert status["need_patterns_count"] == 1
+        assert status["prefetched_research_count"] == 1

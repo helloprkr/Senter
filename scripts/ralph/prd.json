@@ -49,7 +49,7 @@
         "visual": false
       },
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Gap #1: Activity Monitoring - Part 2"
     },
     {
@@ -68,7 +68,7 @@
         "visual": false
       },
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Gap #1: Activity Monitoring - Part 3"
     },
     {
@@ -88,7 +88,7 @@
         "visual": false
       },
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Gap #2: Semantic Goal Detection - Part 1"
     },
     {
@@ -107,7 +107,7 @@
         "visual": false
       },
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Gap #2: Semantic Goal Detection - Part 2"
     },
     {
@@ -126,7 +126,7 @@
         "visual": false
       },
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Gap #3: Intelligent Mutations - Part 1"
     },
     {
@@ -145,7 +145,7 @@
         "visual": false
       },
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Gap #3: Intelligent Mutations - Part 2"
     },
     {
@@ -165,7 +165,7 @@
         "visual": false
       },
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Gap #4: Self-Initiated Work - Part 1"
     },
     {
@@ -184,7 +184,7 @@
         "visual": false
       },
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Gap #4: Self-Initiated Work - Part 2"
     },
     {
@@ -203,7 +203,7 @@
         "visual": false
       },
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Gap #5: Anticipatory Suggestions - Part 1"
     },
     {

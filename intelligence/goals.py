@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
 
@@ -22,13 +22,13 @@ class Goal:
 
     id: str
     description: str
-    category: str  # career, health, learning, project, personal
-    confidence: float  # How confident we are this is a real goal
-    evidence: List[str]  # Conversation snippets that suggest this goal
-    created_at: datetime
-    last_mentioned: datetime
-    progress: float  # 0-1 estimated progress
-    status: str  # active, completed, abandoned
+    category: str = "personal"  # career, health, learning, project, personal
+    confidence: float = 0.5  # How confident we are this is a real goal
+    evidence: List[str] = field(default_factory=list)  # Conversation snippets that suggest this goal
+    created_at: datetime = field(default_factory=datetime.now)
+    last_mentioned: datetime = field(default_factory=datetime.now)
+    progress: float = 0.0  # 0-1 estimated progress
+    status: str = "active"  # active, completed, abandoned
     source: str = "conversation"  # conversation, activity_inferred, explicit
 
     def to_dict(self) -> Dict[str, Any]:

@@ -28,7 +28,7 @@ import signal
 import uuid
 from pathlib import Path
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from enum import Enum
 import heapq
@@ -131,6 +131,17 @@ class TaskQueue:
         return len(self.tasks)
 
 
+@dataclass
+class GoalResearchResult:
+    """Result of goal-based research."""
+    goal_id: str
+    goal_description: str
+    research_summary: str
+    sources: List[str]
+    completed_at: datetime
+    stored_in_memory: bool = False
+
+
 class BackgroundWorker:
     """Executes tasks autonomously in the background."""
 
@@ -141,6 +152,8 @@ class BackgroundWorker:
         self.current_task: Optional[Task] = None
         self.completed_tasks: List[Task] = []
         self._max_completed = 100  # Keep last 100 completed tasks
+        self.goal_research_results: List[GoalResearchResult] = []
+        self._max_research_results = 50  # Keep last 50 research results
 
     async def start(self) -> None:
         """Start the background worker loop."""
@@ -266,6 +279,186 @@ Provide a concise summary with key points."""
         )
 
         return summary
+
+    async def auto_research_learning_goals(self) -> List[GoalResearchResult]:
+        """
+        Automatically start research for learning-type goals.
+
+        Returns list of research results that were completed.
+        """
+        results = []
+
+        if not self.engine:
+            return results
+
+        # Get goal detector from engine if available
+        goal_detector = getattr(self.engine, "goal_detector", None)
+        if not goal_detector:
+            return results
+
+        # Get proactive engine for task creation
+        proactive = getattr(self.engine, "proactive", None)
+        if not proactive:
+            return results
+
+        # Get learning goals
+        goals = goal_detector.get_active_goals()
+        learning_goals = [g for g in goals if g.category == "learning"]
+
+        for goal in learning_goals:
+            # Check if we should research this goal (using proactive engine's cooldown)
+            if not proactive._should_create_task_for_goal(goal.id):
+                continue
+
+            # Create and execute research task
+            task = Task(
+                priority=TaskPriority.BACKGROUND.value,
+                created_at=datetime.now(),
+                task_id=f"goal_research_{goal.id}_{int(datetime.now().timestamp())}",
+                task_type="goal_research",
+                description=f"Research for learning goal: {goal.description}",
+                parameters={
+                    "goal_id": goal.id,
+                    "goal_description": goal.description,
+                    "query": goal.description,
+                },
+            )
+
+            result = await self._do_goal_research(task)
+
+            if result:
+                results.append(result)
+                proactive.created_task_ids[goal.id] = datetime.now()
+
+        return results
+
+    async def _do_goal_research(self, task: Task) -> Optional[GoalResearchResult]:
+        """Execute goal-specific research and store in memory."""
+        goal_id = task.parameters.get("goal_id", "")
+        goal_desc = task.parameters.get("goal_description", task.description)
+        query = task.parameters.get("query", goal_desc)
+
+        sources = []
+        summary = ""
+
+        try:
+            # Attempt web search if available
+            try:
+                from tools.web_search import WebSearch
+                searcher = WebSearch()
+                search_results = await searcher.search(query, max_results=5)
+                sources = [r.get("url", "") for r in search_results if r.get("url")]
+            except ImportError:
+                # Web search not available, create synthetic result
+                search_results = []
+
+            # Summarize with LLM if available
+            if self.engine and self.engine.model:
+                prompt = f"""Research the topic: "{query}"
+
+Based on available information, provide a helpful summary that would assist someone learning about this topic.
+
+Include:
+1. Key concepts to understand
+2. Recommended starting points
+3. Common challenges and how to overcome them
+
+Keep the summary concise but informative."""
+
+                summary = await self.engine.model.generate(prompt)
+            else:
+                summary = f"Research queued for: {query}. LLM not available for summarization."
+
+            # Store in semantic memory linked to goal
+            stored = False
+            if hasattr(self.engine, "memory") and hasattr(self.engine.memory, "semantic"):
+                self.engine.memory.semantic.store(
+                    content=f"[Goal Research: {goal_desc}]\n\n{summary}",
+                    domain="goal_research",
+                )
+                stored = True
+
+            result = GoalResearchResult(
+                goal_id=goal_id,
+                goal_description=goal_desc,
+                research_summary=summary,
+                sources=sources,
+                completed_at=datetime.now(),
+                stored_in_memory=stored,
+            )
+
+            self.goal_research_results.append(result)
+
+            # Trim results list
+            if len(self.goal_research_results) > self._max_research_results:
+                self.goal_research_results = self.goal_research_results[-self._max_research_results:]
+
+            return result
+
+        except Exception as e:
+            print(f"[WORKER] Goal research failed: {e}")
+            return None
+
+    def get_while_you_were_away_summary(self, since: Optional[datetime] = None) -> Dict[str, Any]:
+        """
+        Get summary of completed work while user was away.
+
+        Returns a dictionary with:
+        - completed_tasks: List of tasks completed
+        - goal_research: List of goal research completed
+        - summary: Human-readable summary
+        """
+        if since is None:
+            # Default to last 24 hours
+            since = datetime.now() - timedelta(hours=24)
+
+        # Filter completed tasks
+        recent_tasks = [
+            t for t in self.completed_tasks
+            if t.created_at >= since
+        ]
+
+        # Filter goal research
+        recent_research = [
+            r for r in self.goal_research_results
+            if r.completed_at >= since
+        ]
+
+        # Build summary
+        summary_parts = []
+
+        if recent_tasks:
+            summary_parts.append(f"Completed {len(recent_tasks)} background tasks:")
+            for t in recent_tasks[:5]:
+                summary_parts.append(f"  - {t.description} ({t.status})")
+
+        if recent_research:
+            summary_parts.append(f"\nResearched {len(recent_research)} learning goals:")
+            for r in recent_research[:5]:
+                summary_parts.append(f"  - {r.goal_description}")
+                if r.stored_in_memory:
+                    summary_parts.append("    (stored in memory)")
+
+        if not summary_parts:
+            summary_parts.append("No background work completed during this period.")
+
+        return {
+            "completed_tasks": [
+                {"id": t.task_id, "desc": t.description, "status": t.status, "result": t.result}
+                for t in recent_tasks
+            ],
+            "goal_research": [
+                {
+                    "goal_id": r.goal_id,
+                    "goal": r.goal_description,
+                    "summary": r.research_summary[:200] + "..." if len(r.research_summary) > 200 else r.research_summary,
+                    "stored": r.stored_in_memory,
+                }
+                for r in recent_research
+            ],
+            "summary": "\n".join(summary_parts),
+            "since": since.isoformat(),
+        }
 
 
 class SenterDaemon:
