@@ -1,6 +1,6 @@
 # Ralph Progress Log
 Started: 2026-01-07 16:30:00
-Project: Senter-Gap-v2
+Project: Senter Complete Implementation v3
 
 ## Codebase Patterns
 - Stack: Python 3.13 / Multiprocessing daemon
@@ -16,167 +16,74 @@ Project: Senter-Gap-v2
 - daemon/senter_daemon.py - Main daemon with worker functions
 - daemon/ipc_server.py - Unix socket server for CLI communication
 - daemon/ipc_client.py - Client for CLI tools
-- engine/task_engine.py - Task planning and execution (NEEDS WORK)
+- daemon/message_bus.py - Pub/sub messaging between components
+- daemon/health_monitor.py - Component health tracking
+- daemon/state_manager.py - Crash recovery state
+- daemon/circuit_breaker.py - Failure isolation
+- engine/task_engine.py - Task planning and execution
+- engine/task_results.py - Result storage
 - scheduler/action_scheduler.py - Cron-like job scheduler
-- learning/learning_db.py - Behavioral database (basic)
+- scheduler/research_trigger.py - Autonomous research topics
+- learning/learning_db.py - Behavioral database
+- learning/events_db.py - User interaction events
+- learning/pattern_detector.py - Time-based patterns
+- reporter/progress_reporter.py - Activity logging
+- audio/audio_pipeline.py - VAD, STT, TTS
+- vision/gaze_detector.py - Face/gaze tracking
 - scripts/senter_ctl.py - CLI control script
 
 ## Current State
-- Daemon runs with 6 components (all healthy)
+- Daemon runs with 8 components (all healthy)
 - IPC communication working (query, status, health)
 - Model workers connect to Ollama successfully
-- Task execution NOW WORKING (US-001 complete)
-- Research worker NOW DIFFERENTIATED (US-004 complete)
-- Learning is keyword-based only
-- Audio/Gaze disabled in config
-
-## Gap Analysis Reference
-See: gap_v2.md for full analysis of what's missing
+- 12 initial user stories COMPLETE (Phase 1)
+- Audio/Gaze wiring complete but needs hardening
+- Learning is keyword-based only (needs ML upgrade)
+- Autonomous execution needs end-to-end pipeline
 
 ---
 
-## 2026-01-07 - US-001
-- Implemented real task execution in TaskExecutor._execute_with_llm
-- Files changed: engine/task_engine.py, tests/test_task_executor.py
-- **Learnings:**
-  - Pattern: Register component with MessageBus BEFORE sending requests
-  - Pattern: Use correlation_id to match request/response pairs
-  - Pattern: Store result in task.result for downstream consumers
-  - Gotcha: Mock workers in tests must register before executor creates request
-  - Gotcha: TimeoutError requires try/except, not Empty queue check
+## Implementation Plan v3 - 64 User Stories across 16 Categories
+
+### Category Summary
+
+| Category | Stories | Priority Range | Status |
+|----------|---------|----------------|--------|
+| CRITICAL_GAPS | 10 | 1-10 | Not Started |
+| DAEMON_INFRASTRUCTURE | 5 | 11-15 | Not Started |
+| MESSAGE_BUS | 3 | 16-18 | Not Started |
+| MODEL_WORKERS | 3 | 19-21 | Not Started |
+| AUDIO_PIPELINE | 4 | 22-25 | Not Started |
+| GAZE_DETECTION | 3 | 26-28 | Not Started |
+| TASK_EXECUTION | 4 | 29-32 | Not Started |
+| SCHEDULER | 3 | 33-35 | Not Started |
+| PROGRESS_REPORTER | 3 | 36-38 | Not Started |
+| FOCUS_AGENT_SYSTEM | 3 | 39-41 | Not Started |
+| INTERNAL_AGENTS | 4 | 42-45 | Not Started |
+| GOAL_SYSTEM | 3 | 46-48 | Not Started |
+| LEARNING_SYSTEM | 4 | 49-52 | Not Started |
+| RESEARCH_WORKER | 3 | 53-55 | Not Started |
+| SECURITY_PRIVACY | 5 | 56-60 | Not Started |
+| MCP_INTEGRATION | 4 | 61-64 | Not Started |
+
+### Top 10 Critical Gaps (Priority 1-10)
+
+1. **CG-001**: Real task execution in _execute_with_llm()
+2. **CG-002**: Dedicated research task queue
+3. **CG-003**: Audio/gaze integration with config toggle
+4. **CG-004**: Embedding-based preference learning
+5. **CG-005**: Fix TTS with macOS fallback
+6. **CG-006**: Surface progress reporter with CLI
+7. **CG-007**: Router agent with embedding selection
+8. **CG-008**: Goal execution pipeline end-to-end
+9. **CG-009**: At-rest encryption for sensitive data
+10. **CG-010**: MCP client for tool discovery
+
 ---
 
-## 2026-01-07 - US-002
-- Implemented research task queue for background work
-- Files changed: daemon/senter_daemon.py, daemon/ipc_server.py, daemon/ipc_client.py, tests/test_research_queue.py
-- **Learnings:**
-  - Pattern: Use multiprocessing.Queue for cross-process communication
-  - Pattern: Persist queue to JSON file on shutdown, reload on startup
-  - Pattern: Add IPC handler + client method pair for new functionality
-  - Gotcha: Queue.qsize() unreliable on macOS - drain and refill to count
-  - Gotcha: Queue.put() may not be immediately visible in same process
-  - Gotcha: Tests using multiprocessing.Queue can have timing issues - use direct get() instead of checking size
----
+## Previous Session Summary - 2026-01-07 (Phase 1)
 
-## 2026-01-07 - US-003
-- Implemented task result storage in engine/task_results.py
-- Files changed: engine/task_results.py, engine/task_engine.py, daemon/ipc_server.py, daemon/ipc_client.py, tests/test_task_results.py
-- **Learnings:**
-  - Pattern: Store results organized by date (data/tasks/results/YYYY-MM-DD/)
-  - Pattern: Maintain index.json for quick lookups by task_id or goal_id
-  - Pattern: TaskResult dataclass with to_dict/from_dict for serialization
-  - Pattern: Integrate storage into TaskExecutor.execute() flow automatically
-  - Gotcha: Different tools return different result formats - use OR chain to extract content
----
-
-## 2026-01-07 - US-004
-- Differentiated research worker from primary worker
-- Files changed: daemon/senter_daemon.py, tests/test_workers_differentiated.py
-- **Learnings:**
-  - Pattern: Create separate worker function for different behaviors (research_worker_process vs model_worker_process)
-  - Pattern: Use different system prompts for different worker roles
-  - Pattern: Research worker uses lower temperature (0.5) for accuracy, longer output (2048 tokens)
-  - Pattern: Research worker stores directly to data/research/results/YYYY-MM-DD/
-  - Pattern: Primary worker filters by msg_type to only handle user_query, user_voice
-  - Gotcha: Research worker needs senter_root passed as string for Path conversion in subprocess
----
-
-## 2026-01-07 - US-005
-- Implemented autonomous research trigger
-- Files changed: scheduler/research_trigger.py (NEW), scheduler/action_scheduler.py, daemon/ipc_server.py, daemon/ipc_client.py, tests/test_research_trigger.py
-- **Learnings:**
-  - Pattern: Create dedicated module (research_trigger.py) for topic extraction logic
-  - Pattern: ResearchTopicExtractor reads from SQLite learning database directly (cross-process safe)
-  - Pattern: ResearchTaskGenerator uses topic-specific prompt templates
-  - Pattern: Add IPC handler for manual trigger, scheduler job for automatic hourly trigger
-  - Pattern: Fall back to patterns table if no recent queries in events table
-  - Gotcha: trigger_background_research returns empty list gracefully if no data
----
-
-## 2026-01-07 - US-006
-- Implemented 'what did Senter do' activity report
-- Files changed: daemon/ipc_server.py, daemon/ipc_client.py, scripts/senter_ctl.py, tests/test_activity_report.py
-- **Learnings:**
-  - Pattern: Aggregate data from multiple sources (task results, research folder, activity log)
-  - Pattern: Use datetime.fromisoformat() for human-readable timestamps
-  - Pattern: Include both raw data lists and computed summary stats
-  - Pattern: CLI report uses formatted output with sections (header, summary, tasks, research, breakdown)
-  - Pattern: Default to safe empty structures if data sources don't exist
-  - Gotcha: Handle missing directories gracefully with exists() check before iteration
----
-
-## 2026-01-07 - US-007
-- Created behavioral event database schema
-- Files changed: learning/events_db.py (NEW), tests/test_events_database.py
-- **Learnings:**
-  - Pattern: UserEventsDB with separate file (events.db) for user interactions
-  - Pattern: Schema: timestamp, event_type, context (JSON), metadata (JSON)
-  - Pattern: log_query() and log_response() convenience methods with auto time_of_day
-  - Pattern: get_events() with filtering by type, since, until, limit
-  - Gotcha: Use json.loads/dumps for context and metadata columns
----
-
-## 2026-01-07 - US-008
-- Implemented user interaction logging to behavioral database
-- Files changed: daemon/ipc_server.py, daemon/ipc_client.py, scripts/senter_ctl.py, tests/test_interaction_logging.py
-- **Learnings:**
-  - Pattern: Log in IPC handler _handle_query before sending to model and after response
-  - Pattern: _detect_topic() uses regex patterns with word boundaries for NLP-like detection
-  - Pattern: Priority order for topic matching: coding > research > learning > writing
-  - Pattern: CLI 'events' command shows formatted event list with counts
-  - Gotcha: Import UserEventsDB inside handler to avoid circular imports
----
-
-## 2026-01-07 - US-009
-- Implemented time-based pattern detection
-- Files changed: learning/pattern_detector.py (NEW), tests/test_pattern_detection.py
-- **Learnings:**
-  - Pattern: PatternDetector class analyzes events over N days
-  - Pattern: Detect peak_hours using Counter on event timestamps
-  - Pattern: topics_by_time_of_day groups topics by morning/afternoon/evening/night
-  - Pattern: Store patterns in patterns.json for persistence across restarts
-  - Pattern: detect_and_save_patterns() function for scheduler integration
-  - Gotcha: Handle empty events gracefully with _empty_patterns() fallback
----
-
-## 2026-01-07 - US-010 (Audio Pipeline)
-- Implemented audio_pipeline_process in daemon/senter_daemon.py
-- Files changed: daemon/senter_daemon.py, tests/test_audio_enabled.py
-- **Learnings:**
-  - Pattern: Create process wrapper that initializes components and bridges to queues
-  - Pattern: Use threading for audio capture callback within the process
-  - Pattern: Check has_attention state before processing audio
-  - Pattern: STTEngine lazy-loads Whisper model on first use
-  - Gotcha: sounddevice requires callback-based API, not polling
-  - Gotcha: Energy-based VAD fallback when Silero unavailable
----
-
-## 2026-01-07 - US-011 (Gaze Detection)
-- Implemented gaze_detector_process in daemon/senter_daemon.py
-- Files changed: daemon/senter_daemon.py, tests/test_gaze_enabled.py
-- **Learnings:**
-  - Pattern: Smooth attention scores using rolling history (10 samples)
-  - Pattern: Use attention_timeout (2s) before declaring attention lost
-  - Pattern: MediaPipe Face Mesh gives eye landmarks for gaze estimation
-  - Pattern: Haar cascade fallback when MediaPipe unavailable
-  - Gotcha: mediapipe 0.10+ removed solutions API - check for legacy API availability
-  - Gotcha: Camera must be released in finally block to prevent resource leak
----
-
-## 2026-01-07 - US-012 (Attention-Voice Wiring)
-- Updated message routing in daemon/senter_daemon.py
-- Files changed: daemon/senter_daemon.py, tests/test_attention_voice_flow.py
-- **Learnings:**
-  - Pattern: Add new message types to routing table in _route_message()
-  - Pattern: attention_gained/lost route to audio for activation control
-  - Pattern: user_voice routes to model_primary for processing
-  - Pattern: model_response routes to audio for TTS output
-  - Flow: gaze -> ATTENTION_GAINED -> audio activates -> speech detected -> USER_VOICE -> model -> MODEL_RESPONSE -> audio speaks
----
-
-## Session Summary - 2026-01-07
-
-### Completed User Stories (12/12) - ALL DONE!
+### Completed User Stories (12/12)
 - US-001: Real task execution in TaskExecutor
 - US-002: Research task queue for background work
 - US-003: Task result storage
@@ -190,32 +97,76 @@ See: gap_v2.md for full analysis of what's missing
 - US-011: Gaze detection (MediaPipe/Haar cascade)
 - US-012: Attention-voice wiring ("just look and talk")
 
-### Files Created
-- scheduler/research_trigger.py
-- learning/events_db.py
-- learning/pattern_detector.py
-- docs/AUDIO_GAZE_SETUP.md
-- tests/test_workers_differentiated.py
-- tests/test_research_trigger.py
-- tests/test_activity_report.py
-- tests/test_events_database.py
-- tests/test_interaction_logging.py
-- tests/test_pattern_detection.py
-- tests/test_audio_enabled.py
-- tests/test_gaze_enabled.py
-- tests/test_attention_voice_flow.py
+### Key Learnings from Phase 1
+- Pattern: Register component with MessageBus BEFORE sending requests
+- Pattern: Use correlation_id to match request/response pairs
+- Pattern: Use multiprocessing.Queue for cross-process communication
+- Pattern: Persist queue to JSON file on shutdown, reload on startup
+- Pattern: Store results organized by date (data/tasks/results/YYYY-MM-DD/)
+- Pattern: Create separate worker function for different behaviors
+- Pattern: Research worker uses lower temperature (0.5) for accuracy
+- Pattern: Smooth attention scores using rolling history (10 samples)
+- Pattern: Use attention_timeout (2s) before declaring attention lost
+- Gotcha: Queue.qsize() unreliable on macOS - drain and refill to count
+- Gotcha: mediapipe 0.10+ removed solutions API - check for legacy API
 
-### Files Modified
-- daemon/senter_daemon.py (major: added audio_pipeline_process, gaze_detector_process, updated routing)
-- daemon/ipc_server.py
-- daemon/ipc_client.py
-- scripts/senter_ctl.py
-- scheduler/action_scheduler.py
-- config/daemon_config.json (enabled audio_pipeline, gaze_detection)
-- scripts/ralph/prd.json
-- scripts/ralph/progress.txt
+---
 
-### Virtual Environment
-- Created .venv with Python 3.13
-- Installed: sounddevice, openai-whisper, opencv-python, mediapipe
+## Phase 2 Session - 2026-01-07
+
+### Critical Gaps Completed (7/10)
+- CG-001: Real task execution ✓ (from Phase 1)
+- CG-002: Research task queue ✓ (from Phase 1)
+- CG-003: Audio/gaze integration ✓ (from Phase 1)
+- CG-004: Embedding-based preference learning ✓
+  - Added PreferenceLearner class to learning/pattern_detector.py
+  - TF-IDF clustering fallback when embeddings unavailable
+  - K-means clustering with pure NumPy (no sklearn dependency)
+  - Created tests/test_preference_learning.py (5 tests)
+- CG-005: TTS with macOS fallback ✓
+  - Enhanced TTSEngine with sentence chunking
+  - Async execution with stop_speaking() support
+  - Voice selection and list_voices() method
+  - Created tests/test_tts_engine.py (6 tests)
+- CG-006: Progress reporter CLI ✓ (from Phase 1)
+- CG-007: Router agent with embedding selection ✓
+  - Added get_top_n_focuses() method
+  - Added route_with_confidence() with detailed metadata
+  - Created tests/test_embedding_router.py (9 tests)
+
+### Remaining Critical Gaps
+- CG-008: Goal execution pipeline end-to-end
+- CG-009: At-rest encryption for sensitive data
+- CG-010: MCP client for tool discovery
+
+### Key Patterns Discovered (Phase 2)
+- Pattern: Use TF-IDF vectorization as embedding fallback
+- Pattern: K-means can be implemented in pure NumPy without sklearn
+- Pattern: macOS `say` command for TTS, chunk by sentences
+- Pattern: Use threading.Event() for async cancellation
+- Pattern: Return confidence metadata in route decisions
+
+---
+
+## New Implementation Session
+
+### Ready to Execute
+All 64 stories defined in prd.json with:
+- Atomic acceptance criteria
+- Specific test requirements
+- Files to modify listed
+- Dependencies implicit in priority order
+
+### Execution Order
+1. Critical Gaps (CG-001 through CG-010) - Core functionality
+2. Daemon Infrastructure (DI-001 through DI-005) - Stability
+3. Message Bus (MB-001 through MB-003) - Reliability
+4. Model Workers (MW-001 through MW-003) - Performance
+5. Audio/Gaze (AP-001 through GD-003) - Voice/Vision
+6. Task/Scheduler (TE-001 through SC-003) - Automation
+7. Reporting (PR-001 through PR-003) - Visibility
+8. Focus/Agents (FA-001 through IA-004) - Intelligence
+9. Goals/Learning (GS-001 through LS-004) - Personalization
+10. Research/Security/MCP (RW-001 through MCP-004) - Extensions
+
 ---

@@ -166,8 +166,8 @@
       },
       "filesToModify": ["scripts/senter_ctl.py", "reporter/progress_reporter.py"],
       "priority": 6,
-      "passes": false,
-      "notes": "CRITICAL GAP #6 - Can't see autonomous work"
+      "passes": true,
+      "notes": "COMPLETED in Phase 1 (US-006)"
     },
     {
       "id": "CG-007",
@@ -189,8 +189,8 @@
       },
       "filesToModify": ["Functions/embedding_router.py", "Focuses/internal/Router/SENTER.md"],
       "priority": 7,
-      "passes": false,
-      "notes": "CRITICAL GAP #7 - Routing is prompt-only"
+      "passes": true,
+      "notes": "COMPLETED - get_top_n_focuses(), route_with_confidence(), 9 tests pass"
     },
     {
       "id": "CG-008",

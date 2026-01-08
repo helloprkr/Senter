@@ -271,6 +271,58 @@ class EmbeddingRouter:
         logger.info(f"Routed to '{best_focus}' with score {best_score:.3f}")
         return best_focus, best_score, similarities
 
+    def get_top_n_focuses(self, query: str, n: int = 3) -> list[tuple[str, float]]:
+        """
+        Get top N matching focuses for a query (CG-007).
+
+        Args:
+            query: User query
+            n: Number of top matches to return (default 3)
+
+        Returns:
+            List of (focus_name, similarity_score) tuples, sorted by score descending
+        """
+        if not self.focus_embeddings:
+            logger.warning("No focus embeddings available")
+            return [("general", 0.0)]
+
+        # Embed the query
+        query_embedding = embed_text(query)
+        if not query_embedding:
+            logger.warning("Failed to embed query")
+            return [("general", 0.0)]
+
+        # Calculate similarities
+        similarities = []
+        for focus, focus_embedding in self.focus_embeddings.items():
+            sim = cosine_similarity(query_embedding, focus_embedding)
+            similarities.append((focus, sim))
+
+        # Sort by score descending and take top N
+        similarities.sort(key=lambda x: x[1], reverse=True)
+        top_n = similarities[:n]
+
+        logger.info(f"Top {n} focuses: {[(f, f'{s:.3f}') for f, s in top_n]}")
+        return top_n
+
+    def route_with_confidence(self, query: str, threshold: float = 0.3) -> dict:
+        """
+        Route query with detailed confidence information (CG-007).
+
+        Returns dict with routing decision and metadata.
+        """
+        focus, score, all_scores = self.route_query(query, threshold)
+        top_3 = self.get_top_n_focuses(query, n=3)
+
+        return {
+            "selected_focus": focus,
+            "confidence": round(score, 4),
+            "top_3": [{"focus": f, "score": round(s, 4)} for f, s in top_3],
+            "all_scores": {k: round(v, 4) for k, v in all_scores.items()},
+            "above_threshold": score >= threshold,
+            "fallback_used": focus == "general" and (not all_scores or max(all_scores.values()) < threshold)
+        }
+
     def explain_routing(self, query: str) -> str:
         """Get human-readable explanation of routing decision."""
         focus, score, all_scores = self.route_query(query)
