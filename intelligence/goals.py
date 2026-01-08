@@ -316,6 +316,130 @@ class GoalDetector:
         """Get all goals from a specific source."""
         return [g for g in self.goals.values() if g.source == source]
 
+    async def detect_goals_semantically(
+        self,
+        episodes: Optional[List[Any]] = None,
+        model: Optional[Any] = None,
+        limit: int = 20
+    ) -> List[Goal]:
+        """
+        Use LLM to detect goals from conversation history.
+
+        Analyzes recent conversations for implicit and explicit goals
+        that regex patterns might miss.
+
+        Args:
+            episodes: List of Episode objects to analyze. If None, fetches from memory.
+            model: LLM model to use. Must have async generate() method.
+            limit: Maximum number of episodes to analyze.
+
+        Returns:
+            List of newly detected/updated Goal objects.
+        """
+        # Get episodes if not provided
+        if episodes is None:
+            try:
+                episodes = self.memory._episodic.get_recent(limit=limit)
+            except Exception:
+                return []
+
+        if not episodes:
+            return []
+
+        # Format conversation history for LLM
+        conversation_text = []
+        for ep in episodes[-limit:]:
+            input_text = getattr(ep, 'input', '') or ''
+            response_text = getattr(ep, 'response', '') or ''
+            if input_text:
+                conversation_text.append(f"User: {input_text}")
+            if response_text:
+                conversation_text.append(f"AI: {response_text[:200]}...")
+
+        if not conversation_text:
+            return []
+
+        # Construct LLM prompt
+        prompt = f"""Analyze these conversation snippets and identify any user goals, aspirations, or objectives. Look for both explicit statements ("I want to...", "My goal is...") and implicit signals (repeated topics, frustrations, questions about learning something).
+
+Conversation:
+{chr(10).join(conversation_text[-40:])}
+
+Return a JSON array of detected goals. For each goal include:
+- description: What the user wants to achieve
+- category: One of (career, health, learning, project, personal)
+- confidence: 0.0-1.0 how confident you are this is a real goal
+- evidence: Quote or paraphrase from conversation that suggests this goal
+
+Example output:
+[{{"description": "Learn Spanish fluently", "category": "learning", "confidence": 0.8, "evidence": "User mentioned practicing Spanish lessons twice"}}]
+
+If no goals detected, return: []
+
+JSON array:"""
+
+        # Call LLM if available
+        if model is None:
+            return []
+
+        try:
+            response = await model.generate(prompt)
+
+            # Extract JSON from response
+            detected = self._parse_llm_goal_response(response)
+            new_goals = []
+
+            for goal_data in detected:
+                if not isinstance(goal_data, dict):
+                    continue
+
+                description = goal_data.get('description', '')
+                if not description or len(description) < 5:
+                    continue
+
+                goal = self._create_or_update_goal(
+                    description=description,
+                    evidence=goal_data.get('evidence', 'LLM semantic detection'),
+                    confidence=min(0.9, max(0.3, goal_data.get('confidence', 0.6))),
+                    source="conversation"
+                )
+                if goal:
+                    # Update category if detected
+                    category = goal_data.get('category', '')
+                    if category in self.CATEGORY_KEYWORDS:
+                        goal.category = category
+                        self._persist_goal(goal)
+                    new_goals.append(goal)
+
+            return new_goals
+
+        except Exception as e:
+            print(f"Warning: LLM goal detection failed: {e}")
+            return []
+
+    def _parse_llm_goal_response(self, response: str) -> List[Dict[str, Any]]:
+        """Parse LLM response to extract goal JSON array."""
+        if not response:
+            return []
+
+        # Try to extract JSON array from response
+        try:
+            # First try direct parse
+            return json.loads(response)
+        except json.JSONDecodeError:
+            pass
+
+        # Try to find JSON array in response
+        import re
+        json_match = re.search(r'\[[\s\S]*?\]', response)
+        if json_match:
+            try:
+                return json.loads(json_match.group(0))
+            except json.JSONDecodeError:
+                pass
+
+        return []
+
     def suggest_actions(self) -> List[Dict[str, Any]]:
         """Suggest actions based on goals."""
         suggestions = []

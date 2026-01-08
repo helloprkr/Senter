@@ -688,3 +688,272 @@ class TestActivityGoalSuggestion:
 
         top_project = monitor._get_top_project_for_context("coding")
         assert top_project == "ProjectA"  # 7 vs 3 occurrences
+
+
+# ============================================================================
+# US-004: LLM-based semantic goal detection
+# ============================================================================
+
+class TestSemanticGoalDetection:
+    """Tests for LLM-based semantic goal detection."""
+
+    @pytest.mark.asyncio
+    async def test_detect_goals_semantically_with_mock_llm(self):
+        """Test semantic goal detection with mocked LLM."""
+        from intelligence.goals import GoalDetector
+        from unittest.mock import MagicMock, AsyncMock
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        # Mock episodes
+        class MockEpisode:
+            def __init__(self, input_text, response_text):
+                self.input = input_text
+                self.response = response_text
+
+        episodes = [
+            MockEpisode("I've been practicing Spanish every day", "That's great!"),
+            MockEpisode("How do I conjugate verbs?", "Here's how..."),
+            MockEpisode("I want to be fluent by summer", "You can do it!"),
+        ]
+
+        # Mock LLM response
+        mock_model = AsyncMock()
+        mock_model.generate = AsyncMock(return_value='[{"description": "Learn Spanish fluently", "category": "learning", "confidence": 0.85, "evidence": "User mentioned wanting fluency by summer"}]')
+
+        goals = await detector.detect_goals_semantically(
+            episodes=episodes,
+            model=mock_model
+        )
+
+        assert len(goals) == 1
+        assert "Spanish" in goals[0].description
+        assert goals[0].category == "learning"
+        assert goals[0].confidence >= 0.3
+
+    @pytest.mark.asyncio
+    async def test_detect_goals_semantically_no_model_returns_empty(self):
+        """Test that detection returns empty list without model."""
+        from intelligence.goals import GoalDetector
+        from unittest.mock import MagicMock
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+
+        detector = GoalDetector(mock_memory)
+
+        class MockEpisode:
+            input = "I want to learn Python"
+            response = "Great choice!"
+
+        goals = await detector.detect_goals_semantically(
+            episodes=[MockEpisode()],
+            model=None
+        )
+
+        assert goals == []
+
+    @pytest.mark.asyncio
+    async def test_detect_goals_semantically_empty_episodes(self):
+        """Test detection with empty episodes list."""
+        from intelligence.goals import GoalDetector
+        from unittest.mock import MagicMock, AsyncMock
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+
+        detector = GoalDetector(mock_memory)
+        mock_model = AsyncMock()
+
+        goals = await detector.detect_goals_semantically(
+            episodes=[],
+            model=mock_model
+        )
+
+        assert goals == []
+        mock_model.generate.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_detect_goals_semantically_handles_malformed_json(self):
+        """Test detection handles malformed LLM response gracefully."""
+        from intelligence.goals import GoalDetector
+        from unittest.mock import MagicMock, AsyncMock
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        class MockEpisode:
+            input = "I want to exercise more"
+            response = "Good goal!"
+
+        mock_model = AsyncMock()
+        mock_model.generate = AsyncMock(return_value="Not valid JSON at all")
+
+        goals = await detector.detect_goals_semantically(
+            episodes=[MockEpisode()],
+            model=mock_model
+        )
+
+        assert goals == []
+
+    @pytest.mark.asyncio
+    async def test_detect_goals_semantically_extracts_embedded_json(self):
+        """Test that JSON embedded in text is extracted correctly."""
+        from intelligence.goals import GoalDetector
+        from unittest.mock import MagicMock, AsyncMock
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        class MockEpisode:
+            input = "I'm training for a marathon"
+            response = "That's ambitious!"
+
+        # LLM returns JSON embedded in explanation text
+        mock_model = AsyncMock()
+        mock_model.generate = AsyncMock(return_value='Based on the conversation, here are the goals:\n[{"description": "Run a marathon", "category": "health", "confidence": 0.9, "evidence": "User mentioned training for marathon"}]\nThese goals reflect...')
+
+        goals = await detector.detect_goals_semantically(
+            episodes=[MockEpisode()],
+            model=mock_model
+        )
+
+        assert len(goals) == 1
+        assert "marathon" in goals[0].description.lower()
+
+    @pytest.mark.asyncio
+    async def test_detect_goals_semantically_multiple_goals(self):
+        """Test detection of multiple goals from conversation."""
+        from intelligence.goals import GoalDetector
+        from unittest.mock import MagicMock, AsyncMock
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        class MockEpisode:
+            input = "I want to learn guitar and also get a promotion"
+            response = "Both are achievable!"
+
+        mock_model = AsyncMock()
+        mock_model.generate = AsyncMock(return_value='[{"description": "Learn to play guitar", "category": "learning", "confidence": 0.8, "evidence": "User wants to learn guitar"}, {"description": "Get promoted at work", "category": "career", "confidence": 0.85, "evidence": "User mentioned wanting promotion"}]')
+
+        goals = await detector.detect_goals_semantically(
+            episodes=[MockEpisode()],
+            model=mock_model
+        )
+
+        assert len(goals) == 2
+        categories = {g.category for g in goals}
+        assert "learning" in categories
+        assert "career" in categories
+
+    @pytest.mark.asyncio
+    async def test_detect_goals_semantically_handles_llm_exception(self):
+        """Test detection handles LLM exceptions gracefully."""
+        from intelligence.goals import GoalDetector
+        from unittest.mock import MagicMock, AsyncMock
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+
+        detector = GoalDetector(mock_memory)
+
+        class MockEpisode:
+            input = "Test input"
+            response = "Test response"
+
+        mock_model = AsyncMock()
+        mock_model.generate = AsyncMock(side_effect=Exception("LLM error"))
+
+        goals = await detector.detect_goals_semantically(
+            episodes=[MockEpisode()],
+            model=mock_model
+        )
+
+        assert goals == []
+
+    def test_parse_llm_goal_response_valid_json(self):
+        """Test parsing valid JSON array."""
+        from intelligence.goals import GoalDetector
+        from unittest.mock import MagicMock
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+
+        detector = GoalDetector(mock_memory)
+
+        response = '[{"description": "Test goal", "confidence": 0.8}]'
+        result = detector._parse_llm_goal_response(response)
+
+        assert len(result) == 1
+        assert result[0]["description"] == "Test goal"
+
+    def test_parse_llm_goal_response_embedded_json(self):
+        """Test parsing JSON embedded in text."""
+        from intelligence.goals import GoalDetector
+        from unittest.mock import MagicMock
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+
+        detector = GoalDetector(mock_memory)
+
+        response = 'Here are the goals: [{"description": "Embedded goal"}] and more text'
+        result = detector._parse_llm_goal_response(response)
+
+        assert len(result) == 1
+        assert result[0]["description"] == "Embedded goal"
+
+    def test_parse_llm_goal_response_empty(self):
+        """Test parsing empty response."""
+        from intelligence.goals import GoalDetector
+        from unittest.mock import MagicMock
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+
+        detector = GoalDetector(mock_memory)
+
+        assert detector._parse_llm_goal_response("") == []
+        assert detector._parse_llm_goal_response(None) == []
+
+    @pytest.mark.asyncio
+    async def test_detect_goals_filters_short_descriptions(self):
+        """Test that goals with very short descriptions are filtered out."""
+        from intelligence.goals import GoalDetector
+        from unittest.mock import MagicMock, AsyncMock
+
+        mock_memory = MagicMock()
+        mock_memory.semantic.get_by_domain.return_value = []
+        mock_memory.semantic.store = MagicMock()
+
+        detector = GoalDetector(mock_memory)
+
+        class MockEpisode:
+            input = "test"
+            response = "test"
+
+        mock_model = AsyncMock()
+        # Return one valid goal and one with too-short description
+        mock_model.generate = AsyncMock(return_value='[{"description": "ab", "confidence": 0.8}, {"description": "Learn Python programming", "confidence": 0.8}]')
+
+        goals = await detector.detect_goals_semantically(
+            episodes=[MockEpisode()],
+            model=mock_model
+        )
+
+        assert len(goals) == 1
+        assert "Python" in goals[0].description
